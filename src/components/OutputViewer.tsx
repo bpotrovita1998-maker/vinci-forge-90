@@ -69,19 +69,9 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Video Preview Notice */}
-          {job.options.type === 'video' && job.outputs[0]?.startsWith('data:image/') && (
-            <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-sm">
-              <p className="text-foreground">
-                <strong>Note:</strong> Video generation currently produces high-quality cinematic key frames. 
-                Full video generation coming soon!
-              </p>
-            </div>
-          )}
-
           {/* Media Preview */}
           <div className="relative bg-muted/30 rounded-lg overflow-hidden">
-            {job.options.type === 'image' || (job.options.type === 'video' && job.outputs[0]?.startsWith('data:image/')) ? (
+            {job.options.type === 'image' ? (
               <div className="space-y-3">
                 <img
                   src={job.outputs[currentImageIndex]}
@@ -115,9 +105,10 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               <video
                 src={job.outputs[0]}
                 controls
-                className="w-full h-auto"
+                className="w-full h-auto max-h-[600px]"
                 autoPlay
                 loop
+                playsInline
               />
             )}
           </div>

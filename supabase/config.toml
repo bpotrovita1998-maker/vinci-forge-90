@@ -3,6 +3,9 @@ project_id = "igqtsjpbkjhvlliuhpcw"
 [functions.generate-image]
 verify_jwt = false
 
+[functions.generate-video]
+verify_jwt = false
+
 [functions.job-websocket]
 verify_jwt = false
 

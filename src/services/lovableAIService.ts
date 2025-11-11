@@ -78,11 +78,13 @@ class LovableAIService {
       return;
     }
 
-    console.log('LovableAI: Generating video frames for', jobId);
+    console.log('LovableAI: Generating video with Replicate for', jobId);
 
     try {
-      // For video, generate a high-quality key frame (simulating video with image)
-      const { data, error } = await supabase.functions.invoke('generate-image', {
+      // Step 1: Generate a key frame image first
+      this.updateJobStage(jobId, 'running', 'Generating key frame...');
+      
+      const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
         body: {
           prompt: `Cinematic ${job.options.prompt}. High-quality video frame, professional cinematography, 4K resolution.`,
           width: job.options.width,
@@ -91,22 +93,39 @@ class LovableAIService {
         }
       });
 
-      console.log('LovableAI: Video frame generation response:', { data, error });
-
-      if (error) {
-        console.error('LovableAI: Edge function error:', error);
-        throw new Error(error.message || 'Failed to generate video frame');
+      if (imageError || !imageData?.images?.[0]) {
+        throw new Error('Failed to generate key frame');
       }
 
-      if (!data || !data.images || data.images.length === 0) {
-        console.error('LovableAI: No images in response:', data);
-        throw new Error('No video frames generated');
+      console.log('LovableAI: Key frame generated, starting video generation');
+      
+      // Step 2: Convert image to video using Replicate
+      this.updateJobStage(jobId, 'encoding', 'Converting to video...');
+      
+      const { data: videoData, error: videoError } = await supabase.functions.invoke('generate-video', {
+        body: {
+          prompt: job.options.prompt,
+          inputImage: imageData.images[0],
+          fps: job.options.fps || 6,
+        }
+      });
+
+      console.log('LovableAI: Video generation response:', { videoData, videoError });
+
+      if (videoError) {
+        console.error('LovableAI: Video generation error:', videoError);
+        throw new Error(videoError.message || 'Failed to generate video');
       }
 
-      console.log('LovableAI: Generated video preview for', jobId);
+      if (!videoData?.output) {
+        console.error('LovableAI: No video output in response:', videoData);
+        throw new Error('No video generated');
+      }
 
-      // Complete the job with the generated frame
-      this.completeJob(jobId, data.images);
+      console.log('LovableAI: Video generated successfully for', jobId);
+
+      // Complete the job with the video URL
+      this.completeJob(jobId, Array.isArray(videoData.output) ? videoData.output : [videoData.output]);
 
     } catch (error) {
       console.error('LovableAI: Video generation error for', jobId, ':', error);
