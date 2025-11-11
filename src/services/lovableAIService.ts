@@ -160,14 +160,13 @@ class LovableAIService {
 
       console.log('LovableAI: Reference image generated, converting to 3D');
       
-      // Step 2: Convert image to 3D using Replicate
+      // Step 2: Convert image to 3D using Replicate TRELLIS
       this.updateJobStage(jobId, 'upscaling', 'Converting to 3D mesh...');
       
       const { data: threeDData, error: threeDError } = await supabase.functions.invoke('generate-3d', {
         body: {
           inputImage: imageData.images[0],
-          foregroundRatio: 0.85,
-          mcResolution: 256,
+          seed: job.options.seed,
         }
       });
 
