@@ -21,84 +21,75 @@ serve(async (req) => {
       );
     }
 
-    const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY');
-    if (!REPLICATE_API_KEY) {
-      console.error('REPLICATE_API_KEY not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'Image generation service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Generating image with Replicate:', { prompt, width, height, numImages });
+    console.log('Generating image with Lovable AI:', { prompt, width, height, numImages });
 
-    // Determine aspect ratio from dimensions
-    let aspectRatio = '1:1';
-    if (width > height) aspectRatio = '16:9';
-    else if (height > width) aspectRatio = '9:16';
-
-    // Generate images using Replicate (flux-schnell)
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
+    // Generate images using Lovable AI Gateway (Gemini Nano banana model)
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${REPLICATE_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: 'f2ab8a5bfe79f02f0789a146cf5e73d2a4ff2684a98c2b303d1e1ff3814271db',
-        input: {
-          prompt: prompt,
-          go_fast: true,
-          megapixels: '1',
-          num_outputs: numImages,
-          aspect_ratio: aspectRatio,
-          output_format: 'webp',
-          output_quality: 80,
-          num_inference_steps: 4
-        }
+        model: 'google/gemini-2.5-flash-image-preview',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        modalities: ['image', 'text']
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Replicate API error:', response.status, errorText);
+      console.error('Lovable AI error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limits exceeded, please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'Payment required. Please add credits to your Lovable AI workspace.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
         JSON.stringify({ error: 'Failed to generate image' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const prediction = await response.json();
-    console.log('Replicate prediction started:', prediction.id);
+    const data = await response.json();
+    console.log('Lovable AI response received');
 
-    // Poll for completion
-    let result = prediction;
-    let attempts = 0;
-    const maxAttempts = 60;
+    // Extract base64 images from response
+    const generatedImages = data.choices?.[0]?.message?.images || [];
+    const images = generatedImages.map((img: any) => img.image_url?.url).filter(Boolean);
 
-    while (result.status !== 'succeeded' && result.status !== 'failed' && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-        headers: {
-          'Authorization': `Bearer ${REPLICATE_API_KEY}`,
-        },
-      });
-
-      result = await statusResponse.json();
-      attempts++;
-      console.log(`Poll attempt ${attempts}: status = ${result.status}`);
-    }
-
-    if (result.status !== 'succeeded') {
-      console.error('Image generation failed or timed out:', result);
+    if (images.length === 0) {
+      console.error('No images in response:', data);
       return new Response(
-        JSON.stringify({ error: 'Image generation failed' }),
+        JSON.stringify({ error: 'No images generated' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const images = Array.isArray(result.output) ? result.output : [result.output];
     console.log('Successfully generated', images.length, 'image(s)');
 
     return new Response(
@@ -106,7 +97,7 @@ serve(async (req) => {
         success: true,
         images: images,
         prompt,
-        model: 'flux-schnell'
+        model: 'google/gemini-2.5-flash-image-preview'
       }),
       { 
         status: 200,
