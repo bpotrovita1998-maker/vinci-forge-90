@@ -171,7 +171,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       await supabase.from('jobs').update({
         status: updatedJob.status,
         progress_stage: updatedJob.progress.stage,
-        progress_percent: updatedJob.progress.progress,
+        progress_percent: Math.round(updatedJob.progress.progress || 0),
         current_step: updatedJob.progress.currentStep,
         total_steps: updatedJob.progress.totalSteps,
         eta: updatedJob.progress.eta,
@@ -199,7 +199,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
           await supabase.from('jobs').update({
             status: partialJob.status,
             progress_stage: partialJob.progress?.stage,
-            progress_percent: partialJob.progress?.progress,
+            progress_percent: partialJob.progress?.progress != null ? Math.round(partialJob.progress.progress) : undefined,
             progress_message: partialJob.progress?.message,
           }).eq('id', jobId);
         }

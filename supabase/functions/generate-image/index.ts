@@ -32,7 +32,7 @@ serve(async (req) => {
 
     console.log('Generating image with Lovable AI:', { prompt, width, height, numImages });
 
-    // Generate images using Lovable AI Gateway (google/gemini-2.5-flash-image)
+    // Generate images using Lovable AI Gateway (google/gemini-2.5-flash-image-preview)
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -40,7 +40,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image',
+        model: 'google/gemini-2.5-flash-image-preview',
         messages: [
           {
             role: 'user',
@@ -99,7 +99,7 @@ serve(async (req) => {
         success: true,
         images: imageUrls,
         prompt,
-        model: 'google/gemini-2.5-flash-image'
+        model: 'google/gemini-2.5-flash-image-preview'
       }),
       { 
         status: 200,
