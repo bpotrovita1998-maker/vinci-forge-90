@@ -8,7 +8,8 @@ class LovableAIService {
   private callbacks: Map<string, JobUpdateCallback> = new Map();
 
   async submitJob(options: GenerationOptions): Promise<string> {
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate a proper UUID for database compatibility
+    const jobId = crypto.randomUUID();
     
     const job: Job = {
       id: jobId,
