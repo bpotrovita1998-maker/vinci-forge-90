@@ -182,17 +182,23 @@ export function JobProvider({ children }: { children: ReactNode }) {
         started_at: updatedJob.startedAt?.toISOString(),
         completed_at: updatedJob.completedAt?.toISOString(),
       }).eq('id', jobId);
+
+      // Stop listening to WebSocket updates once job is finalized
+      if (updatedJob.status === 'completed' || updatedJob.status === 'failed') {
+        websocketService.unsubscribeFromJob(jobId);
+      }
     });
 
     // Also subscribe to WebSocket updates for real-time progress
     if (websocketService.isConnected()) {
       websocketService.subscribeToJob(jobId, async (partialJob) => {
         setJobs(prev => prev.map(j => {
-          if (j.id === jobId) {
-            return { ...j, ...partialJob };
-          }
-          return j;
+          if (j.id !== jobId) return j;
+          // Ignore WebSocket updates once job is finalized to prevent loops
+          if (j.status === 'completed' || j.status === 'failed') return j;
+          return { ...j, ...partialJob };
         }));
+
 
         // Update database with WebSocket data
         if (partialJob.status || partialJob.progress) {
