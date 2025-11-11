@@ -9,7 +9,30 @@ import { toast } from '@/hooks/use-toast';
 import AdvancedOptions from './AdvancedOptions';
 import { z } from 'zod';
 
-const promptSchema = z.string().trim().min(3, "Prompt must be at least 3 characters").max(1000, "Prompt too long");
+const promptSchema = z.string()
+  .trim()
+  .min(3, "Prompt must be at least 3 characters")
+  .max(1000, "Prompt too long")
+  .refine(
+    (val) => {
+      // Check if prompt looks like a question
+      const questionWords = ['how', 'what', 'when', 'where', 'who', 'why', 'can you', 'could you', 'please'];
+      const lowerPrompt = val.toLowerCase();
+      const startsWithQuestion = questionWords.some(word => lowerPrompt.startsWith(word));
+      const hasQuestionMark = lowerPrompt.includes('?');
+      
+      return !(startsWithQuestion || hasQuestionMark);
+    },
+    { message: "Please describe what you want to create, not ask a question. Example: 'A futuristic city at sunset'" }
+  )
+  .refine(
+    (val) => {
+      // Ensure prompt has descriptive content (at least 2 words)
+      const words = val.trim().split(/\s+/).filter(w => w.length > 0);
+      return words.length >= 2;
+    },
+    { message: "Please provide a more descriptive prompt with at least 2 words" }
+  );
 
 export default function Hero() {
   const { submitJob } = useJobs();
@@ -121,17 +144,22 @@ export default function Hero() {
           className="space-y-4"
         >
           <div className="glass rounded-2xl p-6 space-y-4 shadow-[0_0_40px_rgba(201,169,97,0.15)]">
-            <Textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe your vision... (e.g., 'A futuristic cityscape at sunset with flying vehicles')"
-              className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && prompt.trim()) {
-                  handleGenerate();
-                }
-              }}
-            />
+            <div className="space-y-2">
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe what you want to create... (e.g., 'A majestic dragon flying over snow-capped mountains at dawn')"
+                className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && prompt.trim()) {
+                    handleGenerate();
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                💡 <span className="font-medium">Tip:</span> Be descriptive! Include details about subjects, style, lighting, colors, and mood.
+              </p>
+            </div>
             
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
