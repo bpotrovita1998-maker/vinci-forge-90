@@ -80,17 +80,20 @@ serve(async (req) => {
     
     // Check for specific Replicate errors
     let userFriendlyMessage = errorMessage;
+    let statusCode = 500;
     if (errorMessage.includes('402') || errorMessage.includes('Insufficient credit')) {
       userFriendlyMessage = "Insufficient Replicate credits. Please add credits at replicate.com/account/billing";
+      statusCode = 402;
     } else if (errorMessage.includes('429') || errorMessage.includes('throttled')) {
       userFriendlyMessage = "Rate limit exceeded. Please add a payment method at replicate.com/account/billing to increase limits";
+      statusCode = 429;
     }
     
     return new Response(JSON.stringify({ 
       error: userFriendlyMessage
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
+      status: statusCode,
     });
   }
 });
