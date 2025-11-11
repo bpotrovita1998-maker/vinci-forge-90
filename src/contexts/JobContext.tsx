@@ -1,9 +1,17 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { Job, GenerationOptions, JobStatus } from '@/types/job';
+import { lovableAIService } from '@/services/lovableAIService';
 import { mockGenerationService } from '@/services/mockGenerationService';
+// import { pythonBackendService } from '@/services/pythonBackendService'; // OPTION B: Uncomment to use Python backend
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
+
+// Select which service to use:
+// - lovableAIService: Uses Lovable AI (google/gemini-2.5-flash-image) - ACTIVE
+// - mockGenerationService: Mock service for testing
+// - pythonBackendService: Python FastAPI backend integration - DISABLED
+const generationService = lovableAIService; // Change this to switch services
 
 interface JobContextType {
   jobs: Job[];
@@ -95,7 +103,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       throw new Error('User not authenticated');
     }
 
-    const jobId = await mockGenerationService.submitJob(options);
+    const jobId = await generationService.submitJob(options);
     
     // Create initial job in database
     const { error: insertError } = await supabase.from('jobs').insert({
@@ -142,7 +150,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     setJobs(prev => [newJob, ...prev]);
 
     // Start listening for updates
-    mockGenerationService.onJobUpdate(jobId, async (updatedJob) => {
+    generationService.onJobUpdate(jobId, async (updatedJob) => {
       setJobs(prev => prev.map(j => j.id === jobId ? updatedJob : j));
       
       // Update job in database
@@ -166,7 +174,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const cancelJob = useCallback(async (jobId: string) => {
-    mockGenerationService.cancelJob(jobId);
+    generationService.cancelJob(jobId);
     const cancelledJob = { status: 'failed' as JobStatus, error: 'Cancelled by user' };
     setJobs(prev => prev.map(j => 
       j.id === jobId ? { ...j, ...cancelledJob } : j
