@@ -14,7 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      jobs: {
+        Row: {
+          cfg_scale: number | null
+          completed_at: string | null
+          created_at: string
+          current_step: number | null
+          duration: number | null
+          error: string | null
+          eta: number | null
+          fps: number | null
+          height: number
+          id: string
+          manifest: Json | null
+          negative_prompt: string | null
+          num_images: number | null
+          outputs: Json | null
+          progress_message: string | null
+          progress_percent: number
+          progress_stage: string
+          prompt: string
+          seed: number | null
+          started_at: string | null
+          status: string
+          steps: number | null
+          three_d_mode: string
+          total_steps: number | null
+          type: string
+          updated_at: string
+          user_id: string
+          video_mode: string | null
+          width: number
+        }
+        Insert: {
+          cfg_scale?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number | null
+          duration?: number | null
+          error?: string | null
+          eta?: number | null
+          fps?: number | null
+          height: number
+          id?: string
+          manifest?: Json | null
+          negative_prompt?: string | null
+          num_images?: number | null
+          outputs?: Json | null
+          progress_message?: string | null
+          progress_percent?: number
+          progress_stage: string
+          prompt: string
+          seed?: number | null
+          started_at?: string | null
+          status: string
+          steps?: number | null
+          three_d_mode?: string
+          total_steps?: number | null
+          type: string
+          updated_at?: string
+          user_id: string
+          video_mode?: string | null
+          width: number
+        }
+        Update: {
+          cfg_scale?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number | null
+          duration?: number | null
+          error?: string | null
+          eta?: number | null
+          fps?: number | null
+          height?: number
+          id?: string
+          manifest?: Json | null
+          negative_prompt?: string | null
+          num_images?: number | null
+          outputs?: Json | null
+          progress_message?: string | null
+          progress_percent?: number
+          progress_stage?: string
+          prompt?: string
+          seed?: number | null
+          started_at?: string | null
+          status?: string
+          steps?: number | null
+          three_d_mode?: string
+          total_steps?: number | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+          video_mode?: string | null
+          width?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
