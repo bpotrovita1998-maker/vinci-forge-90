@@ -2,14 +2,81 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box } from 'lucide-react';
+import { GenerationOptions, JobType } from '@/types/job';
+import { useJobs } from '@/contexts/JobContext';
+import { toast } from '@/hooks/use-toast';
+import AdvancedOptions from './AdvancedOptions';
+import { z } from 'zod';
+
+const promptSchema = z.string().trim().min(3, "Prompt must be at least 3 characters").max(1000, "Prompt too long");
 
 export default function Hero() {
+  const { submitJob } = useJobs();
   const [prompt, setPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  const [options, setOptions] = useState<Partial<GenerationOptions>>({
+    type: 'image',
+    width: 1024,
+    height: 1024,
+    threeDMode: 'none',
+    steps: 20,
+    cfgScale: 7.5,
+    numImages: 1,
+    duration: 5,
+    fps: 24,
+  });
 
-  const handleGenerate = () => {
-    // TODO: Connect to VinciAI backend
-    console.log('Generating with prompt:', prompt);
+  const handleGenerate = async () => {
+    try {
+      // Validate prompt
+      promptSchema.parse(prompt);
+      
+      setIsGenerating(true);
+      
+      const fullOptions: GenerationOptions = {
+        prompt: prompt.trim(),
+        negativePrompt: options.negativePrompt?.trim(),
+        type: options.type || 'image',
+        width: options.width || 1024,
+        height: options.height || 1024,
+        threeDMode: options.threeDMode || 'none',
+        steps: options.steps || 20,
+        cfgScale: options.cfgScale || 7.5,
+        seed: options.seed,
+        numImages: options.numImages || 1,
+        duration: options.duration,
+        fps: options.fps,
+      };
+
+      const jobId = await submitJob(fullOptions);
+      
+      toast({
+        title: "Job Submitted!",
+        description: `Job ${jobId.slice(0, 8)}... has been queued for processing.`,
+      });
+
+      // Clear prompt after successful submission
+      setPrompt('');
+      
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Invalid Input",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to submit job. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -51,45 +118,77 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="glass rounded-2xl p-6 space-y-4 shadow-[0_0_40px_rgba(201,169,97,0.15)]"
+          className="space-y-4"
         >
-          <Textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe your vision... (e.g., 'A futuristic cityscape at sunset with flying vehicles')"
-            className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
-          />
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              size="lg"
-              onClick={handleGenerate}
-              disabled={!prompt.trim()}
-              className="flex-1 bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
-            >
-              <Wand2 className="w-5 h-5 mr-2" />
-              Generate
-            </Button>
+          <div className="glass rounded-2xl p-6 space-y-4 shadow-[0_0_40px_rgba(201,169,97,0.15)]">
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe your vision... (e.g., 'A futuristic cityscape at sunset with flying vehicles')"
+              className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && prompt.trim()) {
+                  handleGenerate();
+                }
+              }}
+            />
             
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
-                variant="outline"
                 size="lg"
-                className="flex-1 sm:flex-none glass border-primary/20 hover:bg-primary/10 hover:border-primary/30"
+                onClick={handleGenerate}
+                disabled={!prompt.trim() || isGenerating}
+                className="flex-1 bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
               >
-                <Image className="w-5 h-5 sm:mr-2" />
-                <span className="hidden sm:inline">Image</span>
+                <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
+                {isGenerating ? 'Submitting...' : 'Generate'}
               </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="flex-1 sm:flex-none glass border-accent/20 hover:bg-accent/10 hover:border-accent/30"
-              >
-                <Video className="w-5 h-5 sm:mr-2" />
-                <span className="hidden sm:inline">Video</span>
-              </Button>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant={options.type === 'image' ? 'default' : 'outline'}
+                  size="lg"
+                  onClick={() => setOptions(prev => ({ ...prev, type: 'image' }))}
+                  className={`flex-1 sm:flex-none ${
+                    options.type === 'image' 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
+                  }`}
+                >
+                  <Image className="w-5 h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Image</span>
+                </Button>
+                <Button
+                  variant={options.type === 'video' ? 'default' : 'outline'}
+                  size="lg"
+                  onClick={() => setOptions(prev => ({ ...prev, type: 'video' }))}
+                  className={`flex-1 sm:flex-none ${
+                    options.type === 'video' 
+                      ? 'bg-accent text-accent-foreground' 
+                      : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
+                  }`}
+                >
+                  <Video className="w-5 h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">Video</span>
+                </Button>
+                <Button
+                  variant={options.type === '3d' ? 'default' : 'outline'}
+                  size="lg"
+                  onClick={() => setOptions(prev => ({ ...prev, type: '3d' }))}
+                  className={`flex-1 sm:flex-none ${
+                    options.type === '3d' 
+                      ? 'bg-secondary text-secondary-foreground' 
+                      : 'glass border-secondary/20 hover:bg-secondary/10 hover:border-secondary/30'
+                  }`}
+                >
+                  <Box className="w-5 h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">3D</span>
+                </Button>
+              </div>
             </div>
           </div>
+
+          <AdvancedOptions options={options} onChange={setOptions} />
         </motion.div>
 
         {/* Features */}
