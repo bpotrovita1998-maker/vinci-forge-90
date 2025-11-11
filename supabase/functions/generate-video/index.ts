@@ -51,19 +51,19 @@ serve(async (req) => {
 
     console.log("Generating video with prompt:", body.prompt);
     
-    // Use Stable Video Diffusion for video generation
-    // This is a free model on Replicate that converts images/prompts to videos
+    // Use PixVerse v5 for video generation
+    // Free tier available on Replicate
     const output = await replicate.run(
-      "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438",
+      "pixverse/pixverse-v5",
       {
         input: {
-          cond_aug: 0.02,
-          decoding_t: 14,
-          input_image: body.inputImage, // If provided, use image-to-video
-          video_length: "14_frames_with_svd",
-          sizing_strategy: "maintain_aspect_ratio",
-          motion_bucket_id: 127,
-          frames_per_second: body.fps || 6,
+          prompt: body.prompt,
+          negative_prompt: body.negativePrompt,
+          seed: body.seed,
+          quality: body.quality || "540p", // 360p, 540p, 720p, 1080p
+          duration: body.duration || 5, // 5 or 8 seconds (8 requires 1080p)
+          aspect_ratio: body.aspectRatio || "16:9",
+          image: body.inputImage, // Optional: first frame image
         }
       }
     );
