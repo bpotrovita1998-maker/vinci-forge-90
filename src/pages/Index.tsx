@@ -7,7 +7,7 @@ const Index = () => {
     <div className="relative min-h-screen overflow-hidden">
       <ParticleBackground />
       
-      <div className="relative z-10">
+      <div className="relative z-10 pt-20">
         <Hero />
         
         {/* Job Queue Section */}
