@@ -230,6 +230,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
     generationService.onJobUpdate(jobId, async (updatedJob) => {
       setJobs(prev => prev.map(j => j.id === jobId ? updatedJob : j));
       
+      // Show completion toast
+      if (updatedJob.status === 'completed' && updatedJob.outputs.length > 0) {
+        toast.success('Generation complete! Click "View Output" to see your result.');
+      } else if (updatedJob.status === 'failed') {
+        toast.error(`Generation failed: ${updatedJob.error || 'Unknown error'}`);
+      }
+      
       // Update job in database
       await supabase.from('jobs').update({
         status: updatedJob.status,
