@@ -113,7 +113,19 @@ class LovableAIService {
 
       if (videoError) {
         console.error('LovableAI: Video generation error:', videoError);
-        throw new Error(videoError.message || 'Failed to generate video');
+        try {
+          // Parse structured error from edge function
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const httpErr = videoError as any;
+          if (httpErr?.context?.json) {
+            const errBody = await httpErr.context.json();
+            const msg = errBody?.error || errBody?.message || httpErr.message;
+            throw new Error(msg || 'Failed to generate video');
+          }
+        } catch (_) {
+          // Fallback to message
+          throw new Error((videoError as Error).message || 'Failed to generate video');
+        }
       }
 
       if (!videoData?.output) {
@@ -174,7 +186,17 @@ class LovableAIService {
 
       if (threeDError) {
         console.error('LovableAI: 3D generation error:', threeDError);
-        throw new Error(threeDError.message || 'Failed to generate 3D model');
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const httpErr = threeDError as any;
+          if (httpErr?.context?.json) {
+            const errBody = await httpErr.context.json();
+            const msg = errBody?.error || errBody?.message || httpErr.message;
+            throw new Error(msg || 'Failed to generate 3D model');
+          }
+        } catch (_) {
+          throw new Error((threeDError as Error).message || 'Failed to generate 3D model');
+        }
       }
 
       if (!threeDData?.output) {
@@ -217,7 +239,17 @@ class LovableAIService {
 
       if (error) {
         console.error('LovableAI: Edge function error:', error);
-        throw new Error(error.message || 'Failed to generate image');
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const httpErr = error as any;
+          if (httpErr?.context?.json) {
+            const errBody = await httpErr.context.json();
+            const msg = errBody?.error || errBody?.message || httpErr.message;
+            throw new Error(msg || 'Failed to generate image');
+          }
+        } catch (_) {
+          throw new Error((error as Error).message || 'Failed to generate image');
+        }
       }
 
       if (!data || !data.images || data.images.length === 0) {
