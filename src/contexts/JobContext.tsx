@@ -51,6 +51,53 @@ export function JobProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const JOB_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+    const checkAndTimeoutJobs = async (jobsList: Job[]) => {
+      const now = Date.now();
+      const timedOutJobs: string[] = [];
+
+      for (const job of jobsList) {
+        const isActive = job.status === 'running' || job.status === 'queued';
+        const jobAge = now - job.createdAt.getTime();
+        
+        if (isActive && jobAge > JOB_TIMEOUT_MS) {
+          console.log(`Job ${job.id} timed out after ${Math.round(jobAge / 1000)}s`);
+          timedOutJobs.push(job.id);
+          
+          // Mark as failed in database
+          await supabase
+            .from('jobs')
+            .update({
+              status: 'failed',
+              progress_stage: 'failed',
+              error: `Job timed out after ${Math.round(JOB_TIMEOUT_MS / 1000 / 60)} minutes`,
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', job.id);
+
+          // Unsubscribe from WebSocket
+          websocketService.unsubscribeFromJob(job.id);
+        }
+      }
+
+      if (timedOutJobs.length > 0) {
+        setJobs(prevJobs =>
+          prevJobs.map(j =>
+            timedOutJobs.includes(j.id)
+              ? {
+                  ...j,
+                  status: 'failed' as JobStatus,
+                  progress: { ...j.progress, stage: 'failed' as JobStatus },
+                  error: `Job timed out after ${Math.round(JOB_TIMEOUT_MS / 1000 / 60)} minutes`,
+                  completedAt: new Date()
+                }
+              : j
+          )
+        );
+      }
+    };
+
     const loadJobs = async () => {
       const { data, error } = await supabase
         .from('jobs')
@@ -98,10 +145,25 @@ export function JobProvider({ children }: { children: ReactNode }) {
           error: dbJob.error,
         }));
         setJobs(jobsWithDates);
+
+        // Check for timed out jobs immediately after loading
+        await checkAndTimeoutJobs(jobsWithDates);
       }
     };
 
     loadJobs();
+
+    // Set up interval to check for timeouts every 30 seconds
+    const timeoutCheckInterval = setInterval(async () => {
+      setJobs(prevJobs => {
+        checkAndTimeoutJobs(prevJobs);
+        return prevJobs;
+      });
+    }, 30000);
+
+    return () => {
+      clearInterval(timeoutCheckInterval);
+    };
   }, [user]);
 
   // Update active job whenever jobs change

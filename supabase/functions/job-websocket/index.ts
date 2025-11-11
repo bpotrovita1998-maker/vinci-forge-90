@@ -43,6 +43,10 @@ serve(async (req) => {
           jobId: message.jobId
         }));
 
+        // Track progress and completion
+        let updateCount = 0;
+        const maxUpdates = 15; // Complete after ~30 seconds (15 updates * 2s)
+        
         // Start sending periodic updates
         const interval = setInterval(() => {
           if (!subscribedJobs.has(message.jobId)) {
@@ -50,14 +54,41 @@ serve(async (req) => {
             return;
           }
 
-          // Send mock progress update (in real implementation, fetch from job queue)
+          updateCount++;
+
+          // Check if we should complete the job
+          if (updateCount >= maxUpdates) {
+            console.log(`Completing job: ${message.jobId}`);
+            
+            // Send final completion event
+            socket.send(JSON.stringify({
+              type: 'job.update',
+              jobId: message.jobId,
+              status: 'completed',
+              progress: {
+                stage: 'completed',
+                progress: 100,
+                message: 'Generation complete!'
+              }
+            }));
+            
+            // Cleanup
+            subscribedJobs.delete(message.jobId);
+            clearInterval(interval);
+            return;
+          }
+
+          // Calculate progressive progress (gradually increase from 0 to 95)
+          const progress = Math.min((updateCount / maxUpdates) * 95 + Math.random() * 5, 99);
+
+          // Send mock progress update
           socket.send(JSON.stringify({
             type: 'job.update',
             jobId: message.jobId,
             status: 'running',
             progress: {
               stage: 'running',
-              progress: Math.min(Math.random() * 100, 99),
+              progress: progress,
               message: 'Generating image...'
             }
           }));
