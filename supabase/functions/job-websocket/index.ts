@@ -43,45 +43,16 @@ serve(async (req) => {
           jobId: message.jobId
         }));
 
-        // Track progress and completion
-        let updateCount = 0;
-        const maxUpdates = 15; // Complete after ~30 seconds (15 updates * 2s)
-        
-        // Start sending periodic updates
+        // Send periodic progress updates (but never complete - let actual generation do that)
         const interval = setInterval(() => {
           if (!subscribedJobs.has(message.jobId)) {
             clearInterval(interval);
             return;
           }
 
-          updateCount++;
+          // Send mock progress update (stays under 95% - actual completion comes from lovableAIService)
+          const progress = Math.min(Math.random() * 85 + 5, 95);
 
-          // Check if we should complete the job
-          if (updateCount >= maxUpdates) {
-            console.log(`Completing job: ${message.jobId}`);
-            
-            // Send final completion event
-            socket.send(JSON.stringify({
-              type: 'job.update',
-              jobId: message.jobId,
-              status: 'completed',
-              progress: {
-                stage: 'completed',
-                progress: 100,
-                message: 'Generation complete!'
-              }
-            }));
-            
-            // Cleanup
-            subscribedJobs.delete(message.jobId);
-            clearInterval(interval);
-            return;
-          }
-
-          // Calculate progressive progress (gradually increase from 0 to 95)
-          const progress = Math.min((updateCount / maxUpdates) * 95 + Math.random() * 5, 99);
-
-          // Send mock progress update
           socket.send(JSON.stringify({
             type: 'job.update',
             jobId: message.jobId,

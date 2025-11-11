@@ -11,6 +11,8 @@ class LovableAIService {
     // Generate a proper UUID for database compatibility
     const jobId = crypto.randomUUID();
     
+    console.log('LovableAI: Submitting job', jobId, options);
+    
     const job: Job = {
       id: jobId,
       options,
@@ -27,14 +29,23 @@ class LovableAIService {
     this.jobs.set(jobId, job);
     
     // Start processing immediately
-    this.processJob(jobId);
+    console.log('LovableAI: Starting processJob for', jobId);
+    this.processJob(jobId).catch(error => {
+      console.error('LovableAI: processJob failed:', error);
+      this.failJob(jobId, error.message);
+    });
 
     return jobId;
   }
 
   private async processJob(jobId: string) {
     const job = this.jobs.get(jobId);
-    if (!job) return;
+    if (!job) {
+      console.error('LovableAI: Job not found:', jobId);
+      return;
+    }
+
+    console.log('LovableAI: Processing job', jobId, 'type:', job.options.type);
 
     try {
       // Update to running
@@ -42,6 +53,7 @@ class LovableAIService {
 
       // Only handle image generation for now
       if (job.options.type === 'image') {
+        console.log('LovableAI: Starting image generation for', jobId);
         await this.generateImage(jobId);
       } else if (job.options.type === 'video') {
         // Video generation not yet implemented
@@ -52,14 +64,19 @@ class LovableAIService {
       }
       
     } catch (error) {
-      console.error('Job processing error:', error);
+      console.error('LovableAI: Job processing error:', jobId, error);
       this.failJob(jobId, error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
   private async generateImage(jobId: string) {
     const job = this.jobs.get(jobId);
-    if (!job) return;
+    if (!job) {
+      console.error('LovableAI: Job not found in generateImage:', jobId);
+      return;
+    }
+
+    console.log('LovableAI: Calling generate-image edge function for', jobId);
 
     try {
       // Call the edge function
@@ -72,20 +89,25 @@ class LovableAIService {
         }
       });
 
+      console.log('LovableAI: Edge function response:', { data, error });
+
       if (error) {
-        console.error('Edge function error:', error);
+        console.error('LovableAI: Edge function error:', error);
         throw new Error(error.message || 'Failed to generate image');
       }
 
       if (!data || !data.images || data.images.length === 0) {
+        console.error('LovableAI: No images in response:', data);
         throw new Error('No images generated');
       }
+
+      console.log('LovableAI: Generated', data.images.length, 'images for', jobId);
 
       // Complete the job with the generated images
       this.completeJob(jobId, data.images);
 
     } catch (error) {
-      console.error('Image generation error:', error);
+      console.error('LovableAI: Image generation error for', jobId, ':', error);
       throw error;
     }
   }
