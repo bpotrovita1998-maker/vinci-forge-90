@@ -12,7 +12,6 @@ import { z } from 'zod';
 const promptSchema = z.string()
   .trim()
   .min(3, "Prompt must be at least 3 characters")
-  .max(1000, "Prompt too long")
   .refine(
     (val) => {
       // Check if prompt looks like a question
