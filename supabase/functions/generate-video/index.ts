@@ -77,8 +77,17 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in generate-video function:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to generate video";
+    
+    // Check for specific Replicate errors
+    let userFriendlyMessage = errorMessage;
+    if (errorMessage.includes('402') || errorMessage.includes('Insufficient credit')) {
+      userFriendlyMessage = "Insufficient Replicate credits. Please add credits at replicate.com/account/billing";
+    } else if (errorMessage.includes('429') || errorMessage.includes('throttled')) {
+      userFriendlyMessage = "Rate limit exceeded. Please add a payment method at replicate.com/account/billing to increase limits";
+    }
+    
     return new Response(JSON.stringify({ 
-      error: errorMessage
+      error: userFriendlyMessage
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
