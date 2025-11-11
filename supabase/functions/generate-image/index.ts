@@ -154,10 +154,23 @@ serve(async (req) => {
     const images = generatedImages.map((img: any) => img.image_url?.url).filter(Boolean);
 
     if (images.length === 0) {
-      console.error('No images in response:', data);
+      console.error('No images in response. This usually happens when the prompt is not suitable for image generation:', data);
+      
+      // Check if there's a text response instead
+      const textContent = data.choices?.[0]?.message?.content;
+      if (textContent) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'The prompt appears to be a question or text request rather than an image generation request. Please provide a descriptive prompt for what you want to see in an image.',
+            details: textContent
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
-        JSON.stringify({ error: 'No images generated' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'No images generated. Please ensure your prompt describes a visual scene.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

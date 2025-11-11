@@ -51,18 +51,15 @@ serve(async (req) => {
 
     console.log("Generating 3D model from image");
     
-    // Use TRELLIS for image-to-3D conversion (recommended by Replicate)
-    // This model converts images into high-quality 3D assets
+    // Use TripoSR for image-to-3D conversion - stable and reliable
+    // This model converts images into high-quality 3D meshes
     const output = await replicate.run(
-      "firtoz/trellis",
+      "stabilityai/triposr",
       {
         input: {
-          images: [body.inputImage],
-          seed: body.seed || 0,
-          randomize_seed: false,
-          generate_color: true,
-          sparse_structure_steps: 12,
-          slat_sampling_steps: 12
+          image: body.inputImage,
+          mc_resolution: 256,
+          foreground_ratio: 0.85
         }
       }
     );
