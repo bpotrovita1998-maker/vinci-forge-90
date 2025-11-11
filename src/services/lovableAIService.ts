@@ -60,9 +60,8 @@ class LovableAIService {
         // Generate video as a sequence of frames (for now, just generate one key frame)
         await this.generateVideoFrames(jobId);
       } else if (job.options.type === '3d') {
-        // 3D generation: Generate a preview image
-        console.log('LovableAI: Generating 3D preview for', jobId);
-        await this.generateImage(jobId);
+        console.log('LovableAI: Starting 3D generation for', jobId);
+        await this.generate3D(jobId);
       }
       
     } catch (error) {
@@ -129,6 +128,68 @@ class LovableAIService {
 
     } catch (error) {
       console.error('LovableAI: Video generation error for', jobId, ':', error);
+      throw error;
+    }
+  }
+
+  private async generate3D(jobId: string) {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      console.error('LovableAI: Job not found in generate3D:', jobId);
+      return;
+    }
+
+    console.log('LovableAI: Generating 3D model with Replicate for', jobId);
+
+    try {
+      // Step 1: Generate a reference image first
+      this.updateJobStage(jobId, 'running', 'Generating reference image...');
+      
+      const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
+        body: {
+          prompt: `${job.options.prompt}. Clean white background, professional product shot, centered object, high detail.`,
+          width: job.options.width,
+          height: job.options.height,
+          numImages: 1,
+        }
+      });
+
+      if (imageError || !imageData?.images?.[0]) {
+        throw new Error('Failed to generate reference image');
+      }
+
+      console.log('LovableAI: Reference image generated, converting to 3D');
+      
+      // Step 2: Convert image to 3D using Replicate
+      this.updateJobStage(jobId, 'upscaling', 'Converting to 3D mesh...');
+      
+      const { data: threeDData, error: threeDError } = await supabase.functions.invoke('generate-3d', {
+        body: {
+          inputImage: imageData.images[0],
+          foregroundRatio: 0.85,
+          mcResolution: 256,
+        }
+      });
+
+      console.log('LovableAI: 3D generation response:', { threeDData, threeDError });
+
+      if (threeDError) {
+        console.error('LovableAI: 3D generation error:', threeDError);
+        throw new Error(threeDError.message || 'Failed to generate 3D model');
+      }
+
+      if (!threeDData?.output) {
+        console.error('LovableAI: No 3D output in response:', threeDData);
+        throw new Error('No 3D model generated');
+      }
+
+      console.log('LovableAI: 3D model generated successfully for', jobId);
+
+      // Complete the job with the 3D model URL
+      this.completeJob(jobId, Array.isArray(threeDData.output) ? threeDData.output : [threeDData.output]);
+
+    } catch (error) {
+      console.error('LovableAI: 3D generation error for', jobId, ':', error);
       throw error;
     }
   }
