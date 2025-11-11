@@ -1,9 +1,25 @@
 import { NavLink } from './NavLink';
 import { Button } from './ui/button';
-import { Image, Grid3x3, Sparkles } from 'lucide-react';
+import { Image, Grid3x3, Sparkles, LogOut, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { Avatar, AvatarFallback } from './ui/avatar';
 
 export default function Navigation() {
+  const { user, signOut } = useAuth();
+
+  const getInitials = (email: string) => {
+    return email.slice(0, 2).toUpperCase();
+  };
+
   return (
     <motion.nav
       initial={{ opacity: 0, y: -20 }}
@@ -25,26 +41,60 @@ export default function Navigation() {
 
           {/* Nav Links */}
           <div className="flex items-center gap-2">
-            <NavLink
-              to="/"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              activeClassName="text-primary"
-            >
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Image className="w-4 h-4" />
-                <span className="hidden sm:inline">Create</span>
-              </Button>
-            </NavLink>
-            <NavLink
-              to="/gallery"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              activeClassName="text-primary"
-            >
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Grid3x3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Gallery</span>
-              </Button>
-            </NavLink>
+            {user && (
+              <>
+                <NavLink
+                  to="/"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  activeClassName="text-primary"
+                >
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Image className="w-4 h-4" />
+                    <span className="hidden sm:inline">Create</span>
+                  </Button>
+                </NavLink>
+                <NavLink
+                  to="/gallery"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  activeClassName="text-primary"
+                >
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Grid3x3 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Gallery</span>
+                  </Button>
+                </NavLink>
+
+                {/* User Menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <Avatar className="w-6 h-6">
+                        <AvatarFallback className="text-xs bg-primary/20">
+                          {getInitials(user.email || 'U')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="hidden sm:inline">{user.email}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="glass border-border/30 w-56">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator className="bg-border/30" />
+                    <DropdownMenuItem className="cursor-pointer">
+                      <User className="w-4 h-4 mr-2" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-border/30" />
+                    <DropdownMenuItem 
+                      className="cursor-pointer text-destructive focus:text-destructive"
+                      onClick={() => signOut()}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </div>
         </div>
       </div>
