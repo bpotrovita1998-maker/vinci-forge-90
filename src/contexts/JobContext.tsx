@@ -6,6 +6,8 @@ import { mockGenerationService } from '@/services/mockGenerationService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
+import { websocketService } from '@/services/websocketService';
+import { moderationService, ModerationResult } from '@/services/moderationService';
 
 // Select which service to use:
 // - lovableAIService: Uses Lovable AI (google/gemini-2.5-flash-image) - ACTIVE
@@ -20,6 +22,7 @@ interface JobContextType {
   cancelJob: (jobId: string) => void;
   clearCompletedJobs: () => void;
   getJob: (jobId: string) => Job | undefined;
+  moderateContent: (prompt: string) => Promise<ModerationResult>;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -28,6 +31,17 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const { user } = useAuth();
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    websocketService.connect().catch(error => {
+      console.error('Failed to connect to WebSocket:', error);
+    });
+
+    return () => {
+      websocketService.disconnect();
+    };
+  }, []);
 
   // Load jobs from database when user logs in
   useEffect(() => {
@@ -149,7 +163,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
     setJobs(prev => [newJob, ...prev]);
 
-    // Start listening for updates
+    // Start listening for updates via both polling and WebSocket
     generationService.onJobUpdate(jobId, async (updatedJob) => {
       setJobs(prev => prev.map(j => j.id === jobId ? updatedJob : j));
       
@@ -170,11 +184,35 @@ export function JobProvider({ children }: { children: ReactNode }) {
       }).eq('id', jobId);
     });
 
+    // Also subscribe to WebSocket updates for real-time progress
+    if (websocketService.isConnected()) {
+      websocketService.subscribeToJob(jobId, async (partialJob) => {
+        setJobs(prev => prev.map(j => {
+          if (j.id === jobId) {
+            return { ...j, ...partialJob };
+          }
+          return j;
+        }));
+
+        // Update database with WebSocket data
+        if (partialJob.status || partialJob.progress) {
+          await supabase.from('jobs').update({
+            status: partialJob.status,
+            progress_stage: partialJob.progress?.stage,
+            progress_percent: partialJob.progress?.progress,
+            progress_message: partialJob.progress?.message,
+          }).eq('id', jobId);
+        }
+      });
+    }
+
     return jobId;
   }, [user]);
 
   const cancelJob = useCallback(async (jobId: string) => {
     generationService.cancelJob(jobId);
+    websocketService.unsubscribeFromJob(jobId);
+    
     const cancelledJob = { status: 'failed' as JobStatus, error: 'Cancelled by user' };
     setJobs(prev => prev.map(j => 
       j.id === jobId ? { ...j, ...cancelledJob } : j
@@ -208,6 +246,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return jobs.find(j => j.id === jobId);
   }, [jobs]);
 
+  const moderateContent = useCallback(async (prompt: string): Promise<ModerationResult> => {
+    return await moderationService.moderatePrompt(prompt);
+  }, []);
+
   return (
     <JobContext.Provider value={{
       jobs,
@@ -216,6 +258,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       cancelJob,
       clearCompletedJobs,
       getJob,
+      moderateContent,
     }}>
       {children}
     </JobContext.Provider>
