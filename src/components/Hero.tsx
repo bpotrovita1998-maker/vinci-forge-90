@@ -14,23 +14,27 @@ const promptSchema = z.string()
   .min(3, "Prompt must be at least 3 characters")
   .refine(
     (val) => {
-      // Check if prompt looks like a question
-      const questionWords = ['how', 'what', 'when', 'where', 'who', 'why', 'can you', 'could you', 'please'];
+      // Check if prompt looks like a question or conversational text
+      const conversationalStarts = [
+        'how', 'what', 'when', 'where', 'who', 'why', 'can you', 'could you', 
+        'please', 'this is', 'that is', 'i want', 'i would', 'do you',
+        'are you', 'is this', 'thank', 'thanks', 'hello', 'hi', 'hey'
+      ];
       const lowerPrompt = val.toLowerCase();
-      const startsWithQuestion = questionWords.some(word => lowerPrompt.startsWith(word));
+      const isConversational = conversationalStarts.some(word => lowerPrompt.startsWith(word));
       const hasQuestionMark = lowerPrompt.includes('?');
       
-      return !(startsWithQuestion || hasQuestionMark);
+      return !(isConversational || hasQuestionMark);
     },
-    { message: "Please describe what you want to create, not ask a question. Example: 'A futuristic city at sunset'" }
+    { message: "Please describe a visual scene you want to create, not conversational text. Example: 'A majestic dragon flying over mountains'" }
   )
   .refine(
     (val) => {
-      // Ensure prompt has descriptive content (at least 2 words)
-      const words = val.trim().split(/\s+/).filter(w => w.length > 0);
-      return words.length >= 2;
+      // Ensure prompt has descriptive content (at least 3 words with substance)
+      const words = val.trim().split(/\s+/).filter(w => w.length > 2);
+      return words.length >= 3;
     },
-    { message: "Please provide a more descriptive prompt with at least 2 words" }
+    { message: "Please provide a more detailed visual description (at least 3 descriptive words)" }
   );
 
 export default function Hero() {
@@ -156,7 +160,10 @@ export default function Hero() {
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                💡 <span className="font-medium">Tip:</span> Be descriptive! Include details about subjects, style, lighting, colors, and mood.
+                💡 <span className="font-medium">Tip:</span> Describe visual scenes (nouns, adjectives, settings). Avoid questions or instructions.
+                <br />
+                <span className="text-primary/80">Good:</span> "A cyberpunk city at night with neon lights" • 
+                <span className="text-destructive/80">Bad:</span> "Can you make me a city?" or "This is great!"
               </p>
             </div>
             
