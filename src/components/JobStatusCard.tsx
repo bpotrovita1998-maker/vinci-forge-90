@@ -13,7 +13,7 @@ interface JobStatusCardProps {
 }
 
 export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
-  const { cancelJob } = useJobs();
+  const { cancelJob, deleteJob } = useJobs();
 
   const getStatusIcon = () => {
     switch (job.status) {
@@ -66,6 +66,7 @@ export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps)
 
   const isActive = ['running', 'upscaling', 'encoding'].includes(job.status);
   const canCancel = ['queued', 'running', 'upscaling', 'encoding'].includes(job.status);
+  const canDelete = ['completed', 'failed'].includes(job.status);
 
   return (
     <Card className="glass border-border/30 p-4 space-y-3 hover:border-primary/30 transition-colors">
@@ -100,6 +101,17 @@ export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps)
             size="icon"
             className="shrink-0 h-8 w-8"
             onClick={() => cancelJob(job.id)}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+        
+        {canDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => deleteJob(job.id)}
           >
             <X className="w-4 h-4" />
           </Button>

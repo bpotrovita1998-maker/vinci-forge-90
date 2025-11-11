@@ -20,6 +20,7 @@ interface JobContextType {
   activeJob: Job | null;
   submitJob: (options: GenerationOptions) => Promise<string>;
   cancelJob: (jobId: string) => void;
+  deleteJob: (jobId: string) => Promise<void>;
   clearCompletedJobs: () => void;
   getJob: (jobId: string) => Job | undefined;
   moderateContent: (prompt: string) => Promise<ModerationResult>;
@@ -233,6 +234,22 @@ export function JobProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const deleteJob = useCallback(async (jobId: string) => {
+    // Remove from local state
+    setJobs(prev => prev.filter(j => j.id !== jobId));
+
+    // Delete from database
+    if (user) {
+      const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+      if (error) {
+        console.error('Failed to delete job:', error);
+        toast.error('Failed to delete job');
+      } else {
+        toast.success('Job deleted');
+      }
+    }
+  }, [user]);
+
   const clearCompletedJobs = useCallback(async () => {
     const completedJobIds = jobs
       .filter(j => j.status === 'completed' || j.status === 'failed')
@@ -262,6 +279,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       activeJob,
       submitJob,
       cancelJob,
+      deleteJob,
       clearCompletedJobs,
       getJob,
       moderateContent,
