@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OutputViewer from '@/components/OutputViewer';
-import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye } from 'lucide-react';
+import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { Job } from '@/types/job';
@@ -71,6 +71,29 @@ export default function Gallery() {
     } catch (error) {
       console.error('Download failed:', error);
       toast.error('Failed to download file');
+    }
+  };
+
+  const handleUnityExport = async (job: Job) => {
+    try {
+      const url = job.outputs[0];
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `unity_model_${job.id.slice(0, 8)}.glb`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      
+      toast.success('Unity GLB exported', {
+        description: 'Import into Unity with scale factor 1.0',
+      });
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export for Unity');
     }
   };
 
@@ -299,6 +322,22 @@ export default function Gallery() {
                         <Eye className="w-4 h-4 mr-1" />
                         View
                       </Button>
+                      
+                      {job.options.type === '3d' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="glass border-primary/30 hover:border-primary/50 hover:bg-primary/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnityExport(job);
+                          }}
+                          title="Export for Unity"
+                        >
+                          <Package className="w-4 h-4" />
+                        </Button>
+                      )}
+                      
                       <Button
                         size="sm"
                         variant="outline"
