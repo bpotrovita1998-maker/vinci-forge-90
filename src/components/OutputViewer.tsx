@@ -7,11 +7,13 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
 import ThreeDViewer from './ThreeDViewer';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Label } from './ui/label';
 
 interface OutputViewerProps {
   job: Job;
@@ -21,6 +23,7 @@ interface OutputViewerProps {
 export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [copied, setCopied] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [unityScale, setUnityScale] = useState<string>('1');
 
   const copyManifest = async () => {
     if (!job.manifest) return;
@@ -52,6 +55,34 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     a.download = `vinci_manifest_${job.id}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadForUnity = async () => {
+    try {
+      const url = job.outputs[0];
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `unity_model_scale${unityScale}_${job.id.slice(0, 8)}.glb`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      
+      toast({
+        title: "Unity Export Started",
+        description: `GLB model with scale ${unityScale}x downloaded. Import into Unity with scale factor ${unityScale}.`,
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download file for Unity",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -126,46 +157,104 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              className="glass border-primary/30 hover:bg-primary/10"
-              asChild
-            >
-              <a href={job.outputs[currentImageIndex]} download target="_blank" rel="noopener noreferrer">
+          <div className="flex flex-col gap-4">
+            {/* Unity Export for 3D Models */}
+            {job.options.type === '3d' && (
+              <div className="p-4 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Box className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">Unity Export</h3>
+                  <Badge variant="outline" className="bg-primary/20 text-primary border-0 ml-auto">
+                    GLB Format
+                  </Badge>
+                </div>
+                
+                <p className="text-sm text-muted-foreground">
+                  Export your 3D model with proper scale for Unity. The GLB format is fully compatible with Unity's import pipeline.
+                </p>
+
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="unity-scale" className="text-sm font-medium">
+                      Scale Factor
+                    </Label>
+                    <Select value={unityScale} onValueChange={setUnityScale}>
+                      <SelectTrigger id="unity-scale" className="glass border-border/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0.01">0.01x (Centimeters)</SelectItem>
+                        <SelectItem value="0.1">0.1x (Decimeters)</SelectItem>
+                        <SelectItem value="1">1x (Meters - Default)</SelectItem>
+                        <SelectItem value="10">10x (Decameters)</SelectItem>
+                        <SelectItem value="100">100x (Hectometers)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button
+                    onClick={downloadForUnity}
+                    className="bg-primary hover:bg-primary/90"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export for Unity
+                  </Button>
+                </div>
+
+                <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border/30">
+                  <p>💡 <strong>Import Instructions:</strong></p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Drag the .glb file into your Unity Assets folder</li>
+                    <li>Select the model in Project window</li>
+                    <li>In Inspector, set Scale Factor to {unityScale}</li>
+                    <li>Apply changes and drag into your scene</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+
+            {/* Standard Actions */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="glass border-primary/30 hover:bg-primary/10"
+                asChild
+              >
+                <a href={job.outputs[currentImageIndex]} download target="_blank" rel="noopener noreferrer">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download {job.options.type === 'image' && job.outputs.length > 1 && `(${currentImageIndex + 1}/${job.outputs.length})`}
+                </a>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="glass border-border/30"
+                asChild
+              >
+                <a href={job.outputs[currentImageIndex]} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open in New Tab
+                </a>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="glass border-border/30"
+                onClick={copyManifest}
+              >
+                {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                {copied ? 'Copied!' : 'Copy Manifest'}
+              </Button>
+
+              <Button
+                variant="outline"
+                className="glass border-border/30"
+                onClick={downloadManifest}
+              >
                 <Download className="w-4 h-4 mr-2" />
-                Download {job.options.type === 'image' && job.outputs.length > 1 && `(${currentImageIndex + 1}/${job.outputs.length})`}
-              </a>
-            </Button>
-
-            <Button
-              variant="outline"
-              className="glass border-border/30"
-              asChild
-            >
-              <a href={job.outputs[currentImageIndex]} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open in New Tab
-              </a>
-            </Button>
-
-            <Button
-              variant="outline"
-              className="glass border-border/30"
-              onClick={copyManifest}
-            >
-              {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
-              {copied ? 'Copied!' : 'Copy Manifest'}
-            </Button>
-
-            <Button
-              variant="outline"
-              className="glass border-border/30"
-              onClick={downloadManifest}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download Manifest
-            </Button>
+                Download Manifest
+              </Button>
+            </div>
           </div>
 
           {/* Metadata */}
