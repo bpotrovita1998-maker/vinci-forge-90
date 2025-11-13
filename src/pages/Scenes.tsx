@@ -17,7 +17,8 @@ import {
   Eye,
   Download,
   Play,
-  RefreshCw
+  RefreshCw,
+  Clock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -31,6 +32,7 @@ interface Scene {
   imageUrl?: string;
   status: 'draft' | 'generating' | 'ready';
   jobId?: string;
+  duration: number; // in seconds
 }
 
 interface StoryboardSettings {
@@ -79,7 +81,8 @@ export default function Scenes() {
       id: `scene-${Date.now()}`,
       title: `Scene ${scenes.length + 1}`,
       description: '',
-      status: 'draft'
+      status: 'draft',
+      duration: 3 // default 3 seconds
     };
     setScenes([...scenes, newScene]);
     toast({
@@ -198,10 +201,12 @@ export default function Scenes() {
       return;
     }
 
+    const totalDuration = readyScenes.reduce((sum, scene) => sum + scene.duration, 0);
+
     setIsGeneratingVideo(true);
     toast({
       title: "Generating Video",
-      description: `Creating video from ${readyScenes.length} scenes...`
+      description: `Creating ${totalDuration}s video from ${readyScenes.length} scenes...`
     });
 
     try {
@@ -210,7 +215,7 @@ export default function Scenes() {
       
       toast({
         title: "Video Generated!",
-        description: "Your storyboard video is ready"
+        description: `Your ${totalDuration}s storyboard video is ready`
       });
     } catch (error) {
       toast({
@@ -224,6 +229,7 @@ export default function Scenes() {
   };
 
   const readyScenes = scenes.filter(s => s.status === 'ready').length;
+  const totalDuration = scenes.filter(s => s.status === 'ready').reduce((sum, scene) => sum + scene.duration, 0);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -322,6 +328,12 @@ export default function Scenes() {
                     <Badge variant="secondary" className="text-base px-4 py-2">
                       {readyScenes} Ready
                     </Badge>
+                    {totalDuration > 0 && (
+                      <Badge variant="secondary" className="text-base px-4 py-2 gap-1">
+                        <Clock className="w-4 h-4" />
+                        {totalDuration}s
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button onClick={addScene} className="gap-2">
@@ -418,6 +430,28 @@ export default function Scenes() {
                                   onChange={(e) => updateScene(scene.id, { description: e.target.value })}
                                   className="mt-2 min-h-[80px]"
                                 />
+                              </div>
+
+                              {/* Duration Control */}
+                              <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50 border border-border/50">
+                                <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                <div className="flex-1">
+                                  <Label htmlFor={`duration-${scene.id}`} className="text-xs text-muted-foreground">
+                                    Duration
+                                  </Label>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Input
+                                      id={`duration-${scene.id}`}
+                                      type="number"
+                                      min="1"
+                                      max="30"
+                                      value={scene.duration}
+                                      onChange={(e) => updateScene(scene.id, { duration: Math.max(1, Math.min(30, parseInt(e.target.value) || 3)) })}
+                                      className="w-20 h-8 text-center"
+                                    />
+                                    <span className="text-sm text-muted-foreground">seconds</span>
+                                  </div>
+                                </div>
                               </div>
 
                               {/* Actions */}
