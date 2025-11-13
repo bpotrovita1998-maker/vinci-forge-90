@@ -72,24 +72,54 @@ serve(async (req) => {
       console.log('Generated image for 3D conversion:', finalImageUrl);
     }
 
-    // Now convert the image to 3D using TRELLIS (Replicate)
-    console.log('Converting image to 3D model with TRELLIS...');
-    
-    const output = await replicate.run(
-      "firtoz/trellis",
-      {
-        input: {
-          images: [finalImageUrl],
-          randomize_seed: true,
-          generate_color: true
+    // Now convert the image to 3D with robust fallbacks
+    console.log('Converting image to 3D model...');
+
+    // Helper to try multiple input schemas against a specific model:version
+    const tryModel = async (modelVersion: string) => {
+      const variants = [
+        { image: finalImageUrl },
+        { input_image: finalImageUrl },
+        { images: [finalImageUrl] },
+        { image_path: finalImageUrl }
+      ];
+      let lastErr: unknown = null;
+      for (const input of variants) {
+        try {
+          console.log(`Attempting ${modelVersion} with input keys: ${Object.keys(input).join(',')}`);
+          // deno-lint-ignore no-explicit-any
+          const out: any = await replicate.run(modelVersion, { input });
+          return out;
+        } catch (e) {
+          lastErr = e;
+          console.warn(`Failed ${modelVersion} with ${Object.keys(input).join(',')}:`, e);
         }
       }
-    );
+      throw lastErr ?? new Error(`All input variants failed for ${modelVersion}`);
+    };
+
+    let output: unknown;
+    try {
+      // Preferred official model with pinned version
+      output = await tryModel("tencent/hunyuan3d-2mv:71798fbc3c9f7b7097e3bb85496e5a797d8b8f616b550692e7c3e176a8e9e5db");
+    } catch (primaryErr) {
+      console.warn('Primary model failed, falling back to ImageDream...', primaryErr);
+      try {
+        // Fallback 1: ImageDream (text/image to 3D)
+        output = await tryModel("adirik/imagedream");
+      } catch (fallbackErr) {
+        console.error('All 3D models failed:', fallbackErr);
+        return new Response(
+          JSON.stringify({ error: '3D generation failed', details: (fallbackErr as Error)?.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     console.log('3D generation response:', output);
 
-    // Try to resolve a usable model URL (GLB) from various possible shapes
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Resolve a usable model URL (GLB) from various possible shapes
+    // deno-lint-ignore no-explicit-any
     const o: any = output;
     const modelUrl = Array.isArray(o)
       ? o[0]
