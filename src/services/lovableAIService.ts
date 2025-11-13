@@ -244,7 +244,8 @@ class LovableAIService {
           const httpErr = error as any;
           if (httpErr?.context?.json) {
             const errBody = await httpErr.context.json();
-            const msg = errBody?.error || errBody?.message || httpErr.message;
+            // Include details field if available for more helpful error messages
+            const msg = errBody?.details || errBody?.error || errBody?.message || httpErr.message;
             throw new Error(msg || 'Failed to generate image');
           }
         } catch (_) {

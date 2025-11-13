@@ -35,6 +35,24 @@ const promptSchema = z.string()
       return words.length >= 3;
     },
     { message: "Please provide a more detailed visual description (at least 3 descriptive words)" }
+  )
+  .refine(
+    (val) => {
+      // Check for requests to create images of real people
+      const realPersonIndicators = [
+        'photo of', 'picture of', 'image of', 'portrait of',
+        'from facebook', 'from instagram', 'from twitter', 'from social media',
+        'celebrity', 'famous person', 'real person'
+      ];
+      const lowerPrompt = val.toLowerCase();
+      const mentionsRealPerson = realPersonIndicators.some(indicator => lowerPrompt.includes(indicator));
+      
+      // Also check for specific social media platform names
+      const hasSocialMedia = /\b(facebook|instagram|twitter|tiktok|linkedin)\b/i.test(lowerPrompt);
+      
+      return !(mentionsRealPerson && hasSocialMedia);
+    },
+    { message: "Cannot create images of real people from social media. Please describe a fictional character or scene instead." }
   );
 
 export default function Hero() {
