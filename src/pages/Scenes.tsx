@@ -21,7 +21,8 @@ import {
   Clock,
   Save,
   FolderOpen,
-  FileText
+  FileText,
+  Wand2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -76,18 +77,14 @@ export default function Scenes() {
   const { user } = useAuth();
   const { submitJob, jobs } = useJobs();
   const [scenes, setScenes] = useState<Scene[]>([]);
-  const [storyboards, setStoryboards] = useState<Storyboard[]>([]);
-  const [currentStoryboard, setCurrentStoryboard] = useState<Storyboard | null>(null);
-  const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [newStoryboardTitle, setNewStoryboardTitle] = useState('');
-  const [storyboardToDelete, setStoryboardToDelete] = useState<string | null>(null);
   const [settings, setSettings] = useState<StoryboardSettings>({
     character: '',
     style: '',
     brand: ''
   });
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [videoIdea, setVideoIdea] = useState('');
 
   // Load storyboards on mount
   useEffect(() => {
@@ -432,6 +429,65 @@ export default function Scenes() {
     await generateSceneImage(sceneId, true);
   };
 
+  const generateScriptAndShots = async () => {
+    if (!videoIdea.trim() || videoIdea.trim().length < 10) {
+      toast({
+        title: "Error",
+        description: "Please describe your video idea in detail (at least 10 characters)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingScript(true);
+    toast({
+      title: "Generating Script",
+      description: "AI is creating your script and shot list..."
+    });
+
+    try {
+      const response = await supabase.functions.invoke('generate-script', {
+        body: { idea: videoIdea }
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      const { title, script, shots } = response.data;
+
+      // Create scenes from shots
+      const newScenes: Scene[] = shots.map((shot: any) => ({
+        id: `scene-${Date.now()}-${shot.shot_number}`,
+        title: `Shot ${shot.shot_number}: ${shot.title}`,
+        description: `${shot.camera_angle} shot, ${shot.camera_movement}. ${shot.visual_description}${shot.dialogue ? `\n\nDialogue: "${shot.dialogue}"` : ''}`,
+        status: 'draft' as const,
+        duration: shot.duration || 3
+      }));
+
+      setScenes(newScenes);
+      setVideoIdea('');
+
+      toast({
+        title: "Script Generated!",
+        description: `Created ${shots.length} shots. You can now generate images for each scene.`
+      });
+
+      console.log('Generated script:', script);
+      console.log('Title:', title);
+
+    } catch (error) {
+      console.error('Error generating script:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate script",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingScript(false);
+    }
+  };
+
   const generateAllScenes = async () => {
     const draftScenes = scenes.filter(s => s.status === 'draft' && s.description);
     
@@ -644,16 +700,114 @@ export default function Scenes() {
           </AlertDialog>
 
           <Tabs defaultValue="storyboard" className="w-full">
-            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8">
               <TabsTrigger value="storyboard">
                 <Video className="w-4 h-4 mr-2" />
                 Storyboard
               </TabsTrigger>
+              <TabsTrigger value="script">
+                <Wand2 className="w-4 h-4 mr-2" />
+                AI Script
+              </TabsTrigger>
               <TabsTrigger value="settings">
                 <Settings className="w-4 h-4 mr-2" />
-                Shared Settings
+                Settings
               </TabsTrigger>
             </TabsList>
+
+            {/* AI Script Generator Tab */}
+            <TabsContent value="script">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <Card className="glass border-primary/20 max-w-3xl mx-auto">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Wand2 className="w-5 h-5 text-primary" />
+                      AI Script & Shot List Generator
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Describe your video idea and AI will generate a complete script with professional shot list, camera angles, and prompts for each scene.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <Label htmlFor="video-idea">Your Video Idea</Label>
+                      <Textarea
+                        id="video-idea"
+                        placeholder="Example: A cinematic product reveal video for a new smartphone. Starts with mysterious close-ups of the device, then shows its features in action, ending with a dramatic wide shot of the phone glowing on a pedestal."
+                        value={videoIdea}
+                        onChange={(e) => setVideoIdea(e.target.value)}
+                        className="mt-2 min-h-[120px]"
+                        disabled={isGeneratingScript}
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Describe your video in 2-3 sentences. Be specific about the mood, style, and key moments.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={generateScriptAndShots}
+                        disabled={isGeneratingScript || !videoIdea.trim() || !currentStoryboard}
+                        className="gap-2 flex-1"
+                        size="lg"
+                      >
+                        {isGeneratingScript ? (
+                          <>
+                            <Sparkles className="w-5 h-5 animate-spin" />
+                            Generating Script...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="w-5 h-5" />
+                            Generate Script & Shots
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {!currentStoryboard && (
+                      <div className="p-4 rounded-lg bg-accent/50 border border-border/50">
+                        <p className="text-sm text-muted-foreground">
+                          💡 Create or select a storyboard project first before generating scripts
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="space-y-3 pt-4 border-t border-border/50">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        What You'll Get:
+                      </h4>
+                      <ul className="space-y-2 text-sm text-muted-foreground">
+                        <li className="flex items-start gap-2">
+                          <span className="text-primary">•</span>
+                          <span>Complete script with narration and dialogue</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-primary">•</span>
+                          <span>Professional shot list with 5-8 cinematic shots</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-primary">•</span>
+                          <span>Camera angles and movements for each shot</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-primary">•</span>
+                          <span>Detailed visual descriptions optimized for AI image generation</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-primary">•</span>
+                          <span>Suggested duration for each scene</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </TabsContent>
 
             {/* Shared Settings Tab */}
             <TabsContent value="settings">
