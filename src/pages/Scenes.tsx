@@ -85,6 +85,11 @@ export default function Scenes() {
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [videoIdea, setVideoIdea] = useState('');
+  const [storyboards, setStoryboards] = useState<Storyboard[]>([]);
+  const [currentStoryboard, setCurrentStoryboard] = useState<Storyboard | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [newStoryboardTitle, setNewStoryboardTitle] = useState('');
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   // Load storyboards on mount
   useEffect(() => {
