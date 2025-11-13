@@ -1,8 +1,9 @@
 import { NavLink } from './NavLink';
 import { Button } from './ui/button';
-import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign } from 'lucide-react';
+import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign, Coins } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/hooks/useSubscription';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,9 +13,11 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { Avatar, AvatarFallback } from './ui/avatar';
+import { Badge } from './ui/badge';
 
 export default function Navigation() {
   const { user, signOut } = useAuth();
+  const { tokenBalance, isAdmin } = useSubscription();
 
   const getInitials = (email: string) => {
     return email.slice(0, 2).toUpperCase();
@@ -70,9 +73,23 @@ export default function Navigation() {
                 >
                   <Button variant="ghost" size="sm" className="gap-2">
                     <DollarSign className="w-4 h-4" />
-                    <span className="hidden sm:inline">Pricing</span>
+                  <span className="hidden sm:inline">Pricing</span>
                   </Button>
                 </NavLink>
+
+                {/* Token Balance */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 border border-primary/20">
+                  <Coins className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">
+                    {isAdmin ? (
+                      <Badge variant="secondary" className="bg-primary/20 text-primary border-0">
+                        Unlimited
+                      </Badge>
+                    ) : (
+                      tokenBalance?.balance.toLocaleString() || '0'
+                    )}
+                  </span>
+                </div>
 
                 {/* User Menu */}
                 <DropdownMenu>
