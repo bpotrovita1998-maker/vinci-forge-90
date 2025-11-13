@@ -1,6 +1,6 @@
 import { NavLink } from './NavLink';
 import { Button } from './ui/button';
-import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign, Coins } from 'lucide-react';
+import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign, Coins, Video } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -64,6 +64,16 @@ export default function Navigation() {
                   <Button variant="ghost" size="sm" className="gap-2">
                     <Grid3x3 className="w-4 h-4" />
                     <span className="hidden sm:inline">Gallery</span>
+                  </Button>
+                </NavLink>
+                <NavLink
+                  to="/scenes"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  activeClassName="text-primary"
+                >
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Video className="w-4 h-4" />
+                    <span className="hidden sm:inline">Scenes</span>
                   </Button>
                 </NavLink>
                 <NavLink
