@@ -180,7 +180,64 @@ export function JobProvider({ children }: { children: ReactNode }) {
       throw new Error('User not authenticated');
     }
 
-    const jobId = await generationService.submitJob(options);
+    // Generate job ID first
+    const jobId = crypto.randomUUID();
+
+    // Calculate estimated tokens based on generation type
+    let estimatedTokens = 0;
+    let actionType: 'image_generation' | 'video_generation' | 'vectorization' = 'image_generation';
+    
+    if (options.type === 'image') {
+      estimatedTokens = (options.numImages || 1) * 10; // 10 tokens per image
+      actionType = 'image_generation';
+    } else if (options.type === 'video') {
+      estimatedTokens = 50; // 50 tokens per video
+      actionType = 'video_generation';
+    } else if (options.type === '3d') {
+      estimatedTokens = 30; // 30 tokens per 3D model
+      actionType = 'image_generation'; // Closest match
+    }
+
+    // Check and deduct tokens before starting generation
+    try {
+      const { data: tokenData, error: tokenError } = await supabase.functions.invoke(
+        'check-and-deduct-tokens',
+        {
+          body: {
+            jobId,
+            actionType,
+            estimatedTokens
+          }
+        }
+      );
+
+      if (tokenError) {
+        console.error('Token deduction failed:', tokenError);
+        const errorMessage = tokenError.message || 'Failed to deduct tokens';
+        
+        if (errorMessage.includes('Insufficient token balance')) {
+          toast.error('Insufficient tokens. Please purchase more tokens to continue.');
+        } else if (errorMessage.includes('No active subscription')) {
+          toast.error('No active subscription. Please subscribe to continue.');
+        } else {
+          toast.error(errorMessage);
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (!tokenData?.success) {
+        toast.error('Failed to process token deduction');
+        throw new Error('Token deduction failed');
+      }
+
+      console.log('Tokens deducted successfully:', tokenData);
+    } catch (error) {
+      console.error('Error during token check:', error);
+      throw error;
+    }
+
+    // Now submit the job to the generation service with the same jobId
+    await generationService.submitJob(options, jobId);
     
     // Create initial job in database
     const { error: insertError } = await supabase.from('jobs').insert({

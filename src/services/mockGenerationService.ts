@@ -8,11 +8,11 @@ class MockGenerationService {
   private processingQueue: string[] = [];
   private isProcessing = false;
 
-  async submitJob(options: GenerationOptions): Promise<string> {
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async submitJob(options: GenerationOptions, jobId?: string): Promise<string> {
+    const actualJobId = jobId || `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const job: Job = {
-      id: jobId,
+      id: actualJobId,
       options,
       status: 'queued',
       progress: {
@@ -24,15 +24,15 @@ class MockGenerationService {
       createdAt: new Date(),
     };
 
-    this.jobs.set(jobId, job);
-    this.processingQueue.push(jobId);
+    this.jobs.set(actualJobId, job);
+    this.processingQueue.push(actualJobId);
     
     // Start processing queue
     if (!this.isProcessing) {
       this.processQueue();
     }
 
-    return jobId;
+    return actualJobId;
   }
 
   private async processQueue() {

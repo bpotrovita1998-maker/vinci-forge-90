@@ -7,14 +7,14 @@ class LovableAIService {
   private jobs: Map<string, Job> = new Map();
   private callbacks: Map<string, JobUpdateCallback> = new Map();
 
-  async submitJob(options: GenerationOptions): Promise<string> {
-    // Generate a proper UUID for database compatibility
-    const jobId = crypto.randomUUID();
+  async submitJob(options: GenerationOptions, jobId?: string): Promise<string> {
+    // Use provided jobId or generate a new one
+    const actualJobId = jobId || crypto.randomUUID();
     
-    console.log('LovableAI: Submitting job', jobId, options);
+    console.log('LovableAI: Submitting job', actualJobId, options);
     
     const job: Job = {
-      id: jobId,
+      id: actualJobId,
       options,
       status: 'queued',
       progress: {
@@ -26,16 +26,16 @@ class LovableAIService {
       createdAt: new Date(),
     };
 
-    this.jobs.set(jobId, job);
+    this.jobs.set(actualJobId, job);
     
     // Start processing immediately
-    console.log('LovableAI: Starting processJob for', jobId);
-    this.processJob(jobId).catch(error => {
+    console.log('LovableAI: Starting processJob for', actualJobId);
+    this.processJob(actualJobId).catch(error => {
       console.error('LovableAI: processJob failed:', error);
-      this.failJob(jobId, error.message);
+      this.failJob(actualJobId, error.message);
     });
 
-    return jobId;
+    return actualJobId;
   }
 
   private async processJob(jobId: string) {
