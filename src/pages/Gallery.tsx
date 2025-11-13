@@ -6,17 +6,31 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OutputViewer from '@/components/OutputViewer';
-import { Image as ImageIcon, Video, Box, Search, Download, Clock } from 'lucide-react';
+import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { Job } from '@/types/job';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function Gallery() {
-  const { jobs } = useJobs();
+  const { jobs, deleteJob } = useJobs();
   const [selectedType, setSelectedType] = useState<JobType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
 
   // Filter completed jobs
   const completedJobs = jobs.filter(job => job.status === 'completed' && job.outputs.length > 0);
@@ -27,6 +41,51 @@ export default function Gallery() {
     const matchesSearch = job.options.prompt.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesType && matchesSearch;
   });
+
+  // Apply sorting
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    const dateA = a.completedAt?.getTime() || 0;
+    const dateB = b.completedAt?.getTime() || 0;
+    return sortBy === 'newest' ? dateB - dateA : dateA - dateB;
+  });
+
+  const handleDownload = async (job: Job) => {
+    try {
+      const url = job.outputs[0];
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      
+      // Determine file extension based on job type
+      const extension = job.options.type === 'video' ? 'mp4' : 
+                       job.options.type === '3d' ? 'glb' : 'png';
+      link.download = `${job.options.type}-${job.id.slice(0, 8)}.${extension}`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      
+      toast.success('Download started');
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast.error('Failed to download file');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!jobToDelete) return;
+    
+    try {
+      await deleteJob(jobToDelete.id);
+      toast.success('Item deleted successfully');
+      setJobToDelete(null);
+    } catch (error) {
+      console.error('Delete failed:', error);
+      toast.error('Failed to delete item');
+    }
+  };
 
   const getTypeIcon = (type: JobType) => {
     switch (type) {
@@ -64,15 +123,27 @@ export default function Gallery() {
         </motion.div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by prompt..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 glass border-border/30"
-            />
+        <div className="flex flex-col gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by prompt..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 glass border-border/30"
+              />
+            </div>
+
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'newest' | 'oldest')}>
+              <SelectTrigger className="w-[180px] glass border-border/30">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Newest first</SelectItem>
+                <SelectItem value="oldest">Oldest first</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <Tabs value={selectedType} onValueChange={(v) => setSelectedType(v as JobType | 'all')}>
@@ -93,7 +164,7 @@ export default function Gallery() {
               </TabsTrigger>
               <TabsTrigger value="3d" className="gap-2">
                 <Box className="w-4 h-4" />
-                3D
+                3D Models
                 {counts['3d'] > 0 && <Badge variant="secondary" className="ml-1">{counts['3d']}</Badge>}
               </TabsTrigger>
             </TabsList>
@@ -101,7 +172,7 @@ export default function Gallery() {
         </div>
 
         {/* Gallery Grid */}
-        {filteredJobs.length === 0 ? (
+        {sortedJobs.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -126,7 +197,7 @@ export default function Gallery() {
             animate={{ opacity: 1 }}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
           >
-            {filteredJobs.map((job, index) => (
+            {sortedJobs.map((job, index) => (
               <motion.div
                 key={job.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -225,17 +296,30 @@ export default function Gallery() {
                         className="flex-1 glass border-border/30 hover:border-primary/30"
                         onClick={() => setSelectedJob(job)}
                       >
+                        <Eye className="w-4 h-4 mr-1" />
                         View
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         className="glass border-border/30 hover:border-primary/30"
-                        asChild
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(job);
+                        }}
                       >
-                        <a href={job.outputs[0]} download target="_blank" rel="noopener noreferrer">
-                          <Download className="w-4 h-4" />
-                        </a>
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="glass border-border/30 hover:border-destructive/30 hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setJobToDelete(job);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
@@ -253,6 +337,27 @@ export default function Gallery() {
           onClose={() => setSelectedJob(null)}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!jobToDelete} onOpenChange={() => setJobToDelete(null)}>
+        <AlertDialogContent className="glass border-border/30">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Generation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this {jobToDelete?.options.type}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
