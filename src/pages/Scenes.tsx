@@ -18,12 +18,34 @@ import {
   Download,
   Play,
   RefreshCw,
-  Clock
+  Clock,
+  Save,
+  FolderOpen,
+  FileText
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
 import { useJobs } from '@/contexts/JobContext';
 import { GenerationOptions } from '@/types/job';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Scene {
   id: string;
@@ -41,16 +63,172 @@ interface StoryboardSettings {
   brand: string;
 }
 
+interface Storyboard {
+  id: string;
+  title: string;
+  settings: StoryboardSettings;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function Scenes() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { submitJob, jobs } = useJobs();
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [storyboards, setStoryboards] = useState<Storyboard[]>([]);
+  const [currentStoryboard, setCurrentStoryboard] = useState<Storyboard | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [newStoryboardTitle, setNewStoryboardTitle] = useState('');
+  const [storyboardToDelete, setStoryboardToDelete] = useState<string | null>(null);
   const [settings, setSettings] = useState<StoryboardSettings>({
     character: '',
     style: '',
     brand: ''
   });
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load storyboards on mount
+  useEffect(() => {
+    if (user) {
+      loadStoryboards();
+    }
+  }, [user]);
+
+  // Load scenes when storyboard changes
+  useEffect(() => {
+    if (currentStoryboard) {
+      loadScenes(currentStoryboard.id);
+      setSettings(currentStoryboard.settings);
+    }
+  }, [currentStoryboard]);
+
+  // Auto-save when scenes or settings change
+  useEffect(() => {
+    if (currentStoryboard && !isSaving) {
+      const timeoutId = setTimeout(() => {
+        saveCurrentStoryboard();
+      }, 2000); // Auto-save after 2 seconds of no changes
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [scenes, settings, currentStoryboard]);
+
+  const loadStoryboards = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('storyboards')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      const typedStoryboards: Storyboard[] = (data || []).map(sb => ({
+        id: sb.id,
+        title: sb.title,
+        settings: (sb.settings as unknown) as StoryboardSettings,
+        created_at: sb.created_at,
+        updated_at: sb.updated_at
+      }));
+
+      setStoryboards(typedStoryboards);
+      
+      // Auto-select first storyboard if none selected
+      if (typedStoryboards.length > 0 && !currentStoryboard) {
+        setCurrentStoryboard(typedStoryboards[0]);
+      }
+    } catch (error) {
+      console.error('Error loading storyboards:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load storyboards",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadScenes = async (storyboardId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('storyboard_scenes')
+        .select('*')
+        .eq('storyboard_id', storyboardId)
+        .order('order_index');
+
+      if (error) throw error;
+
+      const loadedScenes: Scene[] = (data || []).map(scene => ({
+        id: scene.id,
+        title: scene.title,
+        description: scene.description,
+        imageUrl: scene.image_url || undefined,
+        status: scene.status as 'draft' | 'generating' | 'ready',
+        jobId: scene.job_id || undefined,
+        duration: scene.duration
+      }));
+
+      setScenes(loadedScenes);
+    } catch (error) {
+      console.error('Error loading scenes:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load scenes",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const createNewStoryboard = async () => {
+    if (!newStoryboardTitle.trim() || !user) {
+      toast({
+        title: "Error",
+        description: "Please enter a title",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('storyboards')
+        .insert([{
+          user_id: user.id,
+          title: newStoryboardTitle,
+          settings: { character: '', style: '', brand: '' }
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const typedStoryboard: Storyboard = {
+        id: data.id,
+        title: data.title,
+        settings: (data.settings as unknown) as StoryboardSettings,
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      };
+
+      setStoryboards([typedStoryboard, ...storyboards]);
+      setCurrentStoryboard(typedStoryboard);
+      setScenes([]);
+      setNewStoryboardTitle('');
+      setIsCreatingNew(false);
+      
+      toast({
+        title: "Storyboard Created",
+        description: "New storyboard created successfully"
+      });
+    } catch (error) {
+      console.error('Error creating storyboard:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create storyboard",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Monitor job completions and update scenes
   useEffect(() => {
@@ -75,6 +253,93 @@ export default function Scenes() {
       }
     });
   }, [jobs]);
+
+  const deleteStoryboard = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('storyboards')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setStoryboards(storyboards.filter(s => s.id !== id));
+      
+      if (currentStoryboard?.id === id) {
+        const remaining = storyboards.filter(s => s.id !== id);
+        setCurrentStoryboard(remaining[0] || null);
+        setScenes([]);
+      }
+
+      toast({
+        title: "Storyboard Deleted",
+        description: "Storyboard deleted successfully"
+      });
+    } catch (error) {
+      console.error('Error deleting storyboard:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete storyboard",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const saveCurrentStoryboard = async () => {
+    if (!currentStoryboard) return;
+
+    setIsSaving(true);
+    try {
+      // Update storyboard settings
+      const { error: storyboardError } = await supabase
+        .from('storyboards')
+        .update({ settings: settings as any })
+        .eq('id', currentStoryboard.id);
+
+      if (storyboardError) throw storyboardError;
+
+      // Delete removed scenes
+      const sceneIds = scenes.map(s => s.id);
+      if (sceneIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('storyboard_scenes')
+          .delete()
+          .eq('storyboard_id', currentStoryboard.id)
+          .not('id', 'in', `(${sceneIds.join(',')})`);
+      }
+
+      // Upsert all scenes
+      if (scenes.length > 0) {
+        const scenesToSave = scenes.map((scene, index) => ({
+          id: scene.id,
+          storyboard_id: currentStoryboard.id,
+          title: scene.title,
+          description: scene.description,
+          image_url: scene.imageUrl,
+          status: scene.status,
+          job_id: scene.jobId,
+          duration: scene.duration,
+          order_index: index
+        }));
+
+        const { error: scenesError } = await supabase
+          .from('storyboard_scenes')
+          .upsert(scenesToSave);
+
+        if (scenesError) throw scenesError;
+      }
+
+    } catch (error) {
+      console.error('Error saving storyboard:', error);
+      toast({
+        title: "Save Failed",
+        description: "Failed to save storyboard",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const addScene = () => {
     const newScene: Scene = {
@@ -251,6 +516,132 @@ export default function Scenes() {
               Generate images for each scene and turn your storyboard into a video.
             </p>
           </motion.div>
+
+          {/* Storyboard Management */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6"
+          >
+            <Card className="glass border-primary/20">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <FolderOpen className="w-5 h-5 text-primary" />
+                  
+                  {!isCreatingNew ? (
+                    <>
+                      <Select
+                        value={currentStoryboard?.id || ''}
+                        onValueChange={(value) => {
+                          const selected = storyboards.find(s => s.id === value);
+                          if (selected) setCurrentStoryboard(selected);
+                        }}
+                      >
+                        <SelectTrigger className="w-[250px]">
+                          <SelectValue placeholder="Select a storyboard" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {storyboards.map(sb => (
+                            <SelectItem key={sb.id} value={sb.id}>
+                              {sb.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        onClick={() => setIsCreatingNew(true)}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        New Project
+                      </Button>
+
+                      {currentStoryboard && (
+                        <>
+                          <Button
+                            onClick={() => saveCurrentStoryboard()}
+                            disabled={isSaving}
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                          >
+                            <Save className="w-4 h-4" />
+                            {isSaving ? 'Saving...' : 'Save'}
+                          </Button>
+
+                          <Button
+                            onClick={() => setStoryboardToDelete(currentStoryboard.id)}
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        placeholder="Enter project name..."
+                        value={newStoryboardTitle}
+                        onChange={(e) => setNewStoryboardTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') createNewStoryboard();
+                          if (e.key === 'Escape') setIsCreatingNew(false);
+                        }}
+                        className="max-w-xs"
+                        autoFocus
+                      />
+                      <Button onClick={createNewStoryboard} size="sm">
+                        Create
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setIsCreatingNew(false);
+                          setNewStoryboardTitle('');
+                        }}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <AlertDialog open={!!storyboardToDelete} onOpenChange={() => setStoryboardToDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Storyboard?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete this storyboard and all its scenes. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (storyboardToDelete) {
+                      deleteStoryboard(storyboardToDelete);
+                      setStoryboardToDelete(null);
+                    }
+                  }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Tabs defaultValue="storyboard" className="w-full">
             <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
