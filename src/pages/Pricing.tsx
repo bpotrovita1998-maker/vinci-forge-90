@@ -8,31 +8,35 @@ export default function Pricing() {
   const navigate = useNavigate();
   const { subscription, tokenBalance, isAdmin } = useSubscription();
 
-  // Token costs: Image = 10, Video = 50, 3D = 30
+  // Token costs based on AI model pricing:
+  // Image AI cost: $0.02 → charge 8 tokens ($0.08) = $0.06 profit per image
+  // Video AI cost: $0.30 → charge 60 tokens ($0.60) = $0.30 profit per video
+  // 3D AI cost: ~$0.10 → charge 25 tokens ($0.25) = $0.15 profit per 3D
+  // Token value: 1 token = $0.01
   const tokenPackages = [
     { 
       amount: 20, 
       tokens: 2000, 
       bonus: 0,
-      images: 200,
-      videos: 40,
-      threeD: 66
+      images: 250,
+      videos: 33,
+      threeD: 80
     },
     { 
       amount: 30, 
       tokens: 3500, 
       bonus: 500,
-      images: 350,
-      videos: 70,
-      threeD: 116
+      images: 437,
+      videos: 58,
+      threeD: 140
     },
     { 
       amount: 50, 
       tokens: 6500, 
       bonus: 1500,
-      images: 650,
-      videos: 130,
-      threeD: 216
+      images: 812,
+      videos: 108,
+      threeD: 260
     }
   ];
 
@@ -100,7 +104,7 @@ export default function Pricing() {
             Purchase tokens to power your AI generations. Each generation costs tokens based on complexity.
           </p>
           <div className="bg-muted/30 rounded-lg p-4 mb-8 text-center text-sm">
-            <span className="font-semibold">Token Costs:</span> Image = 10 tokens • Video = 50 tokens • 3D Model = 30 tokens
+            <span className="font-semibold">Token Costs:</span> Image = 8 tokens • Video = 60 tokens • 3D Model = 25 tokens
           </div>
           
           <div className="grid md:grid-cols-3 gap-6">
@@ -140,7 +144,7 @@ export default function Pricing() {
                     </li>
                   </ul>
                   <div className="pt-2 text-xs text-muted-foreground border-t">
-                    Cost per generation: Images $0.10 • Videos $0.50 • 3D $0.30
+                    Cost per generation: Images $0.08 • Videos $0.60 • 3D $0.25
                   </div>
                 </CardContent>
                 <CardFooter>
