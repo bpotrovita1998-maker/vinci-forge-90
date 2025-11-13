@@ -8,35 +8,35 @@ export default function Pricing() {
   const navigate = useNavigate();
   const { subscription, tokenBalance, isAdmin } = useSubscription();
 
-  // Token costs based on AI model pricing:
-  // Image AI cost: $0.02 → charge 8 tokens ($0.08) = $0.06 profit per image
-  // Video AI cost: $0.30 → charge 60 tokens ($0.60) = $0.30 profit per video
-  // 3D AI cost: ~$0.10 → charge 25 tokens ($0.25) = $0.15 profit per 3D
+  // Token costs match exact AI costs (no markup - profit from $1 subscription only)
+  // Image AI cost: $0.02 → charge 2 tokens ($0.02)
+  // Video AI cost: $0.30 → charge 30 tokens ($0.30)
+  // 3D AI cost: ~$0.10 → charge 10 tokens ($0.10)
   // Token value: 1 token = $0.01
   const tokenPackages = [
     { 
       amount: 20, 
       tokens: 2000, 
       bonus: 0,
-      images: 250,
-      videos: 33,
-      threeD: 80
+      images: 1000,
+      videos: 66,
+      threeD: 200
     },
     { 
       amount: 30, 
       tokens: 3500, 
       bonus: 500,
-      images: 437,
-      videos: 58,
-      threeD: 140
+      images: 1750,
+      videos: 116,
+      threeD: 350
     },
     { 
       amount: 50, 
       tokens: 6500, 
       bonus: 1500,
-      images: 812,
-      videos: 108,
-      threeD: 260
+      images: 3250,
+      videos: 216,
+      threeD: 650
     }
   ];
 
@@ -104,7 +104,7 @@ export default function Pricing() {
             Purchase tokens to power your AI generations. Each generation costs tokens based on complexity.
           </p>
           <div className="bg-muted/30 rounded-lg p-4 mb-8 text-center text-sm">
-            <span className="font-semibold">Token Costs:</span> Image = 8 tokens • Video = 60 tokens • 3D Model = 25 tokens
+            <span className="font-semibold">Token Costs:</span> Image = 2 tokens • Video = 30 tokens • 3D Model = 10 tokens
           </div>
           
           <div className="grid md:grid-cols-3 gap-6">
@@ -144,7 +144,7 @@ export default function Pricing() {
                     </li>
                   </ul>
                   <div className="pt-2 text-xs text-muted-foreground border-t">
-                    Cost per generation: Images $0.08 • Videos $0.60 • 3D $0.25
+                    Cost per generation: Images $0.02 • Videos $0.30 • 3D $0.10
                   </div>
                 </CardContent>
                 <CardFooter>
