@@ -16,7 +16,8 @@ import {
   Settings, 
   Eye,
   Download,
-  Play
+  Play,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -101,7 +102,7 @@ export default function Scenes() {
     });
   };
 
-  const generateSceneImage = async (sceneId: string) => {
+  const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || !scene.description) {
       toast({
@@ -132,7 +133,9 @@ export default function Scenes() {
         threeDMode: 'none',
         steps: 20,
         cfgScale: 7.5,
-        numImages: 1
+        numImages: 1,
+        // Add random seed for variations when regenerating
+        seed: isRegenerate ? Math.floor(Math.random() * 1000000) : undefined
       };
 
       // Submit job to generation service
@@ -142,8 +145,10 @@ export default function Scenes() {
       updateScene(sceneId, { jobId });
       
       toast({
-        title: "Generating Scene",
-        description: "Your scene image is being generated..."
+        title: isRegenerate ? "Regenerating Scene" : "Generating Scene",
+        description: isRegenerate 
+          ? "Creating a new variation of your scene..."
+          : "Your scene image is being generated..."
       });
     } catch (error) {
       updateScene(sceneId, { status: 'draft' });
@@ -153,6 +158,10 @@ export default function Scenes() {
         variant: "destructive"
       });
     }
+  };
+
+  const regenerateScene = async (sceneId: string) => {
+    await generateSceneImage(sceneId, true);
   };
 
   const generateAllScenes = async () => {
@@ -413,24 +422,36 @@ export default function Scenes() {
 
                               {/* Actions */}
                               <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => generateSceneImage(scene.id)}
-                                  disabled={scene.status === 'generating' || !scene.description}
-                                  className="flex-1 gap-2"
-                                >
-                                  {scene.status === 'generating' ? (
-                                    <>
-                                      <Sparkles className="w-4 h-4 animate-spin" />
-                                      Generating...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ImageIcon className="w-4 h-4" />
-                                      Generate
-                                    </>
-                                  )}
-                                </Button>
+                                {scene.status === 'ready' ? (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => regenerateScene(scene.id)}
+                                    className="flex-1 gap-2"
+                                    variant="secondary"
+                                  >
+                                    <RefreshCw className="w-4 h-4" />
+                                    Regenerate
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => generateSceneImage(scene.id)}
+                                    disabled={scene.status === 'generating' || !scene.description}
+                                    className="flex-1 gap-2"
+                                  >
+                                    {scene.status === 'generating' ? (
+                                      <>
+                                        <Sparkles className="w-4 h-4 animate-spin" />
+                                        Generating...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ImageIcon className="w-4 h-4" />
+                                        Generate
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="ghost"
