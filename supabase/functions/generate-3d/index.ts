@@ -76,10 +76,10 @@ serve(async (req) => {
     console.log('Converting image to 3D model with TripoSR...');
     
     const output = await replicate.run(
-      "stability-ai/triposr",
+      "camenduru/tripo-sr",
       {
         input: {
-          image: finalImageUrl,
+          image_path: finalImageUrl,
           foreground_ratio: 0.85,
           mc_resolution: 256
         }
