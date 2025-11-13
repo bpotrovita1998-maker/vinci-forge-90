@@ -78,6 +78,7 @@ serve(async (req) => {
     // Helper to try multiple input schemas against a specific model:version
     const tryModel = async (modelVersion: string) => {
       const variants = [
+        { front_image: finalImageUrl },
         { image: finalImageUrl },
         { input_image: finalImageUrl },
         { images: [finalImageUrl] },
