@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video, Box } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video } from 'lucide-react';
 import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -204,19 +204,6 @@ export default function Hero() {
                 >
                   <Video className="w-5 h-5 sm:mr-2" />
                   <span className="hidden sm:inline">Video</span>
-                </Button>
-                <Button
-                  variant={options.type === '3d' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setOptions(prev => ({ ...prev, type: '3d' }))}
-                  className={`flex-1 sm:flex-none ${
-                    options.type === '3d' 
-                      ? 'bg-secondary text-secondary-foreground' 
-                      : 'glass border-secondary/20 hover:bg-secondary/10 hover:border-secondary/30'
-                  }`}
-                >
-                  <Box className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">3D</span>
                 </Button>
               </div>
             </div>
