@@ -30,11 +30,11 @@ const promptSchema = z.string()
   )
   .refine(
     (val) => {
-      // Ensure prompt has descriptive content (at least 3 words with substance)
+      // Ensure prompt has descriptive content (at least 2 substantial words)
       const words = val.trim().split(/\s+/).filter(w => w.length > 2);
-      return words.length >= 3;
+      return words.length >= 2;
     },
-    { message: "Please provide a more detailed visual description (at least 3 descriptive words)" }
+    { message: "Please provide a more detailed visual description (at least 2 descriptive words)" }
   )
   .refine(
     (val) => {
