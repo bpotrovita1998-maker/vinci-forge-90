@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box } from 'lucide-react';
 import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -153,7 +153,7 @@ export default function Hero() {
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
-            Create stunning images and videos with the power of artificial intelligence
+            Create stunning images, videos, and 3D models with the power of artificial intelligence
           </p>
         </motion.div>
 
@@ -222,6 +222,19 @@ export default function Hero() {
                 >
                   <Video className="w-5 h-5 sm:mr-2" />
                   <span className="hidden sm:inline">Video</span>
+                </Button>
+                <Button
+                  variant={options.type === '3d' ? 'default' : 'outline'}
+                  size="lg"
+                  onClick={() => setOptions(prev => ({ ...prev, type: '3d' }))}
+                  className={`flex-1 sm:flex-none ${
+                    options.type === '3d' 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
+                  }`}
+                >
+                  <Box className="w-5 h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">3D</span>
                 </Button>
               </div>
             </div>
