@@ -72,27 +72,42 @@ serve(async (req) => {
       console.log('Generated image for 3D conversion:', finalImageUrl);
     }
 
-    // Now convert the image to 3D using TripoSR
-    console.log('Converting image to 3D model with TripoSR...');
+    // Now convert the image to 3D using TRELLIS (Replicate)
+    console.log('Converting image to 3D model with TRELLIS...');
     
     const output = await replicate.run(
-      "camenduru/tripo-sr",
+      "firtoz/trellis",
       {
         input: {
-          image_path: finalImageUrl,
-          foreground_ratio: 0.85,
-          mc_resolution: 256
+          images: [finalImageUrl],
+          randomize_seed: true,
+          generate_color: true
         }
       }
     );
 
     console.log('3D generation response:', output);
 
-    // TripoSR returns a GLB file URL
+    // Try to resolve a usable model URL (GLB) from various possible shapes
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const o: any = output;
+    const modelUrl = Array.isArray(o)
+      ? o[0]
+      : (typeof o === 'string')
+        ? o
+        : (o?.glb || o?.mesh || o?.model || o?.file || (Array.isArray(o?.output) ? o.output[0] : undefined) || o?.assets?.glb || o?.assets?.model || o?.assets?.file);
+
+    if (!modelUrl) {
+      return new Response(
+        JSON.stringify({ error: '3D model URL not found in response', raw: output }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ 
-        output: output,
-        modelUrl: output, // GLB file URL
+        output,
+        modelUrl,
         format: 'glb'
       }), 
       {
