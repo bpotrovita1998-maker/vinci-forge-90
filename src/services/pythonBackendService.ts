@@ -25,7 +25,7 @@ class PythonBackendService {
   /**
    * Submit a job to the Python backend
    */
-  async submitJob(options: GenerationOptions): Promise<string> {
+  async submitJob(options: GenerationOptions, jobId?: string): Promise<string> {
     try {
       const response = await fetch(`${PYTHON_BACKEND_URL}/api/jobs`, {
         method: 'POST',
