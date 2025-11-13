@@ -8,10 +8,32 @@ export default function Pricing() {
   const navigate = useNavigate();
   const { subscription, tokenBalance, isAdmin } = useSubscription();
 
+  // Token costs: Image = 10, Video = 50, 3D = 30
   const tokenPackages = [
-    { amount: 20, tokens: 2000, bonus: 0 },
-    { amount: 30, tokens: 3500, bonus: 500 },
-    { amount: 50, tokens: 6500, bonus: 1500 }
+    { 
+      amount: 20, 
+      tokens: 2000, 
+      bonus: 0,
+      images: 200,
+      videos: 40,
+      threeD: 66
+    },
+    { 
+      amount: 30, 
+      tokens: 3500, 
+      bonus: 500,
+      images: 350,
+      videos: 70,
+      threeD: 116
+    },
+    { 
+      amount: 50, 
+      tokens: 6500, 
+      bonus: 1500,
+      images: 650,
+      videos: 130,
+      threeD: 216
+    }
   ];
 
   return (
@@ -74,9 +96,12 @@ export default function Pricing() {
         {/* Token Packages */}
         <div>
           <h2 className="text-2xl font-bold mb-6 text-center">Buy Tokens</h2>
-          <p className="text-center text-muted-foreground mb-8">
-            Purchase tokens to use AI features. Requires active subscription.
+          <p className="text-center text-muted-foreground mb-4">
+            Purchase tokens to power your AI generations. Each generation costs tokens based on complexity.
           </p>
+          <div className="bg-muted/30 rounded-lg p-4 mb-8 text-center text-sm">
+            <span className="font-semibold">Token Costs:</span> Image = 10 tokens • Video = 50 tokens • 3D Model = 30 tokens
+          </div>
           
           <div className="grid md:grid-cols-3 gap-6">
             {tokenPackages.map((pkg) => (
@@ -92,12 +117,31 @@ export default function Pricing() {
                     {pkg.tokens.toLocaleString()} tokens
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
+                  <div className="text-sm font-semibold text-primary mb-2">
+                    What you get:
+                  </div>
                   <ul className="space-y-2 text-sm">
-                    <li>• ~{Math.floor(pkg.tokens / 100)} images</li>
-                    <li>• ~{Math.floor(pkg.tokens / 500)} videos</li>
-                    <li>• Vectorization included</li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-primary">🖼️</span>
+                      <span><strong>{pkg.images}</strong> AI Images</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-primary">🎬</span>
+                      <span><strong>{pkg.videos}</strong> AI Videos</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-primary">🎨</span>
+                      <span><strong>{pkg.threeD}</strong> 3D Generations</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-primary">✨</span>
+                      <span>Image vectorization included</span>
+                    </li>
                   </ul>
+                  <div className="pt-2 text-xs text-muted-foreground border-t">
+                    Cost per generation: Images $0.10 • Videos $0.50 • 3D $0.30
+                  </div>
                 </CardContent>
                 <CardFooter>
                   <Button 
