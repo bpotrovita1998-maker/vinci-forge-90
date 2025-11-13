@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
+import { useJobs } from '@/contexts/JobContext';
+import { GenerationOptions } from '@/types/job';
 
 interface Scene {
   id: string;
@@ -27,6 +29,7 @@ interface Scene {
   description: string;
   imageUrl?: string;
   status: 'draft' | 'generating' | 'ready';
+  jobId?: string;
 }
 
 interface StoryboardSettings {
@@ -37,6 +40,7 @@ interface StoryboardSettings {
 
 export default function Scenes() {
   const { toast } = useToast();
+  const { submitJob, jobs } = useJobs();
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [settings, setSettings] = useState<StoryboardSettings>({
     character: '',
@@ -44,6 +48,30 @@ export default function Scenes() {
     brand: ''
   });
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+
+  // Monitor job completions and update scenes
+  useEffect(() => {
+    scenes.forEach(scene => {
+      if (scene.jobId) {
+        const job = jobs.find(j => j.id === scene.jobId);
+        if (job?.status === 'completed' && job.outputs.length > 0) {
+          updateScene(scene.id, {
+            status: 'ready',
+            imageUrl: job.outputs[0]
+          });
+        } else if (job?.status === 'failed') {
+          updateScene(scene.id, {
+            status: 'draft'
+          });
+          toast({
+            title: "Generation Failed",
+            description: job.error || "Failed to generate scene image",
+            variant: "destructive"
+          });
+        }
+      }
+    });
+  }, [jobs]);
 
   const addScene = () => {
     const newScene: Scene = {
@@ -95,24 +123,33 @@ export default function Scenes() {
     ].filter(Boolean).join(', ');
 
     try {
-      // TODO: Call actual image generation service
-      // For now, simulate generation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Create generation options
+      const options: GenerationOptions = {
+        prompt: enhancedPrompt,
+        type: 'image',
+        width: 1024,
+        height: 1024,
+        threeDMode: 'none',
+        steps: 20,
+        cfgScale: 7.5,
+        numImages: 1
+      };
+
+      // Submit job to generation service
+      const jobId = await submitJob(options);
       
-      updateScene(sceneId, { 
-        status: 'ready',
-        imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=600'
-      });
+      // Track job ID in scene
+      updateScene(sceneId, { jobId });
       
       toast({
-        title: "Scene Generated",
-        description: "Image generated successfully"
+        title: "Generating Scene",
+        description: "Your scene image is being generated..."
       });
     } catch (error) {
       updateScene(sceneId, { status: 'draft' });
       toast({
         title: "Generation Failed",
-        description: "Failed to generate scene image",
+        description: error instanceof Error ? error.message : "Failed to generate scene image",
         variant: "destructive"
       });
     }
