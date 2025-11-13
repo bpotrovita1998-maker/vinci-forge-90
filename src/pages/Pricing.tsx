@@ -19,10 +19,10 @@ export default function Pricing() {
       <div className="max-w-6xl mx-auto space-y-12">
         {/* Header */}
         <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent px-4">
             Choose Your Plan
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg px-4">
             Start creating amazing AI content today
           </p>
         </div>
@@ -64,7 +64,7 @@ export default function Pricing() {
             {subscription?.status === 'active' ? (
               <Button disabled className="w-full">Current Plan</Button>
             ) : (
-              <Button className="w-full" onClick={() => navigate('/auth')}>
+              <Button className="w-full" onClick={() => navigate('/')}>
                 Subscribe Now
               </Button>
             )}
