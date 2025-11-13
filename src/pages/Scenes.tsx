@@ -90,6 +90,7 @@ export default function Scenes() {
   const [isSaving, setIsSaving] = useState(false);
   const [newStoryboardTitle, setNewStoryboardTitle] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [storyboardToDelete, setStoryboardToDelete] = useState<string | null>(null);
 
   // Load storyboards on mount
   useEffect(() => {
@@ -119,14 +120,14 @@ export default function Scenes() {
 
   const loadStoryboards = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('storyboards')
         .select('*')
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
 
-      const typedStoryboards: Storyboard[] = (data || []).map(sb => ({
+      const typedStoryboards: Storyboard[] = (data || []).map((sb: any) => ({
         id: sb.id,
         title: sb.title,
         settings: (sb.settings as unknown) as StoryboardSettings,
@@ -152,7 +153,7 @@ export default function Scenes() {
 
   const loadScenes = async (storyboardId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('storyboard_scenes')
         .select('*')
         .eq('storyboard_id', storyboardId)
@@ -160,7 +161,7 @@ export default function Scenes() {
 
       if (error) throw error;
 
-      const loadedScenes: Scene[] = (data || []).map(scene => ({
+      const loadedScenes: Scene[] = (data || []).map((scene: any) => ({
         id: scene.id,
         title: scene.title,
         description: scene.description,
@@ -192,7 +193,7 @@ export default function Scenes() {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('storyboards')
         .insert([{
           user_id: user.id,
@@ -205,11 +206,11 @@ export default function Scenes() {
       if (error) throw error;
 
       const typedStoryboard: Storyboard = {
-        id: data.id,
-        title: data.title,
-        settings: (data.settings as unknown) as StoryboardSettings,
-        created_at: data.created_at,
-        updated_at: data.updated_at
+        id: (data as any).id,
+        title: (data as any).title,
+        settings: ((data as any).settings as unknown) as StoryboardSettings,
+        created_at: (data as any).created_at,
+        updated_at: (data as any).updated_at
       };
 
       setStoryboards([typedStoryboard, ...storyboards]);
@@ -258,7 +259,7 @@ export default function Scenes() {
 
   const deleteStoryboard = async (id: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('storyboards')
         .delete()
         .eq('id', id);
@@ -293,7 +294,7 @@ export default function Scenes() {
     setIsSaving(true);
     try {
       // Update storyboard settings
-      const { error: storyboardError } = await supabase
+      const { error: storyboardError } = await (supabase as any)
         .from('storyboards')
         .update({ settings: settings as any })
         .eq('id', currentStoryboard.id);
@@ -303,7 +304,7 @@ export default function Scenes() {
       // Delete removed scenes
       const sceneIds = scenes.map(s => s.id);
       if (sceneIds.length > 0) {
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await (supabase as any)
           .from('storyboard_scenes')
           .delete()
           .eq('storyboard_id', currentStoryboard.id)
@@ -324,7 +325,7 @@ export default function Scenes() {
           order_index: index
         }));
 
-        const { error: scenesError } = await supabase
+        const { error: scenesError } = await (supabase as any)
           .from('storyboard_scenes')
           .upsert(scenesToSave);
 
