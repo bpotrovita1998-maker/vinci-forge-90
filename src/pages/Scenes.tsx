@@ -53,6 +53,7 @@ interface Scene {
   title: string;
   description: string;
   imageUrl?: string;
+  videoUrl?: string;
   status: 'draft' | 'generating' | 'ready';
   jobId?: string;
   duration: number; // in seconds
@@ -175,6 +176,7 @@ export default function Scenes() {
         title: scene.title,
         description: scene.description,
         imageUrl: scene.image_url || undefined,
+        videoUrl: scene.video_url || undefined,
         status: scene.status as 'draft' | 'generating' | 'ready',
         jobId: scene.job_id || undefined,
         duration: scene.duration
@@ -340,6 +342,7 @@ export default function Scenes() {
             title: scene.title,
             description: scene.description,
             image_url: scene.imageUrl || null,
+            video_url: scene.videoUrl || null,
             status: scene.status,
             job_id: scene.jobId || null,
             duration: scene.duration,
@@ -414,7 +417,7 @@ export default function Scenes() {
     });
   };
 
-  const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
+  const generateSceneVideo = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || !scene.description) {
       toast({
@@ -425,55 +428,88 @@ export default function Scenes() {
       return;
     }
 
+    // Cap duration at 5 seconds
+    const videoDuration = Math.min(scene.duration, 5);
+
     updateScene(sceneId, { status: 'generating' });
 
-    // Build enhanced prompt with shared settings
-    const enhancedPrompt = [
-      scene.description,
-      settings.character && `Character: ${settings.character}`,
-      settings.style && `Style: ${settings.style}`,
-      settings.brand && `Brand: ${settings.brand}`
-    ].filter(Boolean).join(', ');
-
     try {
-      // Create generation options
-      const options: GenerationOptions = {
-        prompt: enhancedPrompt,
-        type: 'image',
-        width: 1024,
-        height: 1024,
-        threeDMode: 'none',
-        steps: 20,
-        cfgScale: 7.5,
-        numImages: 1,
-        // Add random seed for variations when regenerating
-        seed: isRegenerate ? Math.floor(Math.random() * 1000000) : undefined
-      };
+      // Find the previous scene for continuity
+      const sceneIndex = scenes.findIndex(s => s.id === sceneId);
+      const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
 
-      // Submit job to generation service
-      const jobId = await submitJob(options);
+      // Build enhanced prompt with continuity context
+      let enhancedPrompt = scene.description;
       
-      // Track job ID in scene
-      updateScene(sceneId, { jobId });
+      // Add previous scene context for continuity
+      if (previousScene && previousScene.description && !isRegenerate) {
+        enhancedPrompt = `Continue from previous scene: "${previousScene.description}". Now: ${scene.description}. Maintain the same characters, style, and story continuity.`;
+      }
       
-      toast({
-        title: isRegenerate ? "Regenerating Scene" : "Generating Scene",
-        description: isRegenerate 
-          ? "Creating a new variation of your scene..."
-          : "Your scene image is being generated..."
+      // Add shared settings
+      const contextParts = [
+        enhancedPrompt,
+        settings.character && `Character: ${settings.character}`,
+        settings.style && `Style: ${settings.style}`,
+        settings.brand && `Brand: ${settings.brand}`
+      ].filter(Boolean);
+      
+      const finalPrompt = contextParts.join(', ');
+
+      console.log('Generating video with prompt:', finalPrompt);
+      console.log('Duration:', videoDuration);
+
+      // Call video generation endpoint
+      const { data, error } = await supabase.functions.invoke('generate-video', {
+        body: {
+          prompt: finalPrompt,
+          duration: videoDuration,
+          quality: '720p',
+          aspectRatio: '16:9',
+          // Use last frame from previous scene if available for better continuity
+          inputImage: previousScene?.imageUrl
+        }
       });
+
+      if (error) {
+        console.error('Video generation error:', error);
+        throw error;
+      }
+
+      console.log('Video generation response:', data);
+
+      // The video URL will be in data.output
+      if (data?.output) {
+        updateScene(sceneId, { 
+          status: 'ready',
+          videoUrl: data.output,
+          // Keep the first frame as imageUrl for thumbnail
+          imageUrl: data.output
+        });
+        
+        toast({
+          title: "Video Generated!",
+          description: `Scene ${sceneIndex + 1} video is ready`
+        });
+      } else {
+        throw new Error('No video output received');
+      }
+
     } catch (error) {
+      console.error('Error generating video:', error);
       updateScene(sceneId, { status: 'draft' });
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
       toast({
         title: "Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate scene image",
+        description: errorMessage,
         variant: "destructive"
       });
     }
   };
 
   const regenerateScene = async (sceneId: string) => {
-    await generateSceneImage(sceneId, true);
+    await generateSceneVideo(sceneId, true);
   };
 
   const generateScriptAndShots = async () => {
@@ -553,7 +589,7 @@ export default function Scenes() {
     });
 
     for (const scene of draftScenes) {
-      await generateSceneImage(scene.id);
+      await generateSceneVideo(scene.id);
     }
   };
 
@@ -1002,14 +1038,23 @@ export default function Scenes() {
                               </div>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                              {/* Scene Image Preview */}
-                              {scene.imageUrl && (
+                              {/* Scene Video/Image Preview */}
+                              {(scene.videoUrl || scene.imageUrl) && (
                                 <div className="relative aspect-video rounded-lg overflow-hidden border border-border/50">
-                                  <img 
-                                    src={scene.imageUrl} 
-                                    alt={scene.title}
-                                    className="w-full h-full object-cover"
-                                  />
+                                  {scene.videoUrl ? (
+                                    <video 
+                                      src={scene.videoUrl} 
+                                      controls
+                                      className="w-full h-full object-cover"
+                                      poster={scene.imageUrl}
+                                    />
+                                  ) : (
+                                    <img 
+                                      src={scene.imageUrl} 
+                                      alt={scene.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  )}
                                 </div>
                               )}
 
@@ -1061,7 +1106,7 @@ export default function Scenes() {
                                 ) : (
                                   <Button
                                     size="sm"
-                                    onClick={() => generateSceneImage(scene.id)}
+                                    onClick={() => generateSceneVideo(scene.id)}
                                     disabled={scene.status === 'generating' || !scene.description}
                                     className="flex-1 gap-2"
                                   >
