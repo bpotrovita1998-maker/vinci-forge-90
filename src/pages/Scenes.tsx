@@ -107,6 +107,8 @@ export default function Scenes() {
   const saveTimeoutRef = useRef<number | null>(null);
   const saveQueuedRef = useRef<boolean>(false);
   const saveQueuedToastRef = useRef<boolean>(false);
+  // Disable autosave to prevent UI flicker; manual save only
+  const AUTOSAVE = false;
 
   // Load storyboards on mount
   useEffect(() => {
@@ -123,11 +125,11 @@ export default function Scenes() {
     }
   }, [currentStoryboard]);
 
-  // Auto-save when scenes or settings change
+  // Auto-save when scenes or settings change (disabled by default)
   useEffect(() => {
+    if (!AUTOSAVE) return;
     if (!currentStoryboard) return;
 
-    // Reset the timer whenever inputs change
     if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = window.setTimeout(() => {
       saveCurrentStoryboard(false);
