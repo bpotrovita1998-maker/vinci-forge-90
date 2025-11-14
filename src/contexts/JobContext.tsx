@@ -49,61 +49,67 @@ export function JobProvider({ children }: { children: ReactNode }) {
     if (!user) return;
 
     const pollInterval = setInterval(async () => {
-      const activeJobs = jobs.filter(j => 
-        j.status === 'running' || j.status === 'queued'
-      );
+      // Query active jobs directly from state without depending on the jobs array
+      setJobs(prev => {
+        const activeJobs = prev.filter(j => 
+          j.status === 'running' || j.status === 'queued'
+        );
 
-      if (activeJobs.length === 0) return;
+        if (activeJobs.length === 0) return prev;
 
-      console.log('Polling job status for', activeJobs.length, 'active jobs');
+        console.log('Polling job status for', activeJobs.length, 'active jobs');
 
-      for (const job of activeJobs) {
-        const { data, error } = await supabase
-          .from('jobs')
-          .select('*')
-          .eq('id', job.id)
-          .single();
+        // Poll each active job
+        activeJobs.forEach(async (job) => {
+          const { data, error } = await supabase
+            .from('jobs')
+            .select('*')
+            .eq('id', job.id)
+            .single();
 
-        if (error) {
-          console.error('Failed to poll job status:', error);
-          continue;
-        }
-
-        if (data && (data.status !== job.status || data.progress_percent !== job.progress.progress)) {
-          console.log(`Job ${job.id} status changed from ${job.status} to ${data.status}`);
-          
-          const updatedJob: Job = {
-            ...job,
-            status: data.status as JobStatus,
-            progress: {
-              stage: data.progress_stage as JobStatus,
-              progress: data.progress_percent,
-              message: data.progress_message || '',
-              currentStep: data.current_step || undefined,
-              totalSteps: data.total_steps || undefined,
-              eta: data.eta || undefined,
-            },
-            outputs: (data.outputs as string[]) || [],
-            error: data.error || undefined,
-            completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
-          };
-
-          setJobs(prev => prev.map(j => j.id === job.id ? updatedJob : j));
-
-          // Show notifications
-          if (data.status === 'completed' && (data.outputs as any[])?.length > 0) {
-            toast.success('Generation complete! Click the job to view your result.');
-            websocketService.unsubscribeFromJob(job.id);
-          } else if (data.status === 'failed') {
-            toast.error(`Generation failed: ${data.error || 'Unknown error'}`);
-            websocketService.unsubscribeFromJob(job.id);
+          if (error) {
+            console.error('Failed to poll job status:', error);
+            return;
           }
-        }
-      }
+
+          if (data && (data.status !== job.status || data.progress_percent !== job.progress.progress)) {
+            console.log(`Job ${job.id} status changed from ${job.status} to ${data.status}`);
+            
+            const updatedJob: Job = {
+              ...job,
+              status: data.status as JobStatus,
+              progress: {
+                stage: data.progress_stage as JobStatus,
+                progress: data.progress_percent,
+                message: data.progress_message || '',
+                currentStep: data.current_step || undefined,
+                totalSteps: data.total_steps || undefined,
+                eta: data.eta || undefined,
+              },
+              outputs: (data.outputs as string[]) || [],
+              error: data.error || undefined,
+              completedAt: data.completed_at ? new Date(data.completed_at) : undefined,
+            };
+
+            setJobs(prev => prev.map(j => j.id === job.id ? updatedJob : j));
+
+            // Show notifications
+            if (data.status === 'completed' && (data.outputs as any[])?.length > 0) {
+              toast.success('Generation complete! Click the job to view your result.');
+              websocketService.unsubscribeFromJob(job.id);
+            } else if (data.status === 'failed') {
+              toast.error(`Generation failed: ${data.error || 'Unknown error'}`);
+              websocketService.unsubscribeFromJob(job.id);
+            }
+          }
+        });
+
+        return prev;
+      });
     }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(pollInterval);
-  }, [user, jobs]);
+  }, [user]);
 
   // Load jobs from database when user logs in
   useEffect(() => {
