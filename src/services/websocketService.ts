@@ -44,6 +44,7 @@ export class WebSocketService {
         this.ws.onclose = () => {
           console.log('WebSocket disconnected');
           this.isConnecting = false;
+          this.ws = null;
           this.attemptReconnect();
         };
       } catch (error) {
