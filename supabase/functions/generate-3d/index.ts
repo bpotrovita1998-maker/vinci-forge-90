@@ -169,6 +169,10 @@ serve(async (req) => {
     // Update job as completed in database
     if (jobId) {
       console.log(`Updating job ${jobId} as completed with model URL: ${modelUrl}`);
+      console.log(`Model URL type: ${typeof modelUrl}`);
+      
+      // Ensure modelUrl is a string
+      const urlString = typeof modelUrl === 'string' ? modelUrl : String(modelUrl);
       
       const { error: updateError } = await supabase
         .from('jobs')
@@ -177,7 +181,7 @@ serve(async (req) => {
           progress_percent: 100,
           progress_stage: 'completed',
           progress_message: '3D model generated successfully',
-          outputs: [modelUrl],
+          outputs: [urlString],
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -193,7 +197,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         output,
-        modelUrl,
+        modelUrl: typeof modelUrl === 'string' ? modelUrl : String(modelUrl),
         format: 'glb'
       }), 
       {

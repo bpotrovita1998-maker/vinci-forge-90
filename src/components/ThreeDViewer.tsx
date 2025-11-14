@@ -7,11 +7,36 @@ interface ThreeDViewerProps {
 }
 
 function Model({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
+  // Ensure URL is a string and not an array or object
+  const modelUrl = Array.isArray(url) ? url[0] : url;
+  
+  if (!modelUrl || typeof modelUrl !== 'string') {
+    console.error('Invalid model URL:', url);
+    throw new Error('Invalid model URL provided');
+  }
+  
+  console.log('Loading 3D model from:', modelUrl);
+  const { scene } = useGLTF(modelUrl);
   return <primitive object={scene} />;
 }
 
 export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
+  // Validate and normalize the model URL
+  const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
+  
+  if (!normalizedUrl || typeof normalizedUrl !== 'string') {
+    return (
+      <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <p>Invalid 3D model URL</p>
+          <p className="text-xs mt-2">URL received: {JSON.stringify(modelUrl)}</p>
+        </div>
+      </div>
+    );
+  }
+  
+  console.log('ThreeDViewer rendering with URL:', normalizedUrl);
+  
   return (
     <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden">
       <Canvas
@@ -27,7 +52,7 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
             polar={[-Math.PI / 4, Math.PI / 4]}
           >
             <Stage environment="city" intensity={0.6} shadows={false}>
-              <Model url={modelUrl} />
+              <Model url={normalizedUrl} />
             </Stage>
           </PresentationControls>
         </Suspense>
