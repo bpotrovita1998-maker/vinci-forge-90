@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react';
 import { Job, GenerationOptions, JobStatus } from '@/types/job';
 import { lovableAIService } from '@/services/lovableAIService';
 import { mockGenerationService } from '@/services/mockGenerationService';
@@ -31,6 +31,8 @@ const JobContext = createContext<JobContextType | undefined>(undefined);
 export function JobProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
+  const [pollInterval, setPollInterval] = useState(2000); // Start with 2 seconds
+  const pollStartTimes = useRef<Map<string, number>>(new Map());
   const { user } = useAuth();
 
   // Initialize WebSocket connection
@@ -44,20 +46,47 @@ export function JobProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Fallback polling for active jobs when WebSocket is unreliable
+  // Fallback polling for active jobs with exponential backoff
   useEffect(() => {
     if (!user) return;
 
-    const pollInterval = setInterval(async () => {
+    const pollTimer = setInterval(async () => {
       // Query active jobs directly from state without depending on the jobs array
       setJobs(prev => {
         const activeJobs = prev.filter(j => 
           j.status === 'running' || j.status === 'queued'
         );
 
-        if (activeJobs.length === 0) return prev;
+        if (activeJobs.length === 0) {
+          // Reset poll interval when no active jobs
+          setPollInterval(2000);
+          pollStartTimes.current.clear();
+          return prev;
+        }
 
-        console.log('Polling job status for', activeJobs.length, 'active jobs');
+        // Calculate backoff based on oldest active job
+        let oldestJobAge = 0;
+        activeJobs.forEach(job => {
+          const startTime = pollStartTimes.current.get(job.id) || Date.now();
+          if (!pollStartTimes.current.has(job.id)) {
+            pollStartTimes.current.set(job.id, startTime);
+          }
+          const age = Date.now() - startTime;
+          oldestJobAge = Math.max(oldestJobAge, age);
+        });
+
+        // Exponential backoff: 2s → 4s → 8s → 16s → 30s (max)
+        const newInterval = Math.min(
+          2000 * Math.pow(2, Math.floor(oldestJobAge / 30000)), // Double every 30 seconds
+          30000 // Max 30 seconds
+        );
+        
+        if (newInterval !== pollInterval) {
+          console.log(`Adjusting poll interval to ${newInterval}ms based on job age ${Math.round(oldestJobAge / 1000)}s`);
+          setPollInterval(newInterval);
+        }
+
+        console.log(`Polling ${activeJobs.length} active jobs (interval: ${pollInterval}ms)`);
 
         // Poll each active job
         activeJobs.forEach(async (job) => {
@@ -93,6 +122,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
             setJobs(prev => prev.map(j => j.id === job.id ? updatedJob : j));
 
+            // Clean up poll tracking when job completes
+            if (data.status === 'completed' || data.status === 'failed') {
+              pollStartTimes.current.delete(job.id);
+            }
+
             // Show notifications
             if (data.status === 'completed' && (data.outputs as any[])?.length > 0) {
               toast.success('Generation complete! Click the job to view your result.');
@@ -106,10 +140,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
         return prev;
       });
-    }, 3000); // Poll every 3 seconds
+    }, pollInterval);
 
-    return () => clearInterval(pollInterval);
-  }, [user]);
+    return () => clearInterval(pollTimer);
+  }, [user, pollInterval]);
 
   // Load jobs from database when user logs in
   useEffect(() => {
