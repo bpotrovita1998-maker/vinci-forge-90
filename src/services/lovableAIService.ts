@@ -289,9 +289,7 @@ class LovableAIService {
         let delay = 2000; // 2s initial
 
         while (Date.now() - start < timeoutMs) {
-          // Update UI stage occasionally
-          this.updateJobStage(jobId, 'upscaling', 'Generating CAD-quality mesh...');
-
+          // Poll the edge function for status until completion/failure
           const { data: statusData, error: statusErr } = await supabase.functions.invoke('generate-cad', {
             body: { predictionId, jobId, prompt: job.options.prompt }
           });
