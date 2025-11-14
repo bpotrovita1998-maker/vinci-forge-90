@@ -104,16 +104,25 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
           {/* Media Preview */}
           <div className="relative bg-muted/30 rounded-lg overflow-hidden">
             {job.options.type === '3d' ? (
-              <Suspense fallback={
+              job.outputs && job.outputs.length > 0 && job.outputs[0] ? (
+                <Suspense fallback={
+                  <div className="w-full h-[500px] flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-muted-foreground">Loading 3D model...</p>
+                    </div>
+                  </div>
+                }>
+                  <ThreeDViewer modelUrl={job.outputs[0]} />
+                </Suspense>
+              ) : (
                 <div className="w-full h-[500px] flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                    <p className="text-muted-foreground">Loading 3D model...</p>
+                  <div className="text-center text-muted-foreground">
+                    <p>No 3D model available</p>
+                    <p className="text-xs mt-2">Outputs: {JSON.stringify(job.outputs)}</p>
                   </div>
                 </div>
-              }>
-                <ThreeDViewer modelUrl={job.outputs[0]} />
-              </Suspense>
+              )
             ) : job.options.type === 'image' ? (
               <div className="space-y-3">
                 <img
