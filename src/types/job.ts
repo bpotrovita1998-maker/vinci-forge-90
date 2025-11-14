@@ -1,4 +1,4 @@
-export type JobType = 'image' | 'video' | '3d';
+export type JobType = 'image' | 'video' | '3d' | 'cad';
 export type JobStatus = 'queued' | 'running' | 'upscaling' | 'encoding' | 'completed' | 'failed';
 export type VideoMode = 'short' | 'long';
 export type ThreeDMode = 'none' | 'stereoscopic' | 'object';
