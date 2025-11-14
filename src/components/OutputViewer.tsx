@@ -7,13 +7,16 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
 import ThreeDViewer from './ThreeDViewer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
+import * as THREE from 'three';
+import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 interface OutputViewerProps {
   job: Job;
@@ -80,6 +83,94 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       toast({
         title: "Download failed",
         description: "Could not download file for Unity",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadGLB = async () => {
+    try {
+      const url = job.outputs[0];
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `3d_print_${job.id.slice(0, 8)}.glb`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      
+      toast({
+        title: "GLB Downloaded",
+        description: "Import into Cura, PrusaSlicer, or Bambu Studio",
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadSTL = async () => {
+    try {
+      toast({
+        title: "Converting to STL...",
+        description: "This may take a moment",
+      });
+
+      const url = job.outputs[0];
+      const loader = new GLTFLoader();
+      
+      // Load the GLB file
+      loader.load(url, (gltf) => {
+        try {
+          // Create STL exporter
+          const exporter = new STLExporter();
+          
+          // Export the scene to STL (binary format for smaller files)
+          const stlData = exporter.parse(gltf.scene, { binary: true });
+          
+          // Create blob and download
+          const blob = new Blob([stlData], { type: 'application/octet-stream' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `3d_print_${job.id.slice(0, 8)}.stl`;
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+          
+          toast({
+            title: "STL Downloaded",
+            description: "Ready for 3D printing! Import into your slicer.",
+          });
+        } catch (error) {
+          console.error('STL conversion failed:', error);
+          toast({
+            title: "Conversion failed",
+            description: "Could not convert to STL format",
+            variant: "destructive",
+          });
+        }
+      }, undefined, (error) => {
+        console.error('Model loading failed:', error);
+        toast({
+          title: "Loading failed",
+          description: "Could not load model for conversion",
+          variant: "destructive",
+        });
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download file",
         variant: "destructive",
       });
     }
@@ -222,55 +313,76 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               </div>
             )}
 
-            {/* CAD Export Information */}
+            {/* CAD Export & 3D Printing */}
             {job.options.type === 'cad' && (
-              <div className="p-4 rounded-lg border border-accent/30 bg-accent/5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Box className="w-5 h-5 text-accent" />
-                  <h3 className="font-semibold text-foreground">CAD Model Export</h3>
-                  <Badge variant="outline" className="bg-accent/20 text-accent border-0 ml-auto">
-                    Engineering Grade
-                  </Badge>
-                </div>
-                
-                <p className="text-sm text-muted-foreground">
-                  High-quality GLB mesh optimized for CAD applications. Convert to STEP/IGES formats using CAD software.
-                </p>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    onClick={downloadForUnity}
-                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download GLB
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-accent/30 hover:bg-accent/10"
-                    asChild
-                  >
-                    <a href={job.outputs[0]} download>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Direct
-                    </a>
-                  </Button>
-                </div>
-
-                <div className="text-xs text-muted-foreground space-y-2 pt-2 border-t border-border/30">
-                  <p>🔧 <strong>CAD Software Compatibility:</strong></p>
-                  <div className="space-y-1 ml-2">
-                    <p>• <strong>FreeCAD:</strong> Import GLB, export to STEP/IGES</p>
-                    <p>• <strong>Blender:</strong> Import GLB, export with CAD plugins</p>
-                    <p>• <strong>Fusion 360:</strong> Import as mesh, convert to solid</p>
-                    <p>• <strong>Online Tools:</strong> Use converters like AnyConv or CloudConvert</p>
+              <div className="space-y-4">
+                {/* 3D Printing Section */}
+                <div className="p-4 rounded-lg border border-accent/30 bg-accent/5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Printer className="w-5 h-5 text-accent" />
+                    <h3 className="font-semibold text-foreground">3D Printing</h3>
+                    <Badge variant="outline" className="bg-accent/20 text-accent border-0 ml-auto">
+                      Print Ready
+                    </Badge>
                   </div>
-                  <p className="pt-2">📏 <strong>Model Specifications:</strong></p>
-                  <div className="space-y-1 ml-2">
-                    <p>• High-precision mesh (~20,000 faces)</p>
-                    <p>• PBR textures included</p>
-                    <p>• Clean topology for manufacturing</p>
-                    <p>• 3D printing ready</p>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Download your CAD model in formats compatible with 3D printers and slicer software.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={downloadSTL}
+                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download STL
+                    </Button>
+                    <Button
+                      onClick={downloadGLB}
+                      variant="outline"
+                      className="border-accent/30 hover:bg-accent/10"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download GLB
+                    </Button>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground space-y-2 pt-2 border-t border-border/30">
+                    <p>🖨️ <strong>Slicer Compatibility:</strong></p>
+                    <div className="space-y-1 ml-2">
+                      <p>• <strong>STL:</strong> Universal format - works with all slicers (Cura, PrusaSlicer, Simplify3D)</p>
+                      <p>• <strong>GLB:</strong> Supported by modern slicers (Cura 5.0+, Bambu Studio, OrcaSlicer)</p>
+                    </div>
+                    <p className="pt-2">⚙️ <strong>Printing Workflow:</strong></p>
+                    <ol className="list-decimal list-inside space-y-1 ml-2">
+                      <li>Download STL or GLB file</li>
+                      <li>Import into your slicer software</li>
+                      <li>Configure print settings (layer height, infill, supports)</li>
+                      <li>Generate G-code and print!</li>
+                    </ol>
+                  </div>
+                </div>
+
+                {/* CAD Software Section */}
+                <div className="p-4 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Box className="w-5 h-5 text-primary" />
+                    <h3 className="font-semibold text-foreground">CAD Software Export</h3>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Import into CAD software for further editing and conversion to engineering formats (STEP/IGES).
+                  </p>
+
+                  <div className="text-xs text-muted-foreground space-y-2">
+                    <p>🔧 <strong>Software Compatibility:</strong></p>
+                    <div className="space-y-1 ml-2">
+                      <p>• <strong>FreeCAD:</strong> Import GLB, export to STEP/IGES</p>
+                      <p>• <strong>Blender:</strong> Import GLB, export with CAD plugins</p>
+                      <p>• <strong>Fusion 360:</strong> Import as mesh, convert to solid body</p>
+                      <p>• <strong>OpenSCAD:</strong> Use mesh import modules</p>
+                    </div>
                   </div>
                 </div>
               </div>
