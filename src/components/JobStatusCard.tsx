@@ -3,9 +3,10 @@ import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box } from 'lucide-react';
+import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useJobs } from '@/contexts/JobContext';
+import { useState } from 'react';
 
 interface JobStatusCardProps {
   job: Job;
@@ -14,6 +15,9 @@ interface JobStatusCardProps {
 
 export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
   const { cancelJob, deleteJob } = useJobs();
+  const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+  
+  const isLongPrompt = job.options.prompt.length > 100;
 
   const getStatusIcon = () => {
     switch (job.status) {
@@ -86,9 +90,31 @@ export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps)
             </Badge>
           </div>
           
-          <p className="text-sm text-foreground font-medium line-clamp-2 mb-1">
-            {job.options.prompt}
-          </p>
+          <div className="relative">
+            <p className={`text-sm text-foreground font-medium mb-1 ${!isPromptExpanded && isLongPrompt ? 'line-clamp-2' : ''}`}>
+              {job.options.prompt}
+            </p>
+            {isLongPrompt && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs mt-1 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsPromptExpanded(!isPromptExpanded)}
+              >
+                {isPromptExpanded ? (
+                  <>
+                    <ChevronUp className="w-3 h-3 mr-1" />
+                    Show less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3 h-3 mr-1" />
+                    Show more
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
           
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(job.createdAt, { addSuffix: true })}
