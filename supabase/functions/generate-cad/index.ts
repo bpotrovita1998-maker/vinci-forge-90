@@ -155,11 +155,12 @@ serve(async (req) => {
       return 'MESH';
     })();
 
-    // Update job in database with CAD model details
+    // Update job in database with CAD model details - CRITICAL OPERATION
     if (jobId) {
-      const { error: updateError } = await supabase
-        .from('jobs')
-        .update({
+      console.log(`Updating job ${jobId} to completed status with model URL: ${modelUrl}`);
+      
+      try {
+        const updateData = {
           status: 'completed',
           progress_stage: 'completed',
           progress_percent: 100,
@@ -184,11 +185,25 @@ serve(async (req) => {
               printReady: true
             }
           }
-        })
-        .eq('id', jobId);
+        };
+        
+        const { data: updatedJob, error: updateError } = await supabase
+          .from('jobs')
+          .update(updateData)
+          .eq('id', jobId)
+          .select()
+          .single();
 
-      if (updateError) {
-        console.error('Failed to update job with CAD model:', updateError);
+        if (updateError) {
+          console.error('CRITICAL: Failed to update job with CAD model:', updateError);
+          throw new Error(`Database update failed: ${updateError.message}`);
+        }
+        
+        console.log('Job successfully updated to completed:', updatedJob);
+      } catch (dbError) {
+        console.error('CRITICAL: Database update exception:', dbError);
+        // Re-throw to ensure the error is visible
+        throw dbError;
       }
     }
 
