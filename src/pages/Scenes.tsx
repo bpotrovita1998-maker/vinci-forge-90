@@ -311,7 +311,7 @@ export default function Scenes() {
     }
   };
 
-  const saveCurrentStoryboard = async () => {
+  const saveCurrentStoryboard = async (showToast: boolean = false) => {
     if (!currentStoryboard) return;
 
     setIsSaving(true);
@@ -396,8 +396,18 @@ export default function Scenes() {
             if (deleteError) console.error('Error deleting removed scenes:', deleteError);
           }
         }
+      } else {
+        // If no scenes in UI, delete all scenes for this storyboard to keep DB in sync
+        const { error: deleteAllError } = await (supabase as any)
+          .from('storyboard_scenes')
+          .delete()
+          .eq('storyboard_id', currentStoryboard.id);
+        if (deleteAllError) console.error('Error deleting all scenes:', deleteAllError);
       }
 
+      if (showToast) {
+        toast({ title: 'Saved', description: 'Storyboard saved successfully' });
+      }
     } catch (error) {
       console.error('Error saving storyboard:', error);
       toast({
@@ -426,13 +436,13 @@ export default function Scenes() {
   };
 
   const updateScene = (id: string, updates: Partial<Scene>) => {
-    setScenes(scenes.map(scene => 
+    setScenes(prev => prev.map(scene => 
       scene.id === id ? { ...scene, ...updates } : scene
     ));
   };
 
   const deleteScene = (id: string) => {
-    setScenes(scenes.filter(scene => scene.id !== id));
+    setScenes(prev => prev.filter(scene => scene.id !== id));
     toast({
       title: "Scene Deleted",
       description: "Scene removed from storyboard"
@@ -782,7 +792,7 @@ export default function Scenes() {
                       {currentStoryboard && (
                         <>
                           <Button
-                            onClick={() => saveCurrentStoryboard()}
+                            onClick={() => saveCurrentStoryboard(true)}
                             disabled={isSaving}
                             variant="outline"
                             size="sm"
