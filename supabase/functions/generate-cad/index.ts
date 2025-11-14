@@ -114,25 +114,46 @@ serve(async (req) => {
 
     console.log('CAD model generation output:', output);
 
-    // Extract GLB URL from output
-    let glbUrl: string | null = null;
+    // Extract model URL (supports multiple output schemas: mesh/glb/obj/zip)
+    let modelUrl: string | null = null;
     
     if (typeof output === 'string') {
-      glbUrl = output;
+      modelUrl = output;
     } else if (Array.isArray(output) && output.length > 0) {
-      glbUrl = output[0];
+      const first = output[0];
+      if (typeof first === 'string') {
+        modelUrl = first;
+      } else if (first && typeof first === 'object') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const o = first as any;
+        modelUrl = o.mesh || o.glb || o.model || o.output || o.url || null;
+      }
     } else if (output && typeof output === 'object') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const outputObj = output as any;
-      glbUrl = outputObj.glb || outputObj.model || outputObj.output || null;
+      const o = output as any;
+      modelUrl = o.mesh || o.glb || o.model || o.output || o.url || null;
     }
 
-    if (!glbUrl) {
-      console.error('No GLB URL found in CAD generation output:', output);
+    if (!modelUrl) {
+      console.error('No model URL found in CAD generation output:', output);
       throw new Error('Failed to extract CAD model from generation output');
     }
 
-    console.log('CAD model GLB URL:', glbUrl);
+    console.log('CAD model URL:', modelUrl);
+
+    // Infer format from URL
+    const format = (() => {
+      try {
+        const pathname = new URL(modelUrl).pathname.toLowerCase();
+        if (pathname.endsWith('.glb')) return 'GLB';
+        if (pathname.endsWith('.gltf')) return 'GLTF';
+        if (pathname.endsWith('.obj')) return 'OBJ';
+        if (pathname.endsWith('.zip')) return 'ZIP';
+      } catch (_) {
+        // ignore URL parse errors
+      }
+      return 'MESH';
+    })();
 
     // Update job in database with CAD model details
     if (jobId) {
@@ -143,15 +164,15 @@ serve(async (req) => {
           progress_stage: 'completed',
           progress_percent: 100,
           progress_message: 'CAD model generated successfully',
-          outputs: [glbUrl],
+          outputs: [modelUrl],
           completed_at: new Date().toISOString(),
           // Store CAD-specific metadata
           manifest: {
             jobId,
             type: 'cad',
             prompt: enhancedPrompt || 'Image-based CAD generation',
-            modelFormat: 'GLB',
-            exportFormats: ['GLB', 'OBJ'],
+            modelFormat: format,
+            exportFormats: ['GLB', 'OBJ', 'GLTF', 'ZIP'],
             recommendedConversion: 'STEP, IGES (use external CAD software)',
             generatedAt: new Date().toISOString(),
             specifications: {
@@ -173,8 +194,8 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        output: glbUrl,
-        format: 'GLB',
+        output: modelUrl,
+        format,
         specifications: {
           meshQuality: 'high',
           faceCount: '~20,000',
