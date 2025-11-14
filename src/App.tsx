@@ -27,7 +27,7 @@ const App = () => (
             <Navigation />
             <Routes>
               <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/" element={<ProtectedRoute requireTokens><Index /></ProtectedRoute>} />
               <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
               <Route path="/scenes" element={<ProtectedRoute><Scenes /></ProtectedRoute>} />
               <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
