@@ -464,12 +464,14 @@ export default function Scenes() {
       const requestBody: any = {
         prompt: finalPrompt,
         duration: videoDuration,
+        aspectRatio: '16:9',
+        quality: '720p',
       };
 
-      // Only include inputImage if previous scene has a valid HTTP(S) URL
-      if (previousScene?.videoUrl && 
-          (previousScene.videoUrl.startsWith('http://') || previousScene.videoUrl.startsWith('https://'))) {
-        requestBody.inputImage = previousScene.videoUrl;
+      // Only include inputImage if previous scene has a valid HTTP(S) image URL
+      if (previousScene?.imageUrl &&
+          (previousScene.imageUrl.startsWith('http://') || previousScene.imageUrl.startsWith('https://'))) {
+        requestBody.inputImage = previousScene.imageUrl;
       }
 
       const { data, error } = await supabase.functions.invoke('generate-video', {
