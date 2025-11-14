@@ -33,7 +33,7 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
       case 'encoding':
         return (
           <span className="flex items-center gap-1.5">
-            <span className="text-xs">Loading...</span>
+            <span className="text-xs">Loading</span>
             <Loader2 className="w-4 h-4 animate-spin" />
           </span>
         );
