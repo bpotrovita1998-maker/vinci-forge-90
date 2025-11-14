@@ -118,6 +118,15 @@ export default function Scenes() {
     }
   }, [scenes, settings, currentStoryboard]);
 
+  // Save on component unmount (when navigating away)
+  useEffect(() => {
+    return () => {
+      if (currentStoryboard && scenes.length > 0) {
+        saveCurrentStoryboard();
+      }
+    };
+  }, [currentStoryboard, scenes, settings]);
+
   const loadStoryboards = async () => {
     try {
       const { data, error } = await (supabase as any)
@@ -301,35 +310,67 @@ export default function Scenes() {
 
       if (storyboardError) throw storyboardError;
 
-      // Delete removed scenes
-      const sceneIds = scenes.map(s => s.id);
+      // Delete scenes that were removed from the storyboard
+      const sceneIds = scenes.map(s => s.id).filter(id => !id.startsWith('scene-'));
+      
       if (sceneIds.length > 0) {
         const { error: deleteError } = await (supabase as any)
           .from('storyboard_scenes')
           .delete()
           .eq('storyboard_id', currentStoryboard.id)
           .not('id', 'in', `(${sceneIds.join(',')})`);
+        
+        if (deleteError) console.error('Error deleting old scenes:', deleteError);
+      } else {
+        // If no valid scene IDs, delete all scenes for this storyboard
+        const { error: deleteError } = await (supabase as any)
+          .from('storyboard_scenes')
+          .delete()
+          .eq('storyboard_id', currentStoryboard.id);
+        
+        if (deleteError) console.error('Error deleting all scenes:', deleteError);
       }
 
       // Upsert all scenes
       if (scenes.length > 0) {
-        const scenesToSave = scenes.map((scene, index) => ({
-          id: scene.id,
-          storyboard_id: currentStoryboard.id,
-          title: scene.title,
-          description: scene.description,
-          image_url: scene.imageUrl,
-          status: scene.status,
-          job_id: scene.jobId,
-          duration: scene.duration,
-          order_index: index
-        }));
+        const scenesToSave = scenes.map((scene, index) => {
+          // Only include ID if it's a UUID from the database (not a temporary client-side ID)
+          const sceneData: any = {
+            storyboard_id: currentStoryboard.id,
+            title: scene.title,
+            description: scene.description,
+            image_url: scene.imageUrl || null,
+            status: scene.status,
+            job_id: scene.jobId || null,
+            duration: scene.duration,
+            order_index: index
+          };
+          
+          // Only include ID if it looks like a UUID (not a temporary scene-* ID)
+          if (scene.id && !scene.id.startsWith('scene-')) {
+            sceneData.id = scene.id;
+          }
+          
+          return sceneData;
+        });
 
-        const { error: scenesError } = await (supabase as any)
+        const { data: upsertedScenes, error: scenesError } = await (supabase as any)
           .from('storyboard_scenes')
-          .upsert(scenesToSave);
+          .upsert(scenesToSave)
+          .select();
 
         if (scenesError) throw scenesError;
+
+        // Update local scene IDs with database IDs for newly created scenes
+        if (upsertedScenes && upsertedScenes.length > 0) {
+          const updatedScenes = scenes.map((scene, index) => {
+            if (scene.id.startsWith('scene-') && upsertedScenes[index]) {
+              return { ...scene, id: upsertedScenes[index].id };
+            }
+            return scene;
+          });
+          setScenes(updatedScenes);
+        }
       }
 
     } catch (error) {
