@@ -324,31 +324,12 @@ export default function Scenes() {
 
       if (storyboardError) throw storyboardError;
 
-      // Delete scenes that were removed from the storyboard
-      const sceneIds = scenes.map(s => s.id).filter(id => !id.startsWith('scene-'));
-      
-      if (sceneIds.length > 0) {
-        const { error: deleteError } = await (supabase as any)
-          .from('storyboard_scenes')
-          .delete()
-          .eq('storyboard_id', currentStoryboard.id)
-          .not('id', 'in', `(${sceneIds.join(',')})`);
-        
-        if (deleteError) console.error('Error deleting old scenes:', deleteError);
-      } else {
-        // If no valid scene IDs, delete all scenes for this storyboard
-        const { error: deleteError } = await (supabase as any)
-          .from('storyboard_scenes')
-          .delete()
-          .eq('storyboard_id', currentStoryboard.id);
-        
-        if (deleteError) console.error('Error deleting all scenes:', deleteError);
-      }
+      // Helper to detect UUIDs
+      const isUuid = (v: string | undefined) => !!v && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v);
 
-      // Upsert all scenes
+      // Prepare scenes for upsert
       if (scenes.length > 0) {
         const scenesToSave = scenes.map((scene, index) => {
-          // Only include ID if it's a UUID from the database (not a temporary client-side ID)
           const sceneData: any = {
             storyboard_id: currentStoryboard.id,
             title: scene.title,
@@ -358,33 +339,62 @@ export default function Scenes() {
             status: scene.status,
             job_id: scene.jobId || null,
             duration: scene.duration,
-            order_index: index
+            order_index: index,
           };
-          
-          // Only include ID if it looks like a UUID (not a temporary scene-* ID)
-          if (scene.id && !scene.id.startsWith('scene-')) {
+
+          // Include ID only if it's a real UUID (not a temporary id like scene-*)
+          if (isUuid(scene.id)) {
             sceneData.id = scene.id;
           }
-          
           return sceneData;
         });
 
-        const { data: upsertedScenes, error: scenesError } = await (supabase as any)
+        // Upsert and get back ids with their order_index
+        const { data: savedScenes, error: scenesError } = await (supabase as any)
           .from('storyboard_scenes')
           .upsert(scenesToSave)
-          .select();
+          .select('id, order_index');
 
         if (scenesError) throw scenesError;
 
-        // Update local scene IDs with database IDs for newly created scenes
-        if (upsertedScenes && upsertedScenes.length > 0) {
+        // Update local temporary IDs by matching order_index
+        if (savedScenes && savedScenes.length > 0) {
+          const idByIndex = new Map<number, string>();
+          savedScenes.forEach((s: any) => idByIndex.set(s.order_index, s.id));
           const updatedScenes = scenes.map((scene, index) => {
-            if (scene.id.startsWith('scene-') && upsertedScenes[index]) {
-              return { ...scene, id: upsertedScenes[index].id };
+            if (!isUuid(scene.id)) {
+              const newId = idByIndex.get(index);
+              return newId ? { ...scene, id: newId } : scene;
             }
             return scene;
           });
           setScenes(updatedScenes);
+        }
+
+        // After we saved everything, delete rows that no longer exist in the UI
+        const { data: existingRows, error: fetchExistingError } = await (supabase as any)
+          .from('storyboard_scenes')
+          .select('id')
+          .eq('storyboard_id', currentStoryboard.id);
+
+        if (!fetchExistingError && existingRows) {
+          const keepIds = new Set<string>(
+            (savedScenes || []).map((s: any) => s.id)
+          );
+          // Also include any already-UUID ids from the current UI state
+          scenes.forEach(s => { if (isUuid(s.id)) keepIds.add(s.id as string); });
+
+          const idsToDelete = existingRows
+            .map((r: any) => r.id as string)
+            .filter((id: string) => !keepIds.has(id));
+
+          if (idsToDelete.length > 0) {
+            const { error: deleteError } = await (supabase as any)
+              .from('storyboard_scenes')
+              .delete()
+              .in('id', idsToDelete);
+            if (deleteError) console.error('Error deleting removed scenes:', deleteError);
+          }
         }
       }
 
