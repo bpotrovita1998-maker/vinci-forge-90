@@ -105,7 +105,8 @@ export default function Scenes() {
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingImage, setIsEditingImage] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
-  const saveAgainRef = useRef<boolean>(false);
+  const saveQueuedRef = useRef<boolean>(false);
+  const saveQueuedToastRef = useRef<boolean>(false);
 
   // Load storyboards on mount
   useEffect(() => {
@@ -323,7 +324,9 @@ export default function Scenes() {
     
     // Avoid overlapping saves; queue one more save if needed
     if (isSaving) {
-      saveAgainRef.current = true;
+      saveQueuedRef.current = true;
+      // preserve request to show toast if this call asked for it
+      saveQueuedToastRef.current = saveQueuedToastRef.current || showToast;
       return;
     }
 
@@ -433,10 +436,12 @@ export default function Scenes() {
       });
     } finally {
       setIsSaving(false);
-      if (saveAgainRef.current) {
-        saveAgainRef.current = false;
-        // Run the queued save, but do not show toast to avoid spam
-        setTimeout(() => saveCurrentStoryboard(false), 50);
+      if (saveQueuedRef.current) {
+        const queuedToast = saveQueuedToastRef.current;
+        saveQueuedRef.current = false;
+        saveQueuedToastRef.current = false;
+        // Run the queued save; keep user feedback if requested
+        setTimeout(() => saveCurrentStoryboard(queuedToast), 50);
       }
     }
   };
