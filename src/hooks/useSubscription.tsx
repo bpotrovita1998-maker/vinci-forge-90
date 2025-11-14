@@ -21,59 +21,76 @@ export const useSubscription = () => {
   const { toast } = useToast();
 
   const fetchUserRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('user_roles' as any)
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
-    
-    if (!error && data) {
-      setIsAdmin(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_roles' as any)
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      if (!error && data) {
+        setIsAdmin(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch user role:', err);
     }
   };
 
   const fetchSubscription = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('subscriptions' as any)
-      .select('status, current_period_end')
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching subscription:', error);
-    } else if (data) {
-      setSubscription(data as unknown as Subscription);
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions' as any)
+        .select('status, current_period_end')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching subscription:', error);
+      } else if (data) {
+        setSubscription(data as unknown as Subscription);
+      }
+    } catch (err) {
+      console.error('Failed to fetch subscription:', err);
     }
   };
 
   const fetchTokenBalance = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('token_balances' as any)
-      .select('balance, total_purchased, total_spent')
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching token balance:', error);
-    } else if (data) {
-      setTokenBalance(data as unknown as TokenBalance);
+    try {
+      const { data, error } = await supabase
+        .from('token_balances' as any)
+        .select('balance, total_purchased, total_spent')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching token balance:', error);
+      } else if (data) {
+        setTokenBalance(data as unknown as TokenBalance);
+      }
+    } catch (err) {
+      console.error('Failed to fetch token balance:', err);
     }
   };
 
   const refreshData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-    await Promise.all([
-      fetchUserRole(user.id),
-      fetchSubscription(user.id),
-      fetchTokenBalance(user.id)
-    ]);
-    setLoading(false);
+      await Promise.all([
+        fetchUserRole(user.id),
+        fetchSubscription(user.id),
+        fetchTokenBalance(user.id)
+      ]);
+    } catch (err) {
+      console.error('Failed to refresh subscription data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
