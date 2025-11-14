@@ -1239,11 +1239,14 @@ export default function Scenes() {
           {editingScene && (
             <div className="space-y-4">
               {/* Current Image */}
-              <div className="relative aspect-video rounded-lg overflow-hidden border">
+              <div className="relative w-full rounded-lg overflow-hidden border bg-muted">
                 <img 
                   src={editingScene.imageUrl} 
                   alt={editingScene.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-auto object-contain"
+                  onError={(e) => {
+                    console.error('Failed to load image:', editingScene.imageUrl);
+                  }}
                 />
               </div>
               
