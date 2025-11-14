@@ -135,17 +135,32 @@ serve(async (req) => {
       );
     }
 
-    console.log('3D generation response:', JSON.stringify(output).substring(0, 500));
-
+    // Log the full output structure for debugging
+    console.log('3D generation raw output type:', typeof output);
+    console.log('3D generation raw output:', JSON.stringify(output, null, 2));
+    
     // Resolve mesh URL from Hunyuan3D 2.1 output
+    // According to schema: output should be { mesh: "uri" }
     // deno-lint-ignore no-explicit-any
     const o: any = output;
+    
+    console.log('Checking output properties:', {
+      hasMesh: 'mesh' in o,
+      isArray: Array.isArray(o),
+      isString: typeof o === 'string',
+      keys: Object.keys(o || {})
+    });
+    
     const modelUrl = o?.mesh || (Array.isArray(o) ? o[0] : null) || (typeof o === 'string' ? o : null);
     
     console.log('Extracted model URL:', modelUrl);
+    console.log('Model URL type:', typeof modelUrl);
 
     if (!modelUrl) {
-      console.error('Failed to extract model URL. Full output:', JSON.stringify(output, null, 2));
+      console.error('FAILED to extract model URL');
+      console.error('Output type:', typeof output);
+      console.error('Output is array:', Array.isArray(output));
+      console.error('Full output structure:', JSON.stringify(output, null, 2));
       
       // Update job as failed if jobId provided
       if (jobId) {
