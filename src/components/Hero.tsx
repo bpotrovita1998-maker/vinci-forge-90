@@ -185,23 +185,23 @@ export default function Hero() {
               </p>
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-3">
               <Button
                 size="lg"
                 onClick={handleGenerate}
                 disabled={!prompt.trim() || isGenerating}
-                className="flex-1 bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
+                className="w-full bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
               >
                 <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
                 {isGenerating ? 'Submitting...' : 'Generate'}
               </Button>
               
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant={options.type === 'image' ? 'default' : 'outline'}
                   size="lg"
                   onClick={() => setOptions(prev => ({ ...prev, type: 'image' }))}
-                  className={`flex-1 sm:flex-none ${
+                  className={`${
                     options.type === 'image' 
                       ? 'bg-primary text-primary-foreground' 
                       : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
@@ -211,23 +211,10 @@ export default function Hero() {
                   <span className="hidden sm:inline">Image</span>
                 </Button>
                 <Button
-                  variant={options.type === 'cad' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setOptions(prev => ({ ...prev, type: 'cad' }))}
-                  className={`flex-1 sm:flex-none ${
-                    options.type === 'cad' 
-                      ? 'bg-accent text-accent-foreground' 
-                      : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
-                  }`}
-                >
-                  <Cuboid className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">CAD</span>
-                </Button>
-                <Button
                   variant={options.type === 'video' ? 'default' : 'outline'}
                   size="lg"
                   onClick={() => setOptions(prev => ({ ...prev, type: 'video' }))}
-                  className={`flex-1 sm:flex-none ${
+                  className={`${
                     options.type === 'video' 
                       ? 'bg-accent text-accent-foreground' 
                       : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
@@ -240,7 +227,7 @@ export default function Hero() {
                   variant={options.type === '3d' ? 'default' : 'outline'}
                   size="lg"
                   onClick={() => setOptions(prev => ({ ...prev, type: '3d' }))}
-                  className={`flex-1 sm:flex-none ${
+                  className={`${
                     options.type === '3d' 
                       ? 'bg-primary text-primary-foreground' 
                       : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
@@ -248,6 +235,19 @@ export default function Hero() {
                 >
                   <Box className="w-5 h-5 sm:mr-2" />
                   <span className="hidden sm:inline">3D</span>
+                </Button>
+                <Button
+                  variant={options.type === 'cad' ? 'default' : 'outline'}
+                  size="lg"
+                  onClick={() => setOptions(prev => ({ ...prev, type: 'cad' }))}
+                  className={`${
+                    options.type === 'cad' 
+                      ? 'bg-accent text-accent-foreground' 
+                      : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
+                  }`}
+                >
+                  <Cuboid className="w-5 h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">CAD</span>
                 </Button>
               </div>
             </div>
