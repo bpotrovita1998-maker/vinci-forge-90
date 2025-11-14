@@ -179,6 +179,7 @@ class LovableAIService {
         body: {
           inputImage: imageData.images[0],
           seed: job.options.seed,
+          jobId: jobId, // Pass jobId so edge function can update database
         }
       });
 

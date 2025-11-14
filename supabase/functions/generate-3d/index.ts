@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Replicate from "https://esm.sh/replicate@0.25.2";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +23,12 @@ serve(async (req) => {
       );
     }
 
-    const { prompt, imageUrl, inputImage, seed } = await req.json();
+    // Initialize Supabase client for database updates
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { prompt, imageUrl, inputImage, seed, jobId } = await req.json();
     
     // Support both inputImage and imageUrl for flexibility
     const actualImageUrl = inputImage || imageUrl;
@@ -106,6 +112,20 @@ serve(async (req) => {
     } catch (primaryErr) {
       console.error('Hunyuan3D 2.1 failed:', primaryErr);
       console.error('Error details:', JSON.stringify(primaryErr, null, 2));
+      
+      // Update job as failed if jobId provided
+      if (jobId) {
+        await supabase
+          .from('jobs')
+          .update({
+            status: 'failed',
+            error: (primaryErr as Error)?.message || 'Unknown error during 3D generation',
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', jobId);
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: '3D generation failed', 
@@ -126,10 +146,48 @@ serve(async (req) => {
 
     if (!modelUrl) {
       console.error('Failed to extract model URL. Full output:', JSON.stringify(output, null, 2));
+      
+      // Update job as failed if jobId provided
+      if (jobId) {
+        await supabase
+          .from('jobs')
+          .update({
+            status: 'failed',
+            error: '3D model URL not found in response',
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', jobId);
+      }
+      
       return new Response(
         JSON.stringify({ error: '3D model URL not found in response', raw: output }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Update job as completed in database
+    if (jobId) {
+      console.log(`Updating job ${jobId} as completed with model URL: ${modelUrl}`);
+      
+      const { error: updateError } = await supabase
+        .from('jobs')
+        .update({
+          status: 'completed',
+          progress_percent: 100,
+          progress_stage: 'completed',
+          progress_message: '3D model generated successfully',
+          outputs: [modelUrl],
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+      
+      if (updateError) {
+        console.error('Failed to update job in database:', updateError);
+      } else {
+        console.log(`Successfully updated job ${jobId} in database`);
+      }
     }
 
     return new Response(
@@ -147,6 +205,29 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in generate-3d function:", error);
     console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Try to extract jobId from the request to update database
+    try {
+      const body = await req.clone().json();
+      if (body.jobId) {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        await supabase
+          .from('jobs')
+          .update({
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', body.jobId);
+      }
+    } catch (dbError) {
+      console.error('Failed to update job in database:', dbError);
+    }
+    
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Unknown error',
