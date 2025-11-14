@@ -33,6 +33,32 @@ serve(async (req) => {
     }
 
     console.log("Editing image with prompt:", body.prompt);
+    console.log("Image URL:", body.imageUrl);
+
+    // Validate that the URL is an image, not a video
+    const imageUrl = body.imageUrl.toLowerCase();
+    if (imageUrl.includes('.mp4') || imageUrl.includes('.mov') || imageUrl.includes('.avi') || imageUrl.includes('video')) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Cannot edit video files. Please select an image scene." 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+
+    // Ensure it's a proper HTTP(S) URL
+    if (!body.imageUrl.startsWith('http://') && !body.imageUrl.startsWith('https://')) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Image must be a valid HTTP(S) URL" 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

@@ -552,25 +552,29 @@ export default function Scenes() {
 
       if (error) {
         console.error('Image editing error:', error);
-        throw error;
+        throw new Error(error.message || 'Failed to edit image');
       }
 
-      if (data?.editedImageUrl) {
-        updateScene(editingScene.id, { imageUrl: data.editedImageUrl });
-        toast({
-          title: "Image Edited!",
-          description: "Your image has been updated successfully"
-        });
-        setEditingScene(null);
-        setEditPrompt('');
-      } else {
+      if (!data || !data.editedImageUrl) {
+        if (data?.error) {
+          throw new Error(data.error);
+        }
         throw new Error('No edited image returned');
       }
+
+      updateScene(editingScene.id, { imageUrl: data.editedImageUrl });
+      toast({
+        title: "Image Edited!",
+        description: "Your image has been updated successfully"
+      });
+      setEditingScene(null);
+      setEditPrompt('');
     } catch (error) {
       console.error('Error editing image:', error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to edit image";
       toast({
         title: "Edit Failed",
-        description: error instanceof Error ? error.message : "Failed to edit image",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -1159,7 +1163,7 @@ export default function Scenes() {
 
                               {/* Actions */}
                               <div className="flex gap-2">
-                                {scene.imageUrl && (
+                                {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && (
                                   <Button
                                     size="sm"
                                     variant="outline"
