@@ -160,152 +160,59 @@ serve(async (req) => {
       console.log('Reference image generated for CAD conversion:', finalImageUrl);
     }
 
-    // Step 2: Convert to high-quality 3D mesh optimized for CAD use
-    console.log('Converting to CAD-quality 3D model with Hunyuan3D 2.1...');
-    
-    let output: unknown;
+    // Step 2: Start async prediction and return predictionId for client-side polling
+    console.log('Creating CAD prediction with Hunyuan3D 2.1...');
+
     try {
-      const startTime = Date.now();
-      
-      // Use optimized settings for CAD-quality output
-      output = await replicate.run(
-        "ndreca/hunyuan3d-2.1:895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
-        {
-          input: {
-            image: finalImageUrl,
-            seed: seed || 1234,
-            steps: 50,              // Higher steps for better precision
-            num_chunks: 8000,       // Higher chunks for detailed mesh
-            max_facenum: 20000,     // More faces for better quality
-            guidance_scale: 7.5,
-            generate_texture: true, // Include PBR textures
-            octree_resolution: 256, // Higher resolution for CAD precision
-            remove_background: true
-          }
+      // Using predictions API because this model can take several minutes
+      // @ts-ignore - replicate types don't always include predictions
+      const prediction = await (replicate as any).predictions.create({
+        version: "ndreca/hunyuan3d-2.1:895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
+        input: {
+          image: finalImageUrl,
+          seed: seed || 1234,
+          steps: 50,
+          num_chunks: 8000,
+          max_facenum: 20000,
+          guidance_scale: 7.5,
+          generate_texture: true,
+          octree_resolution: 256,
+          remove_background: true
         }
+      });
+
+      console.log('Prediction created:', (prediction as any).id, 'status:', (prediction as any).status);
+
+      // Update DB to reflect long-running stage
+      if (jobId) {
+        try {
+          await supabase
+            .from('jobs')
+            .update({
+              status: 'upscaling',
+              progress_stage: 'upscaling',
+              progress_percent: 0,
+              progress_message: 'Generating CAD-quality mesh...'
+            })
+            .eq('id', jobId);
+        } catch (dbStageErr) {
+          console.error('Non-fatal: failed to update job stage:', dbStageErr);
+        }
+      }
+
+      // Return prediction id so the client can poll this function
+      return new Response(
+        JSON.stringify({ predictionId: (prediction as any).id, status: (prediction as any).status || 'starting' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-      
-      const endTime = Date.now();
-      console.log(`CAD model generation completed in ${(endTime - startTime) / 1000}s`);
-      
     } catch (replicateError) {
-      console.error('Replicate API error during CAD generation:', replicateError);
+      console.error('Replicate API error during CAD prediction create:', replicateError);
       const errorMessage = replicateError instanceof Error ? replicateError.message : 'Unknown error';
-      throw new Error(`CAD generation failed: ${errorMessage}`);
+      return new Response(
+        JSON.stringify({ error: `CAD prediction failed: ${errorMessage}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    console.log('CAD model generation output:', output);
-
-    // Extract model URL (supports multiple output schemas: mesh/glb/obj/zip)
-    let modelUrl: string | null = null;
-    
-    if (typeof output === 'string') {
-      modelUrl = output;
-    } else if (Array.isArray(output) && output.length > 0) {
-      const first = output[0];
-      if (typeof first === 'string') {
-        modelUrl = first;
-      } else if (first && typeof first === 'object') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const o = first as any;
-        modelUrl = o.mesh || o.glb || o.model || o.output || o.url || null;
-      }
-    } else if (output && typeof output === 'object') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const o = output as any;
-      modelUrl = o.mesh || o.glb || o.model || o.output || o.url || null;
-    }
-
-    if (!modelUrl) {
-      console.error('No model URL found in CAD generation output:', output);
-      throw new Error('Failed to extract CAD model from generation output');
-    }
-
-    console.log('CAD model URL:', modelUrl);
-
-    // Infer format from URL
-    const format = (() => {
-      try {
-        const pathname = new URL(modelUrl).pathname.toLowerCase();
-        if (pathname.endsWith('.glb')) return 'GLB';
-        if (pathname.endsWith('.gltf')) return 'GLTF';
-        if (pathname.endsWith('.obj')) return 'OBJ';
-        if (pathname.endsWith('.zip')) return 'ZIP';
-      } catch (_) {
-        // ignore URL parse errors
-      }
-      return 'MESH';
-    })();
-
-    // Update job in database with CAD model details - CRITICAL OPERATION
-    if (jobId) {
-      console.log(`Updating job ${jobId} to completed status with model URL: ${modelUrl}`);
-      
-      try {
-        const updateData = {
-          status: 'completed',
-          progress_stage: 'completed',
-          progress_percent: 100,
-          progress_message: 'CAD model generated successfully',
-          outputs: [modelUrl],
-          completed_at: new Date().toISOString(),
-          // Store CAD-specific metadata
-          manifest: {
-            jobId,
-            type: 'cad',
-            prompt: enhancedPrompt || 'Image-based CAD generation',
-            modelFormat: format,
-            exportFormats: ['GLB', 'OBJ', 'GLTF', 'ZIP'],
-            recommendedConversion: 'STEP, IGES (use external CAD software)',
-            generatedAt: new Date().toISOString(),
-            specifications: {
-              meshQuality: 'high',
-              faceCount: '~20,000',
-              textured: true,
-              pbrMaterials: true,
-              engineeringReady: true,
-              printReady: true
-            }
-          }
-        };
-        
-        const { data: updatedJob, error: updateError } = await supabase
-          .from('jobs')
-          .update(updateData)
-          .eq('id', jobId)
-          .select()
-          .single();
-
-        if (updateError) {
-          console.error('CRITICAL: Failed to update job with CAD model:', updateError);
-          throw new Error(`Database update failed: ${updateError.message}`);
-        }
-        
-        console.log('Job successfully updated to completed:', updatedJob);
-      } catch (dbError) {
-        console.error('CRITICAL: Database update exception:', dbError);
-        // Re-throw to ensure the error is visible
-        throw dbError;
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        output: modelUrl,
-        format,
-        specifications: {
-          meshQuality: 'high',
-          faceCount: '~20,000',
-          textured: true,
-          engineeringReady: true,
-          exportOptions: 'Compatible with Blender, FreeCAD, Fusion 360'
-        },
-        conversionInstructions: 'GLB can be converted to STEP/IGES formats using FreeCAD, Blender (with plugins), or online converters'
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
 
   } catch (error) {
     console.error('Error in generate-cad function:', error);
