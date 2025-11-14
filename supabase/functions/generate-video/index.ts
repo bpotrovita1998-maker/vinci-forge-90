@@ -61,7 +61,7 @@ serve(async (req) => {
           negative_prompt: body.negativePrompt,
           seed: body.seed,
           quality: body.quality || "540p", // 360p, 540p, 720p, 1080p
-          duration: body.duration || 5, // 5 or 8 seconds (8 requires 1080p)
+          duration: body.duration && body.duration > 5 ? 8 : 5, // Only 5 or 8 allowed by API
           aspect_ratio: body.aspectRatio || "16:9",
           image: body.inputImage, // Optional: first frame image
         }

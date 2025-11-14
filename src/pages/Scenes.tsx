@@ -428,8 +428,8 @@ export default function Scenes() {
       return;
     }
 
-    // Cap duration at 5 seconds
-    const videoDuration = Math.min(scene.duration, 5);
+    // Snap to allowed durations: 5 or 8 seconds (8 requires 1080p)
+    const videoDuration = scene.duration <= 5 ? 5 : 8;
 
     updateScene(sceneId, { status: 'generating' });
 
