@@ -28,20 +28,102 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { prompt, inputImage, seed, jobId } = await req.json();
+    const body = await req.json();
+    const { prompt, inputImage, seed, jobId, predictionId } = body;
     
-    if (!prompt && !inputImage) {
+    if (!predictionId && !prompt && !inputImage) {
       return new Response(
         JSON.stringify({ error: 'Either prompt or image is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Generating CAD model:', { prompt, imageProvided: !!inputImage, seed, jobId });
+    console.log('Generating CAD model:', { prompt, imageProvided: !!inputImage, seed, jobId, predictionId });
 
     const replicate = new Replicate({
       auth: REPLICATE_API_KEY,
     });
+
+    // If a predictionId is provided, return its current status (async polling pattern)
+    if (predictionId) {
+      try {
+        // @ts-ignore - types from Replicate
+        const prediction = await replicate.predictions.get(predictionId);
+        // Extract potential output URL
+        let modelUrl: string | null = null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pOut: any = (prediction as any).output;
+        if (typeof pOut === 'string') {
+          modelUrl = pOut;
+        } else if (Array.isArray(pOut) && pOut.length > 0) {
+          const first = pOut[0];
+          if (typeof first === 'string') modelUrl = first; else if (first && typeof first === 'object') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const o: any = first;
+            modelUrl = o.mesh || o.glb || o.model || o.output || o.url || null;
+          }
+        } else if (pOut && typeof pOut === 'object') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const o: any = pOut;
+          modelUrl = o.mesh || o.glb || o.model || o.output || o.url || null;
+        }
+
+        let format = 'MESH';
+        if (modelUrl) {
+          try {
+            const pathname = new URL(modelUrl).pathname.toLowerCase();
+            if (pathname.endsWith('.glb')) format = 'GLB';
+            else if (pathname.endsWith('.gltf')) format = 'GLTF';
+            else if (pathname.endsWith('.obj')) format = 'OBJ';
+            else if (pathname.endsWith('.zip')) format = 'ZIP';
+          } catch (_) {}
+        }
+
+        // If the prediction finished successfully and we have a jobId, update DB
+        if ((prediction as any).status === 'succeeded' && jobId) {
+          try {
+            const { data: updatedJob, error: updateError } = await supabase
+              .from('jobs')
+              .update({
+                status: 'completed',
+                progress_stage: 'completed',
+                progress_percent: 100,
+                progress_message: 'CAD model generated successfully',
+                outputs: modelUrl ? [modelUrl] : [],
+                completed_at: new Date().toISOString(),
+                manifest: {
+                  jobId,
+                  type: 'cad',
+                  prompt: (prompt || 'Image-based CAD generation'),
+                  modelFormat: format,
+                  exportFormats: ['GLB', 'OBJ', 'GLTF', 'ZIP'],
+                  recommendedConversion: 'STEP, IGES (use external CAD software)',
+                  generatedAt: new Date().toISOString()
+                }
+              })
+              .eq('id', jobId)
+              .select()
+              .single();
+
+            if (updateError) console.error('Failed to update job from status check:', updateError);
+            else console.log('Job updated from status check:', updatedJob);
+          } catch (dbErr) {
+            console.error('DB update error during status check:', dbErr);
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ status: (prediction as any).status, output: modelUrl, format }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (err) {
+        console.error('Prediction status check error:', err);
+        return new Response(
+          JSON.stringify({ error: err instanceof Error ? err.message : 'Status check failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Enhance prompt with CAD-specific details for engineering precision
     const enhancedPrompt = prompt ? 
