@@ -231,16 +231,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
         throw new Error('Token deduction failed');
       }
 
-      console.log('Tokens deducted successfully:', tokenData);
+    console.log('Tokens deducted successfully:', tokenData);
     } catch (error) {
       console.error('Error during token check:', error);
       throw error;
     }
 
-    // Now submit the job to the generation service with the same jobId
-    await generationService.submitJob(options, jobId);
-    
-    // Create initial job in database
+    // Create initial job in database BEFORE starting generation
     const { error: insertError } = await supabase.from('jobs').insert({
       id: jobId,
       user_id: user.id,
@@ -266,7 +263,14 @@ export function JobProvider({ children }: { children: ReactNode }) {
     if (insertError) {
       console.error('Failed to save job:', insertError);
       toast.error('Failed to save job');
+      throw new Error('Failed to save job to database');
     }
+
+    console.log('Job created in database:', jobId);
+
+    // Now submit the job to the generation service with the same jobId
+    console.log('Starting generation service for job:', jobId);
+    await generationService.submitJob(options, jobId);
 
     // Create initial job in local state
     const newJob: Job = {
@@ -319,25 +323,42 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
     // Also subscribe to WebSocket updates for real-time progress
     if (websocketService.isConnected()) {
+      console.log('Subscribing to WebSocket updates for job:', jobId);
       websocketService.subscribeToJob(jobId, async (partialJob) => {
+        console.log('WebSocket update received for job:', jobId, partialJob);
+        
         setJobs(prev => prev.map(j => {
           if (j.id !== jobId) return j;
           // Ignore WebSocket updates once job is finalized to prevent loops
-          if (j.status === 'completed' || j.status === 'failed') return j;
-          return { ...j, ...partialJob };
+          if (j.status === 'completed' || j.status === 'failed') {
+            console.log('Ignoring WebSocket update for finalized job:', jobId);
+            return j;
+          }
+          
+          // Merge the partial update with existing job data
+          const updated = {
+            ...j,
+            status: partialJob.status || j.status,
+            progress: partialJob.progress != null ? partialJob.progress : j.progress,
+            outputs: partialJob.outputs || j.outputs,
+            error: partialJob.error || j.error,
+          };
+          
+          console.log('Updated job from WebSocket:', updated);
+          return updated;
         }));
 
-
-        // Update database with WebSocket data
-        if (partialJob.status || partialJob.progress) {
-          await supabase.from('jobs').update({
-            status: partialJob.status,
-            progress_stage: partialJob.progress?.stage,
-            progress_percent: partialJob.progress?.progress != null ? Math.round(partialJob.progress.progress) : undefined,
-            progress_message: partialJob.progress?.message,
-          }).eq('id', jobId);
+        // Show completion toast
+        if (partialJob.status === 'completed') {
+          toast.success('Generation complete! Click the job to view your result.');
+          websocketService.unsubscribeFromJob(jobId);
+        } else if (partialJob.status === 'failed') {
+          toast.error(`Generation failed: ${partialJob.error || 'Unknown error'}`);
+          websocketService.unsubscribeFromJob(jobId);
         }
       });
+    } else {
+      console.warn('WebSocket not connected, cannot subscribe to job updates');
     }
 
     return jobId;
