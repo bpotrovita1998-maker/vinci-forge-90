@@ -65,7 +65,7 @@ interface Scene {
   videoUrl?: string;
   status: 'draft' | 'generating' | 'ready';
   jobId?: string;
-  duration: number; // in seconds (API supports 5 or 8)
+  duration: number; // in seconds, used when creating final video
 }
 
 interface StoryboardSettings {
@@ -662,7 +662,7 @@ export default function Scenes() {
         title: `Shot ${shot.shot_number}: ${shot.title}`,
         description: `${shot.camera_angle} shot, ${shot.camera_movement}. ${shot.visual_description}${shot.dialogue ? `\n\nDialogue: "${shot.dialogue}"` : ''}`,
         status: 'draft' as const,
-        duration: (shot.duration || 3) <= 5 ? 5 : 8 // Snap to API-supported durations
+        duration: shot.duration || 3 // Default 3 seconds per scene for video creation
       }));
 
       setScenes(newScenes);
@@ -1215,28 +1215,6 @@ export default function Scenes() {
                                   onChange={(e) => updateScene(scene.id, { description: e.target.value })}
                                   className="mt-2 min-h-[80px]"
                                 />
-                              </div>
-
-                              {/* Duration Control */}
-                              <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50 border border-border/50">
-                                <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                <div className="flex-1">
-                                  <Label htmlFor={`duration-${scene.id}`} className="text-xs text-muted-foreground">
-                                    Video Duration (API supports 5s or 8s only)
-                                  </Label>
-                                  <Select
-                                    value={String(scene.duration)}
-                                    onValueChange={(value) => updateScene(scene.id, { duration: parseInt(value) })}
-                                  >
-                                    <SelectTrigger className="w-full mt-1">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="5">5 seconds</SelectItem>
-                                      <SelectItem value="8">8 seconds</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
                               </div>
 
                               {/* Actions */}
