@@ -259,7 +259,7 @@ class LovableAIService {
         }
       });
 
-      console.log('LovableAI: CAD generation response:', { cadData, cadError });
+      console.log('LovableAI: CAD generation initial response:', { cadData, cadError });
 
       if (cadError) {
         console.error('LovableAI: CAD generation error:', cadError);
@@ -276,15 +276,75 @@ class LovableAIService {
         }
       }
 
-      if (!cadData?.output) {
+      // Handle new async flow: predictionId based polling
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const first = cadData as any;
+      if (first?.predictionId) {
+        const predictionId: string = first.predictionId;
+        console.log('LovableAI: Received predictionId for CAD:', predictionId);
+
+        // Poll the edge function for status until completion/failure
+        const start = Date.now();
+        const timeoutMs = 10 * 60 * 1000; // 10 minutes max
+        let delay = 2000; // 2s initial
+
+        while (Date.now() - start < timeoutMs) {
+          // Update UI stage occasionally
+          this.updateJobStage(jobId, 'upscaling', 'Generating CAD-quality mesh...');
+
+          const { data: statusData, error: statusErr } = await supabase.functions.invoke('generate-cad', {
+            body: { predictionId, jobId, prompt: job.options.prompt }
+          });
+
+          console.log('LovableAI: CAD status response:', { statusData, statusErr });
+
+          if (statusErr) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const httpErr = statusErr as any;
+              if (httpErr?.context?.json) {
+                const errBody = await httpErr.context.json();
+                const msg = errBody?.error || errBody?.message || httpErr.message;
+                throw new Error(msg || 'CAD status check failed');
+              }
+            } catch (_) {
+              throw new Error((statusErr as Error).message || 'CAD status check failed');
+            }
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const sd: any = statusData;
+          const status: string | undefined = sd?.status;
+          const outputUrl: string | undefined = sd?.output;
+
+          if (status === 'succeeded' && outputUrl) {
+            console.log('LovableAI: CAD model ready for', jobId, outputUrl);
+            this.completeJob(jobId, [outputUrl]);
+            return;
+          }
+
+          if (status === 'failed' || status === 'canceled') {
+            throw new Error('CAD generation failed');
+          }
+
+          // Keep waiting
+          await new Promise((r) => setTimeout(r, delay));
+          // Optional: exponential backoff up to 10s
+          delay = Math.min(delay * 1.25, 10000);
+        }
+
+        // Timeout
+        throw new Error('CAD generation timed out');
+      }
+
+      // Backward-compatible path: immediate output
+      if (!first?.output) {
         console.error('LovableAI: No CAD output in response:', cadData);
         throw new Error('No CAD model generated');
       }
 
       console.log('LovableAI: CAD model generated successfully for', jobId);
-
-      // Complete the job with the CAD model URL
-      this.completeJob(jobId, Array.isArray(cadData.output) ? cadData.output : [cadData.output]);
+      this.completeJob(jobId, Array.isArray(first.output) ? first.output : [first.output]);
 
     } catch (error) {
       console.error('LovableAI: CAD generation error for', jobId, ':', error);
