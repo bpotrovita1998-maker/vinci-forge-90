@@ -142,15 +142,13 @@ export default function Scenes() {
     };
   }, [scenes, settings, currentStoryboard]);
 
-  // Save on component unmount (when navigating away)
+  // Cleanup on unmount only (no implicit save to avoid flicker)
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
-      if (currentStoryboard && scenes.length > 0) {
-        saveCurrentStoryboard(false);
-      }
+      if (savedStatusTimeoutRef.current) window.clearTimeout(savedStatusTimeoutRef.current);
     };
-  }, [currentStoryboard, scenes, settings]);
+  }, []);
 
   const loadStoryboards = async () => {
     try {
@@ -836,20 +834,15 @@ export default function Scenes() {
                               disabled={isSaving}
                               variant="outline"
                               size="sm"
-                              className="gap-2"
+                              className="gap-2 min-w-[96px]"
                             >
                               <Save className="w-4 h-4" />
                               {isSaving ? 'Saving...' : 'Save'}
                             </Button>
                             {showSavedStatus && !isSaving && (
-                              <motion.span
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0 }}
-                                className="text-sm text-muted-foreground"
-                              >
+                              <span className="text-sm text-muted-foreground animate-fade-in">
                                 Saved
-                              </motion.span>
+                              </span>
                             )}
                           </div>
 
