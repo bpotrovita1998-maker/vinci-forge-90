@@ -7,6 +7,7 @@ import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
 import AdvancedOptions from './AdvancedOptions';
+import CADTemplates from './CADTemplates';
 import { z } from 'zod';
 
 const promptSchema = z.string()
@@ -252,6 +253,17 @@ export default function Hero() {
               </div>
             </div>
           </div>
+
+          {/* CAD Templates - Show when CAD is selected */}
+          {options.type === 'cad' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CADTemplates onSelectTemplate={(templatePrompt) => setPrompt(templatePrompt)} />
+            </motion.div>
+          )}
 
           <AdvancedOptions options={options} onChange={setOptions} />
         </motion.div>
