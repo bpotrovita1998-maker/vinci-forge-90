@@ -22,7 +22,8 @@ import {
   Save,
   FolderOpen,
   FileText,
-  Wand2
+  Wand2,
+  Edit
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -47,6 +48,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface Scene {
   id: string;
@@ -56,7 +65,7 @@ interface Scene {
   videoUrl?: string;
   status: 'draft' | 'generating' | 'ready';
   jobId?: string;
-  duration: number; // in seconds
+  duration: number; // in seconds (API supports 5 or 8)
 }
 
 interface StoryboardSettings {
@@ -92,6 +101,9 @@ export default function Scenes() {
   const [newStoryboardTitle, setNewStoryboardTitle] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [storyboardToDelete, setStoryboardToDelete] = useState<string | null>(null);
+  const [editingScene, setEditingScene] = useState<Scene | null>(null);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [isEditingImage, setIsEditingImage] = useState(false);
 
   // Load storyboards on mount
   useEffect(() => {
@@ -428,8 +440,8 @@ export default function Scenes() {
       return;
     }
 
-    // Snap to allowed durations: 5 or 8 seconds (8 requires 1080p)
-    const videoDuration = scene.duration <= 5 ? 5 : 8;
+    // Use the scene's duration directly (should already be 5 or 8)
+    const videoDuration = scene.duration === 8 ? 8 : 5;
 
     updateScene(sceneId, { status: 'generating' });
 
@@ -519,6 +531,77 @@ export default function Scenes() {
     await generateSceneVideo(sceneId, true);
   };
 
+  const editSceneImage = async () => {
+    if (!editingScene || !editingScene.imageUrl || !editPrompt.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter editing instructions",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsEditingImage(true);
+    try {
+      const LOVABLE_API_KEY = import.meta.env.VITE_LOVABLE_API_KEY;
+      if (!LOVABLE_API_KEY) {
+        throw new Error('LOVABLE_API_KEY not configured');
+      }
+
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-image-preview",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: editPrompt },
+                {
+                  type: "image_url",
+                  image_url: { url: editingScene.imageUrl }
+                }
+              ]
+            }
+          ],
+          modalities: ["image", "text"]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to edit image');
+      }
+
+      const data = await response.json();
+      const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+      if (editedImageUrl) {
+        updateScene(editingScene.id, { imageUrl: editedImageUrl });
+        toast({
+          title: "Image Edited!",
+          description: "Your image has been updated successfully"
+        });
+        setEditingScene(null);
+        setEditPrompt('');
+      } else {
+        throw new Error('No edited image returned');
+      }
+    } catch (error) {
+      console.error('Error editing image:', error);
+      toast({
+        title: "Edit Failed",
+        description: error instanceof Error ? error.message : "Failed to edit image",
+        variant: "destructive"
+      });
+    } finally {
+      setIsEditingImage(false);
+    }
+  };
+
   const generateScriptAndShots = async () => {
     if (!videoIdea.trim() || videoIdea.trim().length < 10) {
       toast({
@@ -552,7 +635,7 @@ export default function Scenes() {
         title: `Shot ${shot.shot_number}: ${shot.title}`,
         description: `${shot.camera_angle} shot, ${shot.camera_movement}. ${shot.visual_description}${shot.dialogue ? `\n\nDialogue: "${shot.dialogue}"` : ''}`,
         status: 'draft' as const,
-        duration: shot.duration || 3
+        duration: (shot.duration || 3) <= 5 ? 5 : 8 // Snap to API-supported durations
       }));
 
       setScenes(newScenes);
@@ -1081,25 +1164,36 @@ export default function Scenes() {
                                 <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                 <div className="flex-1">
                                   <Label htmlFor={`duration-${scene.id}`} className="text-xs text-muted-foreground">
-                                    Duration
+                                    Video Duration (API supports 5s or 8s only)
                                   </Label>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Input
-                                      id={`duration-${scene.id}`}
-                                      type="number"
-                                      min="1"
-                                      max="30"
-                                      value={scene.duration}
-                                      onChange={(e) => updateScene(scene.id, { duration: Math.max(1, Math.min(30, parseInt(e.target.value) || 3)) })}
-                                      className="w-20 h-8 text-center"
-                                    />
-                                    <span className="text-sm text-muted-foreground">seconds</span>
-                                  </div>
+                                  <Select
+                                    value={String(scene.duration)}
+                                    onValueChange={(value) => updateScene(scene.id, { duration: parseInt(value) })}
+                                  >
+                                    <SelectTrigger className="w-full mt-1">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="5">5 seconds</SelectItem>
+                                      <SelectItem value="8">8 seconds</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                               </div>
 
                               {/* Actions */}
                               <div className="flex gap-2">
+                                {scene.imageUrl && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingScene(scene)}
+                                    className="gap-2"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                    Edit Image
+                                  </Button>
+                                )}
                                 {scene.status === 'ready' ? (
                                   <Button
                                     size="sm"
@@ -1151,6 +1245,75 @@ export default function Scenes() {
           </Tabs>
         </div>
       </div>
+
+      {/* Edit Image Dialog */}
+      <Dialog open={!!editingScene} onOpenChange={(open) => {
+        if (!open) {
+          setEditingScene(null);
+          setEditPrompt('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Scene Image</DialogTitle>
+            <DialogDescription>
+              Describe how you want to modify the image. AI will edit it based on your instructions.
+            </DialogDescription>
+          </DialogHeader>
+          {editingScene && (
+            <div className="space-y-4">
+              {/* Current Image */}
+              <div className="relative aspect-video rounded-lg overflow-hidden border">
+                <img 
+                  src={editingScene.imageUrl} 
+                  alt={editingScene.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              
+              {/* Edit Instructions */}
+              <div>
+                <Label>Editing Instructions</Label>
+                <Textarea
+                  placeholder="E.g., 'Make it nighttime', 'Add rain', 'Change background to mountains'"
+                  value={editPrompt}
+                  onChange={(e) => setEditPrompt(e.target.value)}
+                  className="mt-2 min-h-[100px]"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingScene(null);
+                setEditPrompt('');
+              }}
+              disabled={isEditingImage}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={editSceneImage}
+              disabled={isEditingImage || !editPrompt.trim()}
+              className="gap-2"
+            >
+              {isEditingImage ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-spin" />
+                  Editing...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4" />
+                  Apply Edits
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
