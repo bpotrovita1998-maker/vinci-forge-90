@@ -3,7 +3,7 @@ import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp, Cuboid } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useJobs } from '@/contexts/JobContext';
 import { useState } from 'react';
@@ -57,6 +57,8 @@ export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps)
         return <Video className="w-4 h-4" />;
       case '3d':
         return <Box className="w-4 h-4" />;
+      case 'cad':
+        return <Cuboid className="w-4 h-4" />;
     }
   };
 

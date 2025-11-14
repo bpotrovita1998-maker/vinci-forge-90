@@ -62,6 +62,9 @@ class LovableAIService {
       } else if (job.options.type === '3d') {
         console.log('LovableAI: Starting 3D generation for', jobId);
         await this.generate3D(jobId);
+      } else if (job.options.type === 'cad') {
+        console.log('LovableAI: Starting CAD generation for', jobId);
+        await this.generateCAD(jobId);
       }
       
     } catch (error) {
@@ -212,6 +215,79 @@ class LovableAIService {
 
     } catch (error) {
       console.error('LovableAI: 3D generation error for', jobId, ':', error);
+      throw error;
+    }
+  }
+
+  private async generateCAD(jobId: string) {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      console.error('LovableAI: Job not found in generateCAD:', jobId);
+      return;
+    }
+
+    console.log('LovableAI: Generating CAD model for', jobId);
+
+    try {
+      // Step 1: Generate a reference image with CAD-optimized prompt
+      this.updateJobStage(jobId, 'running', 'Generating CAD reference image...');
+      
+      const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
+        body: {
+          prompt: `${job.options.prompt}. Engineering CAD model, technical drawing, isometric view, precise geometry, professional industrial design, clean edges, symmetrical, suitable for manufacturing.`,
+          width: job.options.width,
+          height: job.options.height,
+          numImages: 1,
+        }
+      });
+
+      if (imageError || !imageData?.images?.[0]) {
+        throw new Error('Failed to generate CAD reference image');
+      }
+
+      console.log('LovableAI: CAD reference image generated, converting to 3D mesh');
+      
+      // Step 2: Convert to high-quality CAD mesh
+      this.updateJobStage(jobId, 'upscaling', 'Generating CAD-quality mesh...');
+      
+      const { data: cadData, error: cadError } = await supabase.functions.invoke('generate-cad', {
+        body: {
+          inputImage: imageData.images[0],
+          seed: job.options.seed,
+          jobId: jobId,
+          prompt: job.options.prompt,
+        }
+      });
+
+      console.log('LovableAI: CAD generation response:', { cadData, cadError });
+
+      if (cadError) {
+        console.error('LovableAI: CAD generation error:', cadError);
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const httpErr = cadError as any;
+          if (httpErr?.context?.json) {
+            const errBody = await httpErr.context.json();
+            const msg = errBody?.error || errBody?.message || httpErr.message;
+            throw new Error(msg || 'Failed to generate CAD model');
+          }
+        } catch (_) {
+          throw new Error((cadError as Error).message || 'Failed to generate CAD model');
+        }
+      }
+
+      if (!cadData?.output) {
+        console.error('LovableAI: No CAD output in response:', cadData);
+        throw new Error('No CAD model generated');
+      }
+
+      console.log('LovableAI: CAD model generated successfully for', jobId);
+
+      // Complete the job with the CAD model URL
+      this.completeJob(jobId, Array.isArray(cadData.output) ? cadData.output : [cadData.output]);
+
+    } catch (error) {
+      console.error('LovableAI: CAD generation error for', jobId, ':', error);
       throw error;
     }
   }
