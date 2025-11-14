@@ -75,47 +75,57 @@ serve(async (req) => {
     // Now convert the image to 3D with robust fallbacks
     console.log('Converting image to 3D model...');
 
-    // Use Hunyuan3D 2.1 with PBR texture generation support
-    console.log('Generating 3D model with Hunyuan3D 2.1 (PBR-enabled)...');
+    // Use Hunyuan3D 2.1 with optimized settings for faster generation
+    console.log('Generating 3D model with Hunyuan3D 2.1 (PBR-enabled, optimized)...');
     
     let output: unknown;
     try {
-      // Primary: Hunyuan3D 2.1 with PBR texture generation
+      // Optimized settings: faster generation while maintaining PBR quality
+      console.log('Starting Replicate API call with optimized parameters...');
+      const startTime = Date.now();
+      
       output = await replicate.run(
         "ndreca/hunyuan3d-2.1:895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
         {
           input: {
             image: finalImageUrl,
             seed: seed || 1234,
-            steps: 50,
-            num_chunks: 8000,
-            max_facenum: 20000,
+            steps: 30,              // Reduced from 50 for faster generation
+            num_chunks: 4000,       // Reduced from 8000 for speed
+            max_facenum: 15000,     // Reduced from 20000 for speed
             guidance_scale: 7.5,
-            generate_texture: true,  // Enable PBR texture generation
-            octree_resolution: 256,
+            generate_texture: true, // Keep PBR textures enabled
+            octree_resolution: 128, // Reduced from 256 for speed
             remove_background: true
           }
         }
       );
+      
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`3D generation completed in ${duration}s`);
     } catch (primaryErr) {
       console.error('Hunyuan3D 2.1 failed:', primaryErr);
+      console.error('Error details:', JSON.stringify(primaryErr, null, 2));
       return new Response(
         JSON.stringify({ 
           error: '3D generation failed', 
-          details: (primaryErr as Error)?.message 
+          details: (primaryErr as Error)?.message || 'Unknown error during 3D generation'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('3D generation response:', output);
+    console.log('3D generation response:', JSON.stringify(output).substring(0, 500));
 
     // Resolve mesh URL from Hunyuan3D 2.1 output
     // deno-lint-ignore no-explicit-any
     const o: any = output;
     const modelUrl = o?.mesh || (Array.isArray(o) ? o[0] : null) || (typeof o === 'string' ? o : null);
+    
+    console.log('Extracted model URL:', modelUrl);
 
     if (!modelUrl) {
+      console.error('Failed to extract model URL. Full output:', JSON.stringify(output, null, 2));
       return new Response(
         JSON.stringify({ error: '3D model URL not found in response', raw: output }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -136,8 +146,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Error in generate-3d function:", error);
+    console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), 
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error instanceof Error ? error.stack : String(error)
+      }), 
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
