@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Cuboid, Settings, Box, Cylinder, Hexagon } from 'lucide-react';
+import { Cuboid, Settings, Box, Cylinder, Hexagon, Smartphone, Grip, Coffee, Cog } from 'lucide-react';
 
 interface CADTemplate {
   id: string;
@@ -97,6 +98,118 @@ const cadTemplates: CADTemplate[] = [
       '30° taper',
       '2x M8 screws'
     ]
+  },
+  {
+    id: 'phone-stand',
+    name: 'Phone Stand',
+    icon: <Smartphone className="w-5 h-5" />,
+    category: '3D Printable',
+    prompt: '3D-printable phone stand for modern smartphone, fits phones up to 85mm wide and 10mm thick, 60-degree viewing angle. Lower lip 8mm high to prevent sliding, cable slot cutout for charging access. Stable base design, no-support printing geometry. PLA material, 2mm minimum wall thickness. Clean, solid geometry with smooth surfaces, modern ergonomic design suitable for desk use.',
+    description: '3D-printable desk phone holder',
+    specifications: [
+      'Up to 85mm wide',
+      '60° viewing angle',
+      'Cable slot',
+      '2mm walls'
+    ]
+  },
+  {
+    id: 'shelf-bracket',
+    name: 'Shelf Bracket',
+    icon: <Box className="w-5 h-5" />,
+    category: 'Structural',
+    prompt: 'Metal wall-mounted L-bracket for 800x250x20mm wooden shelf. L-shape with diagonal support, 230mm top arm, 220mm wall arm. 3x mounting holes on wall side, 2x holes on shelf side, 6mm diameter countersunk for wood screws. Steel construction 3-4mm thick, suitable for laser cutting or bending. Rated 25kg total load capacity. Modern clean design with rounded edges, no decoration.',
+    description: 'Wall-mounted shelf support bracket',
+    specifications: [
+      '230mm x 220mm',
+      '3-4mm steel',
+      '25kg capacity',
+      '5 mounting holes'
+    ]
+  },
+  {
+    id: 'lamp-arm',
+    name: 'Desk Lamp Arm',
+    icon: <Cog className="w-5 h-5" />,
+    category: 'Mechanical',
+    prompt: 'Adjustable desk lamp arm mechanical structure, two 250mm arm segments with pivot joint connection, through-bolt and washers. Desk clamp base for 10-40mm thick edges. Top mounting plate 50x50mm with 4x M4 holes for lamp head attachment. Friction washers for position holding. Rectangular hollow sections 20x10mm, 2mm wall thickness. Minimal modern design with smooth fillets, clean geometry suitable for fabrication.',
+    description: 'Adjustable articulating arm',
+    specifications: [
+      '2x 250mm arms',
+      'Pivot joints',
+      'Desk clamp base',
+      '50x50mm mount'
+    ]
+  },
+  {
+    id: 'enclosure',
+    name: 'Electronics Box',
+    icon: <Box className="w-5 h-5" />,
+    category: 'Enclosure',
+    prompt: 'Two-part plastic electronics enclosure, 90x60x25mm internal space. Bottom box with snap-fit lid, 2-3mm wall thickness. 4x internal bosses with M3 screw holes for 70x40mm PCB mounting. Ventilation slots on long side, 20x10mm USB opening on opposite side. Rounded corners, comfortable handheld ergonomics. Simple smooth exterior suitable for injection molding or 3D printing. Engineering CAD model with precise fitment.',
+    description: 'Project enclosure with PCB mounts',
+    specifications: [
+      '90x60x25mm',
+      'Snap-fit lid',
+      '4x PCB mounts',
+      'Vent slots'
+    ]
+  },
+  {
+    id: 'gear-pair',
+    name: 'Gear Pair',
+    icon: <Settings className="w-5 h-5" />,
+    category: 'Power Transmission',
+    prompt: 'Parametric spur gear pair designed to mesh, module 2mm, 20° pressure angle. Gear 1: 20 teeth with 6mm shaft hub and keyway. Gear 2: 40 teeth with 8mm shaft hub and keyway. Both include M3 setscrew through holes for shaft locking. Assembled view showing correct center distance meshing. Clean involute tooth geometry suitable for 3D printing or CNC machining. Engineering CAD model with precise tooth profiles.',
+    description: 'Meshing spur gear assembly',
+    specifications: [
+      '20T & 40T',
+      'Module 2mm',
+      '20° pressure',
+      'M3 setscrews'
+    ]
+  },
+  {
+    id: 'hinge',
+    name: 'Box Hinge',
+    icon: <Hexagon className="w-5 h-5" />,
+    category: 'Connections',
+    prompt: 'Metal folding hinge for wooden storage box, 12mm wall thickness compatibility, 110-degree opening angle. 50mm leaf length each side, 20mm width, 4mm pin diameter full length. 2x countersunk holes per leaf, 4mm diameter for wood screws. Flush-mounting design when closed. Simple robust stamped sheet metal construction, 1.5-2mm thickness. Engineering CAD model with precise pivot geometry and screw placement.',
+    description: 'Folding hinge for wood boxes',
+    specifications: [
+      '50mm leaves',
+      '110° opening',
+      '4mm pin',
+      '1.5-2mm metal'
+    ]
+  },
+  {
+    id: 'coffee-table',
+    name: 'Coffee Table',
+    icon: <Coffee className="w-5 h-5" />,
+    category: 'Assembly',
+    prompt: 'Minimalist coffee table assembly, 900x450mm rectangular top 25mm thick. Four square tube legs 30x30mm, 400mm tall, inset 50mm from corners. Simple bolt brackets attaching legs to underside of tabletop. Wooden top, steel legs and brackets. Include mounting holes and fasteners for flat-pack assembly and disassembly. Modern minimalist design with clean lines, suitable for residential furniture. Engineering CAD assembly model.',
+    description: 'Modern flat-pack coffee table',
+    specifications: [
+      '900x450mm',
+      '400mm height',
+      'Wood & steel',
+      'Bolt assembly'
+    ]
+  },
+  {
+    id: 'controller-grip',
+    name: 'Controller Grip',
+    icon: <Grip className="w-5 h-5" />,
+    category: '3D Printable',
+    prompt: 'Ergonomic game controller grip right-hand half, average adult hand fit. Gentle palm swell with three-finger indentations on front surface. Top flat interface plane 60x40mm for electronics mounting. Hollow interior 2mm wall thickness for material efficiency. Suitable for 3D printing and rubber overmolding. Smooth organic surfaces with generous fillets for comfortable hand contact. Modern ergonomic industrial design CAD model.',
+    description: 'Ergonomic gaming grip shell',
+    specifications: [
+      'Right hand',
+      '2mm walls',
+      '60x40mm mount',
+      'Overmold ready'
+    ]
   }
 ];
 
@@ -105,6 +218,9 @@ interface CADTemplatesProps {
 }
 
 export default function CADTemplates({ onSelectTemplate }: CADTemplatesProps) {
+  const [showAll, setShowAll] = useState(false);
+  const displayedTemplates = showAll ? cadTemplates : cadTemplates.slice(0, 6);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 mb-3">
@@ -120,7 +236,7 @@ export default function CADTemplates({ onSelectTemplate }: CADTemplatesProps) {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {cadTemplates.map((template) => (
+        {displayedTemplates.map((template) => (
           <Card 
             key={template.id}
             className="glass border-border/30 p-4 hover:border-accent/30 transition-all cursor-pointer group"
@@ -168,6 +284,19 @@ export default function CADTemplates({ onSelectTemplate }: CADTemplatesProps) {
           </Card>
         ))}
       </div>
+
+      {cadTemplates.length > 6 && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAll(!showAll)}
+            className="glass border-border/30 hover:border-accent/30"
+          >
+            {showAll ? 'Show Less' : `Show ${cadTemplates.length - 6} More Templates`}
+          </Button>
+        </div>
+      )}
 
       <div className="p-3 rounded-lg border border-accent/20 bg-accent/5 text-xs text-muted-foreground">
         <p className="font-medium mb-1 text-foreground">💡 Engineering Tip:</p>
