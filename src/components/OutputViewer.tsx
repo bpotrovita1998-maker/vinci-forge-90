@@ -14,7 +14,6 @@ import { toast } from '@/hooks/use-toast';
 import ThreeDViewer from './ThreeDViewer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
-import { ScrollArea } from './ui/scroll-area';
 import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -179,7 +178,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] glass border-border/30 flex flex-col p-0">
+      <DialogContent className="max-w-4xl max-h-[90vh] glass border-border/30 p-0 flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Output Preview
@@ -192,8 +191,8 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 h-full">
-          <div className="space-y-4 px-6 pb-6">
+        <div className="flex-1 overflow-y-auto px-6">
+          <div className="space-y-4 pb-6">
           {/* Media Preview */}
           <div className="relative bg-muted/30 rounded-lg overflow-hidden">
             {(job.options.type === '3d' || job.options.type === 'cad') ? (
@@ -489,8 +488,8 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               </div>
             )}
           </div>
+          </div>
         </div>
-        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
