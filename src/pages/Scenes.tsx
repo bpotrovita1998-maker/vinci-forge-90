@@ -543,44 +543,20 @@ export default function Scenes() {
 
     setIsEditingImage(true);
     try {
-      const LOVABLE_API_KEY = import.meta.env.VITE_LOVABLE_API_KEY;
-      if (!LOVABLE_API_KEY) {
-        throw new Error('LOVABLE_API_KEY not configured');
-      }
-
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image-preview",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: editPrompt },
-                {
-                  type: "image_url",
-                  image_url: { url: editingScene.imageUrl }
-                }
-              ]
-            }
-          ],
-          modalities: ["image", "text"]
-        })
+      const { data, error } = await supabase.functions.invoke('edit-image', {
+        body: {
+          imageUrl: editingScene.imageUrl,
+          prompt: editPrompt
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to edit image');
+      if (error) {
+        console.error('Image editing error:', error);
+        throw error;
       }
 
-      const data = await response.json();
-      const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-
-      if (editedImageUrl) {
-        updateScene(editingScene.id, { imageUrl: editedImageUrl });
+      if (data?.editedImageUrl) {
+        updateScene(editingScene.id, { imageUrl: data.editedImageUrl });
         toast({
           title: "Image Edited!",
           description: "Your image has been updated successfully"
