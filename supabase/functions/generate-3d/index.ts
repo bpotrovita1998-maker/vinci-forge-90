@@ -95,7 +95,7 @@ serve(async (req) => {
             max_facenum: 15000,     // Reduced from 20000 for speed
             guidance_scale: 7.5,
             generate_texture: true, // Keep PBR textures enabled
-            octree_resolution: 128, // Reduced from 256 for speed
+            octree_resolution: 196, // Valid values: 196, 256, 384, 512
             remove_background: true
           }
         }
