@@ -103,13 +103,13 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
         <div className="space-y-4">
           {/* Media Preview */}
           <div className="relative bg-muted/30 rounded-lg overflow-hidden">
-            {job.options.type === '3d' ? (
+            {(job.options.type === '3d' || job.options.type === 'cad') ? (
               job.outputs && job.outputs.length > 0 && job.outputs[0] ? (
                 <Suspense fallback={
                   <div className="w-full h-[500px] flex items-center justify-center">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                      <p className="text-muted-foreground">Loading 3D model...</p>
+                      <p className="text-muted-foreground">Loading {job.options.type === 'cad' ? 'CAD' : '3D'} model...</p>
                     </div>
                   </div>
                 }>
@@ -118,7 +118,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               ) : (
                 <div className="w-full h-[500px] flex items-center justify-center">
                   <div className="text-center text-muted-foreground">
-                    <p>No 3D model available</p>
+                    <p>No {job.options.type === 'cad' ? 'CAD' : '3D'} model available</p>
                     <p className="text-xs mt-2">Outputs: {JSON.stringify(job.outputs)}</p>
                   </div>
                 </div>
@@ -218,6 +218,60 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                     <li>In Inspector, set Scale Factor to {unityScale}</li>
                     <li>Apply changes and drag into your scene</li>
                   </ol>
+                </div>
+              </div>
+            )}
+
+            {/* CAD Export Information */}
+            {job.options.type === 'cad' && (
+              <div className="p-4 rounded-lg border border-accent/30 bg-accent/5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Box className="w-5 h-5 text-accent" />
+                  <h3 className="font-semibold text-foreground">CAD Model Export</h3>
+                  <Badge variant="outline" className="bg-accent/20 text-accent border-0 ml-auto">
+                    Engineering Grade
+                  </Badge>
+                </div>
+                
+                <p className="text-sm text-muted-foreground">
+                  High-quality GLB mesh optimized for CAD applications. Convert to STEP/IGES formats using CAD software.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={downloadForUnity}
+                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download GLB
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-accent/30 hover:bg-accent/10"
+                    asChild
+                  >
+                    <a href={job.outputs[0]} download>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Direct
+                    </a>
+                  </Button>
+                </div>
+
+                <div className="text-xs text-muted-foreground space-y-2 pt-2 border-t border-border/30">
+                  <p>🔧 <strong>CAD Software Compatibility:</strong></p>
+                  <div className="space-y-1 ml-2">
+                    <p>• <strong>FreeCAD:</strong> Import GLB, export to STEP/IGES</p>
+                    <p>• <strong>Blender:</strong> Import GLB, export with CAD plugins</p>
+                    <p>• <strong>Fusion 360:</strong> Import as mesh, convert to solid</p>
+                    <p>• <strong>Online Tools:</strong> Use converters like AnyConv or CloudConvert</p>
+                  </div>
+                  <p className="pt-2">📏 <strong>Model Specifications:</strong></p>
+                  <div className="space-y-1 ml-2">
+                    <p>• High-precision mesh (~20,000 faces)</p>
+                    <p>• PBR textures included</p>
+                    <p>• Clean topology for manufacturing</p>
+                    <p>• 3D printing ready</p>
+                  </div>
                 </div>
               </div>
             )}

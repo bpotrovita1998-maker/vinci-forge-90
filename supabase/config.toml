@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.generate-3d]
 verify_jwt = false
 
+[functions.generate-cad]
+verify_jwt = false
+
 [functions.job-websocket]
 verify_jwt = false
 

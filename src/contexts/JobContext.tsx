@@ -285,7 +285,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     const jobId = crypto.randomUUID();
 
     // Calculate estimated tokens based on generation type
-    // Token costs match exact AI costs: Image = 2, Video = 30, 3D = 10
+    // Token costs match exact AI costs: Image = 2, Video = 30, 3D = 10, CAD = 15
     let estimatedTokens = 0;
     let actionType: 'image_generation' | 'video_generation' | 'vectorization' = 'image_generation';
     
@@ -297,6 +297,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
       actionType = 'video_generation';
     } else if (options.type === '3d') {
       estimatedTokens = 10; // 10 tokens per 3D model
+      actionType = 'image_generation'; // Closest match
+    } else if (options.type === 'cad') {
+      estimatedTokens = 15; // 15 tokens per CAD model (higher quality mesh)
       actionType = 'image_generation'; // Closest match
     }
 
