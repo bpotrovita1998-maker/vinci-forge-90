@@ -63,7 +63,10 @@ export const useSubscription = () => {
 
   const refreshData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     await Promise.all([
       fetchUserRole(user.id),
