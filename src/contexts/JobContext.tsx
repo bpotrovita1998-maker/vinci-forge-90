@@ -430,10 +430,23 @@ export function JobProvider({ children }: { children: ReactNode }) {
         
         setJobs(prev => prev.map(j => {
           if (j.id !== jobId) return j;
+          
           // Ignore WebSocket updates once job is finalized to prevent loops
           if (j.status === 'completed' || j.status === 'failed') {
             console.log('Ignoring WebSocket update for finalized job:', jobId);
             return j;
+          }
+          
+          // Prevent backwards status transitions to avoid flickering
+          if (partialJob.status) {
+            const statusOrder: JobStatus[] = ['queued', 'running', 'upscaling', 'encoding', 'completed', 'failed'];
+            const currentIndex = statusOrder.indexOf(j.status);
+            const newIndex = statusOrder.indexOf(partialJob.status);
+            
+            if (currentIndex > newIndex && partialJob.status !== 'failed') {
+              console.log(`Ignoring backwards status transition from ${j.status} to ${partialJob.status}`);
+              return j;
+            }
           }
           
           // Merge the partial update with existing job data
