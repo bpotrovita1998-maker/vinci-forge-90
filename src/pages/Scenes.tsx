@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,6 +104,8 @@ export default function Scenes() {
   const [editingScene, setEditingScene] = useState<Scene | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingImage, setIsEditingImage] = useState(false);
+  const saveTimeoutRef = useRef<number | null>(null);
+  const saveAgainRef = useRef<boolean>(false);
 
   // Load storyboards on mount
   useEffect(() => {
@@ -122,20 +124,25 @@ export default function Scenes() {
 
   // Auto-save when scenes or settings change
   useEffect(() => {
-    if (currentStoryboard && !isSaving) {
-      const timeoutId = setTimeout(() => {
-        saveCurrentStoryboard();
-      }, 2000); // Auto-save after 2 seconds of no changes
-      
-      return () => clearTimeout(timeoutId);
-    }
+    if (!currentStoryboard) return;
+
+    // Reset the timer whenever inputs change
+    if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = window.setTimeout(() => {
+      saveCurrentStoryboard(false);
+    }, 1500);
+
+    return () => {
+      if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    };
   }, [scenes, settings, currentStoryboard]);
 
   // Save on component unmount (when navigating away)
   useEffect(() => {
     return () => {
+      if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
       if (currentStoryboard && scenes.length > 0) {
-        saveCurrentStoryboard();
+        saveCurrentStoryboard(false);
       }
     };
   }, [currentStoryboard, scenes, settings]);
@@ -313,6 +320,15 @@ export default function Scenes() {
 
   const saveCurrentStoryboard = async (showToast: boolean = false) => {
     if (!currentStoryboard) return;
+    
+    // Avoid overlapping saves; queue one more save if needed
+    if (isSaving) {
+      saveAgainRef.current = true;
+      return;
+    }
+
+    // If a debounced save is pending, cancel it (manual or immediate save)
+    if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
 
     setIsSaving(true);
     try {
@@ -417,6 +433,11 @@ export default function Scenes() {
       });
     } finally {
       setIsSaving(false);
+      if (saveAgainRef.current) {
+        saveAgainRef.current = false;
+        // Run the queued save, but do not show toast to avoid spam
+        setTimeout(() => saveCurrentStoryboard(false), 50);
+      }
     }
   };
 
