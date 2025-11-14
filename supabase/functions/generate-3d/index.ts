@@ -75,58 +75,45 @@ serve(async (req) => {
     // Now convert the image to 3D with robust fallbacks
     console.log('Converting image to 3D model...');
 
-    // Helper to try multiple input schemas against a specific model:version
-    const tryModel = async (modelVersion: string) => {
-      const variants = [
-        { front_image: finalImageUrl },
-        { image: finalImageUrl },
-        { input_image: finalImageUrl },
-        { images: [finalImageUrl] },
-        { image_path: finalImageUrl }
-      ];
-      let lastErr: unknown = null;
-      for (const input of variants) {
-        try {
-          console.log(`Attempting ${modelVersion} with input keys: ${Object.keys(input).join(',')}`);
-          // deno-lint-ignore no-explicit-any
-          const out: any = await replicate.run(modelVersion, { input });
-          return out;
-        } catch (e) {
-          lastErr = e;
-          console.warn(`Failed ${modelVersion} with ${Object.keys(input).join(',')}:`, e);
-        }
-      }
-      throw lastErr ?? new Error(`All input variants failed for ${modelVersion}`);
-    };
-
+    // Use Hunyuan3D 2.1 with PBR texture generation support
+    console.log('Generating 3D model with Hunyuan3D 2.1 (PBR-enabled)...');
+    
     let output: unknown;
     try {
-      // Preferred official model with pinned version
-      output = await tryModel("tencent/hunyuan3d-2mv:71798fbc3c9f7b7097e3bb85496e5a797d8b8f616b550692e7c3e176a8e9e5db");
+      // Primary: Hunyuan3D 2.1 with PBR texture generation
+      output = await replicate.run(
+        "ndreca/hunyuan3d-2.1:895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
+        {
+          input: {
+            image: finalImageUrl,
+            seed: seed || 1234,
+            steps: 50,
+            num_chunks: 8000,
+            max_facenum: 20000,
+            guidance_scale: 7.5,
+            generate_texture: true,  // Enable PBR texture generation
+            octree_resolution: 256,
+            remove_background: true
+          }
+        }
+      );
     } catch (primaryErr) {
-      console.warn('Primary model failed, falling back to ImageDream...', primaryErr);
-      try {
-        // Fallback 1: ImageDream (text/image to 3D)
-        output = await tryModel("adirik/imagedream");
-      } catch (fallbackErr) {
-        console.error('All 3D models failed:', fallbackErr);
-        return new Response(
-          JSON.stringify({ error: '3D generation failed', details: (fallbackErr as Error)?.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      console.error('Hunyuan3D 2.1 failed:', primaryErr);
+      return new Response(
+        JSON.stringify({ 
+          error: '3D generation failed', 
+          details: (primaryErr as Error)?.message 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('3D generation response:', output);
 
-    // Resolve a usable model URL (GLB) from various possible shapes
+    // Resolve mesh URL from Hunyuan3D 2.1 output
     // deno-lint-ignore no-explicit-any
     const o: any = output;
-    const modelUrl = Array.isArray(o)
-      ? o[0]
-      : (typeof o === 'string')
-        ? o
-        : (o?.glb || o?.mesh || o?.model || o?.file || (Array.isArray(o?.output) ? o.output[0] : undefined) || o?.assets?.glb || o?.assets?.model || o?.assets?.file);
+    const modelUrl = o?.mesh || (Array.isArray(o) ? o[0] : null) || (typeof o === 'string' ? o : null);
 
     if (!modelUrl) {
       return new Response(
