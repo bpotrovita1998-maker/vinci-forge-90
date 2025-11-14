@@ -192,8 +192,8 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6">
-          <div className="space-y-4 pb-6">
+        <ScrollArea className="flex-1 h-full">
+          <div className="space-y-4 px-6 pb-6">
           {/* Media Preview */}
           <div className="relative bg-muted/30 rounded-lg overflow-hidden">
             {(job.options.type === '3d' || job.options.type === 'cad') ? (
