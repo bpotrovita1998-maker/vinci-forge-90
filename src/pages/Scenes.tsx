@@ -107,6 +107,8 @@ export default function Scenes() {
   const saveTimeoutRef = useRef<number | null>(null);
   const saveQueuedRef = useRef<boolean>(false);
   const saveQueuedToastRef = useRef<boolean>(false);
+  const savedStatusTimeoutRef = useRef<number | null>(null);
+  const [showSavedStatus, setShowSavedStatus] = useState(false);
   // Disable autosave to prevent UI flicker; manual save only
   const AUTOSAVE = false;
 
@@ -429,6 +431,15 @@ export default function Scenes() {
       if (showToast) {
         toast({ title: 'Saved', description: 'Storyboard saved successfully' });
       }
+
+      // Show saved status indicator
+      setShowSavedStatus(true);
+      if (savedStatusTimeoutRef.current) {
+        window.clearTimeout(savedStatusTimeoutRef.current);
+      }
+      savedStatusTimeoutRef.current = window.setTimeout(() => {
+        setShowSavedStatus(false);
+      }, 2500);
     } catch (error) {
       console.error('Error saving storyboard:', error);
       toast({
@@ -819,16 +830,28 @@ export default function Scenes() {
 
                       {currentStoryboard && (
                         <>
-                          <Button
-                            onClick={() => saveCurrentStoryboard(true)}
-                            disabled={isSaving}
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                          >
-                            <Save className="w-4 h-4" />
-                            {isSaving ? 'Saving...' : 'Save'}
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={() => saveCurrentStoryboard(true)}
+                              disabled={isSaving}
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                            >
+                              <Save className="w-4 h-4" />
+                              {isSaving ? 'Saving...' : 'Save'}
+                            </Button>
+                            {showSavedStatus && !isSaving && (
+                              <motion.span
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0 }}
+                                className="text-sm text-muted-foreground"
+                              >
+                                Saved
+                              </motion.span>
+                            )}
+                          </div>
 
                           <Button
                             onClick={() => setStoryboardToDelete(currentStoryboard.id)}
