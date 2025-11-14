@@ -6,14 +6,14 @@ import { Button } from './ui/button';
 import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp, Cuboid } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useJobs } from '@/contexts/JobContext';
-import { useState } from 'react';
+import { useState, memo } from 'react';
 
 interface JobStatusCardProps {
   job: Job;
   onViewOutput?: (job: Job) => void;
 }
 
-export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
+function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
   const { cancelJob, deleteJob } = useJobs();
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
   
@@ -22,15 +22,35 @@ export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps)
   const getStatusIcon = () => {
     switch (job.status) {
       case 'queued':
-        return <Clock className="w-4 h-4" />;
+        return (
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs">Queued</span>
+            <Clock className="w-4 h-4" />
+          </span>
+        );
       case 'running':
       case 'upscaling':
       case 'encoding':
-        return <Loader2 className="w-4 h-4 animate-spin" />;
+        return (
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs">Loading...</span>
+            <Loader2 className="w-4 h-4 animate-spin" />
+          </span>
+        );
       case 'completed':
-        return <CheckCircle2 className="w-4 h-4" />;
+        return (
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4" />
+            <span className="text-xs">Completed</span>
+          </span>
+        );
       case 'failed':
-        return <XCircle className="w-4 h-4" />;
+        return (
+          <span className="flex items-center gap-1.5">
+            <XCircle className="w-4 h-4" />
+            <span className="text-xs">Failed</span>
+          </span>
+        );
     }
   };
 
@@ -81,10 +101,7 @@ export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps)
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <Badge variant="outline" className={`${getStatusColor()} border-none`}>
-              <span className="flex items-center gap-1.5">
-                {getStatusIcon()}
-                {job.progress.stage}
-              </span>
+              {getStatusIcon()}
             </Badge>
             <Badge variant="outline" className="glass border-border/30">
               {getTypeIcon()}
@@ -222,3 +239,20 @@ export default function JobStatusCard({ job, onViewOutput }: JobStatusCardProps)
     </Card>
   );
 }
+
+// Memoize component to prevent unnecessary re-renders
+// Only re-render if job status, progress, or outputs change
+export default memo(JobStatusCard, (prevProps, nextProps) => {
+  const prevJob = prevProps.job;
+  const nextJob = nextProps.job;
+  
+  return (
+    prevJob.id === nextJob.id &&
+    prevJob.status === nextJob.status &&
+    prevJob.progress.progress === nextJob.progress.progress &&
+    prevJob.progress.stage === nextJob.progress.stage &&
+    prevJob.progress.message === nextJob.progress.message &&
+    prevJob.outputs.length === nextJob.outputs.length &&
+    prevJob.error === nextJob.error
+  );
+});
