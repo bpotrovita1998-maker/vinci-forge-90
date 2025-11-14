@@ -51,21 +51,31 @@ serve(async (req) => {
 
     console.log("Generating video with prompt:", body.prompt);
     
+    // Build input object, only include image if it's a valid HTTP(S) URL
+    const input: any = {
+      prompt: body.prompt,
+      duration: body.duration && body.duration > 5 ? 8 : 5, // Only 5 or 8 allowed
+    };
+
+    // Only add optional parameters if they have valid values
+    if (body.negativePrompt) {
+      input.negative_prompt = body.negativePrompt;
+    }
+    if (body.seed) {
+      input.seed = body.seed;
+    }
+    
+    // Only include inputImage if it's a valid HTTP/HTTPS URL (not a data URL)
+    if (body.inputImage && (body.inputImage.startsWith('http://') || body.inputImage.startsWith('https://'))) {
+      input.image = body.inputImage;
+    }
+
+    console.log("Video generation input:", JSON.stringify(input, null, 2));
+    
     // Use PixVerse v5 for video generation
-    // Free tier available on Replicate
     const output = await replicate.run(
       "pixverse/pixverse-v5",
-      {
-        input: {
-          prompt: body.prompt,
-          negative_prompt: body.negativePrompt,
-          seed: body.seed,
-          quality: body.quality || "540p", // 360p, 540p, 720p, 1080p
-          duration: body.duration && body.duration > 5 ? 8 : 5, // Only 5 or 8 allowed by API
-          aspect_ratio: body.aspectRatio || "16:9",
-          image: body.inputImage, // Optional: first frame image
-        }
-      }
+      { input }
     );
 
     console.log("Video generation response:", output);

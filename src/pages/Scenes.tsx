@@ -460,15 +460,20 @@ export default function Scenes() {
       console.log('Duration:', videoDuration);
 
       // Call video generation endpoint
+      // Note: Only pass inputImage if it's a real URL (not base64 data URL)
+      const requestBody: any = {
+        prompt: finalPrompt,
+        duration: videoDuration,
+      };
+
+      // Only include inputImage if previous scene has a valid HTTP(S) URL
+      if (previousScene?.videoUrl && 
+          (previousScene.videoUrl.startsWith('http://') || previousScene.videoUrl.startsWith('https://'))) {
+        requestBody.inputImage = previousScene.videoUrl;
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-video', {
-        body: {
-          prompt: finalPrompt,
-          duration: videoDuration,
-          quality: '720p',
-          aspectRatio: '16:9',
-          // Use last frame from previous scene if available for better continuity
-          inputImage: previousScene?.imageUrl
-        }
+        body: requestBody
       });
 
       if (error) {
