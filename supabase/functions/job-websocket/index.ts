@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,7 +19,12 @@ serve(async (req) => {
 
   const { socket, response } = Deno.upgradeWebSocket(req);
   
-  const subscribedJobs = new Set<string>();
+  // Initialize Supabase client
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  const subscribedJobs = new Map<string, number>();
   
   socket.onopen = () => {
     console.log("WebSocket connection established");
@@ -34,7 +40,6 @@ serve(async (req) => {
       console.log("Received message:", message);
 
       if (message.action === 'subscribe' && message.jobId) {
-        subscribedJobs.add(message.jobId);
         console.log(`Subscribed to job: ${message.jobId}`);
         
         // Send acknowledgment
@@ -43,31 +48,67 @@ serve(async (req) => {
           jobId: message.jobId
         }));
 
-        // Send periodic progress updates (but never complete - let actual generation do that)
-        const interval = setInterval(() => {
+        // Poll database for real job status
+        const interval = setInterval(async () => {
           if (!subscribedJobs.has(message.jobId)) {
             clearInterval(interval);
             return;
           }
 
-          // Send mock progress update (stays under 95% - actual completion comes from lovableAIService)
-          const progress = Math.min(Math.random() * 85 + 5, 95);
+          try {
+            // Fetch actual job status from database
+            const { data: job, error } = await supabase
+              .from('jobs')
+              .select('*')
+              .eq('id', message.jobId)
+              .single();
 
-          socket.send(JSON.stringify({
-            type: 'job.update',
-            jobId: message.jobId,
-            status: 'running',
-            progress: {
-              stage: 'running',
-              progress: progress,
-              message: 'Generating image...'
+            if (error) {
+              console.error('Error fetching job:', error);
+              return;
             }
-          }));
-        }, 2000);
+
+            if (!job) {
+              console.log(`Job ${message.jobId} not found`);
+              clearInterval(interval);
+              subscribedJobs.delete(message.jobId);
+              return;
+            }
+
+            console.log(`Job ${message.jobId} status: ${job.status}, progress: ${job.progress_percent}%`);
+
+            // Send real status update
+            socket.send(JSON.stringify({
+              type: 'job.update',
+              jobId: message.jobId,
+              status: job.status,
+              progress: job.progress_percent,
+              progressStage: job.progress_stage,
+              progressMessage: job.progress_message,
+              outputs: job.outputs,
+              error: job.error
+            }));
+
+            // Stop polling if job is completed or failed
+            if (job.status === 'completed' || job.status === 'failed') {
+              console.log(`Job ${message.jobId} finished with status: ${job.status}`);
+              clearInterval(interval);
+              subscribedJobs.delete(message.jobId);
+            }
+          } catch (err) {
+            console.error('Error in job polling:', err);
+          }
+        }, 1000); // Poll every second
+        
+        subscribedJobs.set(message.jobId, interval);
       }
 
       if (message.action === 'unsubscribe' && message.jobId) {
-        subscribedJobs.delete(message.jobId);
+        const interval = subscribedJobs.get(message.jobId);
+        if (interval) {
+          clearInterval(interval);
+          subscribedJobs.delete(message.jobId);
+        }
         console.log(`Unsubscribed from job: ${message.jobId}`);
         
         socket.send(JSON.stringify({
@@ -90,6 +131,8 @@ serve(async (req) => {
 
   socket.onclose = () => {
     console.log("WebSocket connection closed");
+    // Clear all intervals
+    subscribedJobs.forEach(interval => clearInterval(interval));
     subscribedJobs.clear();
   };
 

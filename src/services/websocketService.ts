@@ -65,6 +65,8 @@ export class WebSocketService {
             id: message.jobId,
             status: message.status,
             progress: message.progress,
+            outputs: message.outputs,
+            error: message.error,
           });
         }
       }
