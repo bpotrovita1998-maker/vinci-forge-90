@@ -51,22 +51,21 @@ serve(async (req) => {
 
     console.log("Generating video with prompt:", body.prompt);
     
-    // Build input object, only include image if it's a valid HTTP(S) URL
-    const input: any = {
-      prompt: body.prompt,
-      duration: body.duration && body.duration > 5 ? 8 : 5, // Only 5 or 8 allowed
-    };
+    // Build input object with defaults and validation
+    const duration = body.duration && Number(body.duration) > 5 ? 8 : 5; // Only 5 or 8 allowed
+    const allowedRatios = ["16:9", "9:16", "1:1", "3:4"] as const;
+    const allowedQualities = ["360p", "540p", "720p", "1080p"] as const;
+    const aspect_ratio = allowedRatios.includes(body.aspectRatio) ? body.aspectRatio : "16:9";
+    const quality = allowedQualities.includes(body.quality) ? body.quality : "540p";
 
-    // Only add optional parameters if they have valid values
-    if (body.negativePrompt) {
-      input.negative_prompt = body.negativePrompt;
-    }
-    if (body.seed) {
-      input.seed = body.seed;
-    }
-    
+    const input: any = { prompt: body.prompt, duration, aspect_ratio, quality };
+
+    // Optional parameters
+    if (body.negativePrompt) input.negative_prompt = body.negativePrompt;
+    if (body.seed) input.seed = body.seed;
+
     // Only include inputImage if it's a valid HTTP/HTTPS URL (not a data URL)
-    if (body.inputImage && (body.inputImage.startsWith('http://') || body.inputImage.startsWith('https://'))) {
+    if (typeof body.inputImage === 'string' && (body.inputImage.startsWith('http://') || body.inputImage.startsWith('https://'))) {
       input.image = body.inputImage;
     }
 
