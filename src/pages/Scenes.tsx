@@ -447,13 +447,9 @@ export default function Scenes() {
       });
     } finally {
       setIsSaving(false);
-      if (saveQueuedRef.current) {
-        const queuedToast = saveQueuedToastRef.current;
-        saveQueuedRef.current = false;
-        saveQueuedToastRef.current = false;
-        // Run the queued save; keep user feedback if requested
-        setTimeout(() => saveCurrentStoryboard(queuedToast), 50);
-      }
+      // Reset queue flags without triggering another save
+      saveQueuedRef.current = false;
+      saveQueuedToastRef.current = false;
     }
   };
 
@@ -486,7 +482,7 @@ export default function Scenes() {
     });
   };
 
-  const generateSceneVideo = async (sceneId: string, isRegenerate = false) => {
+  const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || !scene.description) {
       toast({
@@ -497,13 +493,9 @@ export default function Scenes() {
       return;
     }
 
-    // Use the scene's duration directly (should already be 5 or 8)
-    const videoDuration = scene.duration === 8 ? 8 : 5;
-
     updateScene(sceneId, { status: 'generating' });
 
     try {
-      // Find the previous scene for continuity
       const sceneIndex = scenes.findIndex(s => s.id === sceneId);
       const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
 
@@ -525,57 +517,55 @@ export default function Scenes() {
       
       const finalPrompt = contextParts.join(', ');
 
-      console.log('Generating video with prompt:', finalPrompt);
-      console.log('Duration:', videoDuration);
+      console.log('Generating image with prompt:', finalPrompt);
 
-      // Call video generation endpoint
-      // Note: Only pass inputImage if it's a real URL (not base64 data URL)
+      // Call image generation endpoint
       const requestBody: any = {
         prompt: finalPrompt,
-        duration: videoDuration,
-        aspectRatio: '16:9',
-        quality: '720p',
+        width: 1024,
+        height: 576, // 16:9 aspect ratio
+        num_images: 1,
       };
 
-      // Only include inputImage if previous scene has a valid HTTP(S) image URL
+      // Only include inputImage if previous scene has a valid HTTP(S) image URL for continuity
       if (previousScene?.imageUrl &&
           (previousScene.imageUrl.startsWith('http://') || previousScene.imageUrl.startsWith('https://'))) {
         requestBody.inputImage = previousScene.imageUrl;
+        requestBody.strength = 0.3; // Low strength to maintain continuity while allowing changes
       }
 
-      const { data, error } = await supabase.functions.invoke('generate-video', {
+      const { data, error } = await supabase.functions.invoke('generate-image', {
         body: requestBody
       });
 
       if (error) {
-        console.error('Video generation error:', error);
+        console.error('Image generation error:', error);
         throw error;
       }
 
-      console.log('Video generation response:', data);
+      console.log('Image generation response:', data);
 
-      // The video URL will be in data.output
-      if (data?.output) {
+      // The image URL will be in data.output or data.outputs
+      const imageUrl = data?.output || data?.outputs?.[0];
+      if (imageUrl) {
         updateScene(sceneId, { 
           status: 'ready',
-          videoUrl: data.output,
-          // Keep the first frame as imageUrl for thumbnail
-          imageUrl: data.output
+          imageUrl: imageUrl
         });
         
         toast({
-          title: "Video Generated!",
-          description: `Scene ${sceneIndex + 1} video is ready`
+          title: "Image Generated!",
+          description: `Scene ${sceneIndex + 1} image is ready`
         });
       } else {
-        throw new Error('No video output received');
+        throw new Error('No image output received');
       }
 
     } catch (error) {
-      console.error('Error generating video:', error);
+      console.error('Error generating image:', error);
       updateScene(sceneId, { status: 'draft' });
       
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
       toast({
         title: "Generation Failed",
         description: errorMessage,
@@ -585,7 +575,7 @@ export default function Scenes() {
   };
 
   const regenerateScene = async (sceneId: string) => {
-    await generateSceneVideo(sceneId, true);
+    await generateSceneImage(sceneId, true);
   };
 
   const editSceneImage = async () => {
@@ -711,22 +701,22 @@ export default function Scenes() {
     }
 
     toast({
-      title: "Generating All Scenes",
-      description: `Generating ${draftScenes.length} scene(s)...`
+      title: "Generating All Images",
+      description: `Generating images for ${draftScenes.length} scene(s)...`
     });
 
     for (const scene of draftScenes) {
-      await generateSceneVideo(scene.id);
+      await generateSceneImage(scene.id);
     }
   };
 
   const generateStoryboardVideo = async () => {
-    const readyScenes = scenes.filter(s => s.status === 'ready');
+    const readyScenes = scenes.filter(s => s.status === 'ready' && s.imageUrl);
     
     if (readyScenes.length < 2) {
       toast({
         title: "Not Enough Scenes",
-        description: "You need at least 2 ready scenes to generate a video",
+        description: "You need at least 2 scenes with generated images to create a video",
         variant: "destructive"
       });
       return;
@@ -736,22 +726,46 @@ export default function Scenes() {
 
     setIsGeneratingVideo(true);
     toast({
-      title: "Generating Video",
-      description: `Creating ${totalDuration}s video from ${readyScenes.length} scenes...`
+      title: "Creating Video",
+      description: `Combining ${readyScenes.length} scene images into a ${totalDuration}s video...`
     });
 
     try {
-      // TODO: Call actual video generation service
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      
-      toast({
-        title: "Video Generated!",
-        description: `Your ${totalDuration}s storyboard video is ready`
+      // Create video from scene images
+      const { data, error } = await supabase.functions.invoke('generate-video', {
+        body: {
+          sceneImages: readyScenes.map(s => ({
+            imageUrl: s.imageUrl,
+            duration: s.duration,
+            description: s.description
+          })),
+          totalDuration,
+          aspectRatio: '16:9',
+          quality: '1080p'
+        }
       });
+
+      if (error) {
+        console.error('Video creation error:', error);
+        throw error;
+      }
+
+      if (data?.output) {
+        toast({
+          title: "Video Created!",
+          description: `Your ${totalDuration}s storyboard video is ready`,
+        });
+        
+        // Optionally download or display the video
+        window.open(data.output, '_blank');
+      } else {
+        throw new Error('No video output received');
+      }
     } catch (error) {
+      console.error('Error creating video:', error);
       toast({
-        title: "Video Generation Failed",
-        description: "Failed to generate video from storyboard",
+        title: "Video Creation Failed",
+        description: error instanceof Error ? error.message : "Failed to create video from scenes",
         variant: "destructive"
       });
     } finally {
@@ -1251,7 +1265,7 @@ export default function Scenes() {
                                 ) : (
                                   <Button
                                     size="sm"
-                                    onClick={() => generateSceneVideo(scene.id)}
+                                    onClick={() => generateSceneImage(scene.id)}
                                     disabled={scene.status === 'generating' || !scene.description}
                                     className="flex-1 gap-2"
                                   >
