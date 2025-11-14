@@ -211,6 +211,19 @@ export default function Hero() {
                   <span className="hidden sm:inline">Image</span>
                 </Button>
                 <Button
+                  variant={options.type === 'cad' ? 'default' : 'outline'}
+                  size="lg"
+                  onClick={() => setOptions(prev => ({ ...prev, type: 'cad' }))}
+                  className={`flex-1 sm:flex-none ${
+                    options.type === 'cad' 
+                      ? 'bg-accent text-accent-foreground' 
+                      : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
+                  }`}
+                >
+                  <Cuboid className="w-5 h-5 sm:mr-2" />
+                  <span className="hidden sm:inline">CAD</span>
+                </Button>
+                <Button
                   variant={options.type === 'video' ? 'default' : 'outline'}
                   size="lg"
                   onClick={() => setOptions(prev => ({ ...prev, type: 'video' }))}
@@ -235,19 +248,6 @@ export default function Hero() {
                 >
                   <Box className="w-5 h-5 sm:mr-2" />
                   <span className="hidden sm:inline">3D</span>
-                </Button>
-                <Button
-                  variant={options.type === 'cad' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setOptions(prev => ({ ...prev, type: 'cad' }))}
-                  className={`flex-1 sm:flex-none ${
-                    options.type === 'cad' 
-                      ? 'bg-accent text-accent-foreground' 
-                      : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
-                  }`}
-                >
-                  <Cuboid className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">CAD</span>
                 </Button>
               </div>
             </div>
