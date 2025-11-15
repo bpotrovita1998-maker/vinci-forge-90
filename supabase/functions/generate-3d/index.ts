@@ -181,16 +181,17 @@ serve(async (req) => {
       );
     }
 
+    // Ensure modelUrl is a string
+    const urlString = typeof modelUrl === 'string' ? modelUrl : String(modelUrl);
+
+    // CRITICAL: Persist the model file to permanent storage so links never expire
+    let finalUrl = urlString;
+
     // Update job as completed in database
     if (jobId) {
       console.log(`Updating job ${jobId} as completed with model URL: ${modelUrl}`);
       console.log(`Model URL type: ${typeof modelUrl}`);
       
-      // Ensure modelUrl is a string
-      const urlString = typeof modelUrl === 'string' ? modelUrl : String(modelUrl);
-
-      // CRITICAL: Persist the model file to permanent storage so links never expire
-      let finalUrl = urlString;
       try {
         console.log('Starting 3D model persistence to Supabase storage...');
         
@@ -273,8 +274,8 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        output,
-        modelUrl: typeof modelUrl === 'string' ? modelUrl : String(modelUrl),
+        output: finalUrl,
+        modelUrl: finalUrl,
         format: 'glb'
       }), 
       {
