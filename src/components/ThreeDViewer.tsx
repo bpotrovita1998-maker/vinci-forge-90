@@ -6,6 +6,7 @@ import { AlertCircle } from 'lucide-react';
 interface ThreeDViewerProps {
   modelUrl: string;
   jobId?: string;
+  userId?: string;
 }
 
 interface ErrorBoundaryProps {
@@ -54,7 +55,7 @@ function Model({ url }: { url: string }) {
   return <primitive object={scene} />;
 }
 
-export default function ThreeDViewer({ modelUrl, jobId }: ThreeDViewerProps) {
+export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
@@ -64,17 +65,24 @@ export default function ThreeDViewer({ modelUrl, jobId }: ThreeDViewerProps) {
     const checkAndSetUrl = async () => {
       // If it's a Replicate URL and we have a jobId, try Supabase storage first
       if (normalizedUrl?.includes('replicate.delivery') && jobId) {
-        const supabaseUrl = `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`;
+        // Try with userId if available, otherwise try without
+        const patterns = userId 
+          ? [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${userId}/${jobId}/model.glb`]
+          : [
+              `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`,
+            ];
         
-        try {
-          const response = await fetch(supabaseUrl, { method: 'HEAD' });
-          if (response.ok) {
-            console.log('Found model in Supabase storage, using permanent URL');
-            setActiveUrl(supabaseUrl);
-            return;
+        for (const supabaseUrl of patterns) {
+          try {
+            const response = await fetch(supabaseUrl, { method: 'HEAD' });
+            if (response.ok) {
+              console.log('Found model in Supabase storage, using permanent URL');
+              setActiveUrl(supabaseUrl);
+              return;
+            }
+          } catch (error) {
+            console.log(`Model not found at ${supabaseUrl}`);
           }
-        } catch (error) {
-          console.log('Model not in Supabase storage, trying original URL');
         }
       }
       
@@ -85,7 +93,7 @@ export default function ThreeDViewer({ modelUrl, jobId }: ThreeDViewerProps) {
     if (normalizedUrl) {
       checkAndSetUrl();
     }
-  }, [normalizedUrl, jobId]);
+  }, [normalizedUrl, jobId, userId]);
   
   if (!activeUrl || loadError) {
     return (

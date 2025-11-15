@@ -6,6 +6,7 @@ import { Package } from 'lucide-react';
 interface ThreeDThumbnailProps {
   modelUrl: string;
   jobId?: string;
+  userId?: string;
 }
 
 function Model({ url }: { url: string }) {
@@ -13,7 +14,7 @@ function Model({ url }: { url: string }) {
   return <primitive object={scene} scale={1} />;
 }
 
-export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProps) {
+export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
   const [validatedUrl, setValidatedUrl] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(true);
 
@@ -23,16 +24,25 @@ export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProp
       
       // First, try to check if Supabase storage URL exists for expired Replicate URLs
       if (modelUrl?.includes('replicate.delivery') && jobId) {
-        const supabaseUrl = `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`;
-        try {
-          const response = await fetch(supabaseUrl, { method: 'HEAD' });
-          if (response.ok) {
-            setValidatedUrl(supabaseUrl);
-            setIsValidating(false);
-            return;
+        // Try with userId if available, otherwise try without
+        const patterns = userId 
+          ? [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${userId}/${jobId}/model.glb`]
+          : [
+              `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`,
+            ];
+        
+        // Try each pattern
+        for (const supabaseUrl of patterns) {
+          try {
+            const response = await fetch(supabaseUrl, { method: 'HEAD' });
+            if (response.ok) {
+              setValidatedUrl(supabaseUrl);
+              setIsValidating(false);
+              return;
+            }
+          } catch (error) {
+            console.log(`Pattern ${supabaseUrl} not found`);
           }
-        } catch (error) {
-          console.log('Supabase storage URL not available, trying original URL');
         }
       }
       
