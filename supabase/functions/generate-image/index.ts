@@ -152,19 +152,34 @@ serve(async (req) => {
     const data = await response.json();
     console.log('Lovable AI response received');
 
+    // Check for safety/content blocks first
+    const finishReason = data.choices?.[0]?.finish_reason;
+    const nativeFinishReason = data.choices?.[0]?.native_finish_reason;
+    
+    if (nativeFinishReason === 'IMAGE_SAFETY' || finishReason === 'content_filter') {
+      console.error('Content blocked by safety filters:', { finishReason, nativeFinishReason });
+      return new Response(
+        JSON.stringify({ 
+          error: 'Content blocked by safety filters. Please avoid prompts with violence, weapons, gore, adult content, or other sensitive topics. Try describing peaceful or creative scenes instead.',
+          reason: 'SAFETY_FILTER'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Extract base64 images from response
     const generatedImages = data.choices?.[0]?.message?.images || [];
     const images = generatedImages.map((img: any) => img.image_url?.url).filter(Boolean);
 
     if (images.length === 0) {
-      console.error('No images in response. This usually happens when the prompt is not suitable for image generation:', data);
+      console.error('No images in response:', data);
       
       // Check if there's a text response instead
       const textContent = data.choices?.[0]?.message?.content;
       if (textContent) {
         return new Response(
           JSON.stringify({ 
-            error: 'The prompt appears to be a question or text request rather than an image generation request. Please provide a descriptive prompt for what you want to see in an image.',
+            error: 'Unable to generate image. The model returned text instead of an image. This may be due to content restrictions or prompt interpretation issues. Try rephrasing your prompt to be more visual and descriptive.',
             details: textContent
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -172,7 +187,7 @@ serve(async (req) => {
       }
       
       return new Response(
-        JSON.stringify({ error: 'No images generated. Please ensure your prompt describes a visual scene.' }),
+        JSON.stringify({ error: 'No images generated. Please ensure your prompt describes a visual scene without sensitive content.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

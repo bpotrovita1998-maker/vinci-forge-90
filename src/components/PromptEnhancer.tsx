@@ -121,6 +121,9 @@ export default function PromptEnhancer({ type, onPromptGenerated }: PromptEnhanc
         </CardTitle>
         <CardDescription>
           Describe your idea and let AI create the perfect prompt for {type} generation
+          <div className="mt-2 p-2 bg-orange-500/10 border border-orange-500/20 rounded text-xs text-orange-600 dark:text-orange-400">
+            ⚠️ Avoid: Violence, weapons, gore, adult content, hate symbols, or other sensitive topics
+          </div>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
