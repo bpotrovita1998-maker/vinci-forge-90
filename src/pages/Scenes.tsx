@@ -66,6 +66,7 @@ interface Scene {
   status: 'draft' | 'generating' | 'ready';
   jobId?: string;
   duration: number; // in seconds, used when creating final video
+  type: 'image' | 'video'; // Type of scene media
 }
 
 interface StoryboardSettings {
@@ -201,7 +202,8 @@ export default function Scenes() {
         videoUrl: scene.video_url || undefined,
         status: scene.status as 'draft' | 'generating' | 'ready',
         jobId: scene.job_id || undefined,
-        duration: scene.duration
+        duration: scene.duration,
+        type: (scene.video_url ? 'video' : 'image') as 'image' | 'video' // Infer type from existing data
       }));
 
       setScenes(loadedScenes);
@@ -459,7 +461,8 @@ export default function Scenes() {
       title: `Scene ${scenes.length + 1}`,
       description: '',
       status: 'draft',
-      duration: 3 // default 3 seconds
+      duration: 3, // default 3 seconds
+      type: 'image' // default to image
     };
     setScenes([...scenes, newScene]);
     toast({
@@ -585,7 +588,93 @@ export default function Scenes() {
   };
 
   const regenerateScene = async (sceneId: string) => {
-    await generateSceneImage(sceneId, true);
+    const scene = scenes.find(s => s.id === sceneId);
+    if (!scene) return;
+    
+    if (scene.type === 'video') {
+      await generateSceneVideo(sceneId, true);
+    } else {
+      await generateSceneImage(sceneId, true);
+    }
+  };
+
+  const generateSceneVideo = async (sceneId: string, isRegenerate = false) => {
+    const scene = scenes.find(s => s.id === sceneId);
+    if (!scene || scene.status === 'generating') return;
+
+    updateScene(sceneId, { status: 'generating' });
+
+    try {
+      const sceneIndex = scenes.findIndex(s => s.id === sceneId);
+      const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
+
+      // Build enhanced prompt with continuity context
+      let enhancedPrompt = scene.description;
+      
+      // Add previous scene context for continuity
+      if (previousScene && previousScene.description && !isRegenerate) {
+        enhancedPrompt = `Continue from previous scene: "${previousScene.description}". Now: ${scene.description}. Maintain the same characters, style, and story continuity.`;
+      }
+      
+      // Add shared settings
+      const contextParts = [
+        enhancedPrompt,
+        settings.character && `Character: ${settings.character}`,
+        settings.style && `Style: ${settings.style}`,
+        settings.brand && `Brand: ${settings.brand}`
+      ].filter(Boolean);
+      
+      const finalPrompt = contextParts.join(', ');
+
+      console.log('Generating video with prompt:', finalPrompt);
+
+      // Call video generation endpoint with Minimax Video-01
+      const { data, error } = await supabase.functions.invoke('generate-video', {
+        body: {
+          prompt: finalPrompt,
+        }
+      });
+
+      if (error) {
+        console.error('Video generation error:', error);
+        throw error;
+      }
+
+      console.log('Video generation response:', data);
+
+      // The video URL will be in data.output
+      const videoUrl = Array.isArray(data?.output) ? data.output[0] : data?.output;
+      if (videoUrl) {
+        updateScene(sceneId, { 
+          status: 'ready',
+          videoUrl: videoUrl
+        });
+        
+        toast({
+          title: "Video Generated!",
+          description: `Scene ${sceneIndex + 1} video is ready`
+        });
+      } else {
+        throw new Error('No video output received');
+      }
+
+    } catch (error) {
+      console.error('Error generating video:', error);
+      updateScene(sceneId, { status: 'draft' });
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
+      let userMessage = errorMessage;
+      
+      if (errorMessage.includes('safety filters') || errorMessage.includes('SAFETY_FILTER')) {
+        userMessage = '⚠️ Content blocked by safety filters. Please avoid violence, weapons, adult content, or sensitive topics.';
+      }
+      
+      toast({
+        title: "Generation Failed",
+        description: userMessage,
+        variant: "destructive"
+      });
+    }
   };
 
   const editSceneImage = async () => {
@@ -1227,57 +1316,85 @@ export default function Scenes() {
                                 />
                               </div>
 
-                              {/* Actions */}
-                              <div className="flex gap-2">
-                                {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && (
+                              {/* Type Selector & Actions */}
+                              <div className="space-y-3">
+                                <div>
+                                  <Label className="text-xs">Scene Type</Label>
+                                  <Select
+                                    value={scene.type}
+                                    onValueChange={(value: 'image' | 'video') => updateScene(scene.id, { type: value })}
+                                  >
+                                    <SelectTrigger className="mt-2">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="image">
+                                        <div className="flex items-center gap-2">
+                                          <ImageIcon className="w-4 h-4" />
+                                          Image
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="video">
+                                        <div className="flex items-center gap-2">
+                                          <Video className="w-4 h-4" />
+                                          Video (Minimax)
+                                        </div>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="flex gap-2">
+                                  {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && scene.type === 'image' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setEditingScene(scene)}
+                                      className="gap-2"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                      Edit
+                                    </Button>
+                                  )}
+                                  {scene.status === 'ready' ? (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => regenerateScene(scene.id)}
+                                      className="flex-1 gap-2"
+                                      variant="secondary"
+                                    >
+                                      <RefreshCw className="w-4 h-4" />
+                                      Regenerate
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => scene.type === 'video' ? generateSceneVideo(scene.id) : generateSceneImage(scene.id)}
+                                      disabled={scene.status === 'generating' || !scene.description}
+                                      className="flex-1 gap-2"
+                                    >
+                                      {scene.status === 'generating' ? (
+                                        <>
+                                          <Sparkles className="w-4 h-4 animate-spin" />
+                                          Generating...
+                                        </>
+                                      ) : (
+                                        <>
+                                          {scene.type === 'video' ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                                          Generate {scene.type === 'video' ? 'Video' : 'Image'}
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
                                   <Button
                                     size="sm"
-                                    variant="outline"
-                                    onClick={() => setEditingScene(scene)}
-                                    className="gap-2"
+                                    variant="ghost"
+                                    onClick={() => deleteScene(scene.id)}
+                                    className="text-destructive hover:text-destructive"
                                   >
-                                    <Edit className="w-4 h-4" />
-                                    Edit Image
+                                    <Trash2 className="w-4 h-4" />
                                   </Button>
-                                )}
-                                {scene.status === 'ready' ? (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => regenerateScene(scene.id)}
-                                    className="flex-1 gap-2"
-                                    variant="secondary"
-                                  >
-                                    <RefreshCw className="w-4 h-4" />
-                                    Regenerate
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => generateSceneImage(scene.id)}
-                                    disabled={scene.status === 'generating' || !scene.description}
-                                    className="flex-1 gap-2"
-                                  >
-                                    {scene.status === 'generating' ? (
-                                      <>
-                                        <Sparkles className="w-4 h-4 animate-spin" />
-                                        Generating...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <ImageIcon className="w-4 h-4" />
-                                        Generate
-                                      </>
-                                    )}
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => deleteScene(scene.id)}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                </div>
                               </div>
                             </CardContent>
                           </Card>

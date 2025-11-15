@@ -71,10 +71,14 @@ serve(async (req) => {
 
     console.log("Video generation input:", JSON.stringify(input, null, 2));
     
-    // Use PixVerse v5 for video generation
+    // Use Minimax Video-01 for cost-effective video generation (up to 6 seconds)
     const output = await replicate.run(
-      "pixverse/pixverse-v5",
-      { input }
+      "minimax/video-01-director",
+      { 
+        input: { 
+          prompt: body.prompt
+        } 
+      }
     );
 
     console.log("Video generation response:", output);
