@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, Component, ReactNode } from 'react';
+import { Suspense, Component, ReactNode, useState } from 'react';
 import { Package } from 'lucide-react';
 
 interface ThreeDThumbnailProps {
@@ -11,6 +11,7 @@ interface ThreeDThumbnailProps {
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  onError?: () => void;
 }
 
 interface ErrorBoundaryState {
@@ -29,18 +30,12 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
 
   componentDidCatch(error: Error) {
     console.error('3D Thumbnail loading error:', error);
+    this.props.onError?.();
   }
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="w-full h-full flex items-center justify-center bg-muted/20">
-          <div className="text-center">
-            <Package className="w-12 h-12 text-primary mx-auto mb-2" />
-            <p className="text-xs text-muted-foreground">3D Model</p>
-          </div>
-        </div>
-      );
+      return null;
     }
     return this.props.children;
   }
@@ -58,8 +53,9 @@ function Model({ url }: { url: string }) {
 }
 
 export default function ThreeDThumbnail({ modelUrl }: ThreeDThumbnailProps) {
-  // If no valid URL, show fallback
-  if (!modelUrl || typeof modelUrl !== 'string') {
+  const [loadError, setLoadError] = useState(false);
+  // If no valid URL or error, show fallback
+  if (!modelUrl || typeof modelUrl !== 'string' || loadError) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-muted/20">
         <div className="text-center">
@@ -78,7 +74,7 @@ export default function ThreeDThumbnail({ modelUrl }: ThreeDThumbnailProps) {
         gl={{ antialias: true, alpha: true }}
       >
         <Suspense fallback={null}>
-          <ModelErrorBoundary>
+          <ModelErrorBoundary onError={() => setLoadError(true)}>
             <PresentationControls
               speed={1.5}
               global
