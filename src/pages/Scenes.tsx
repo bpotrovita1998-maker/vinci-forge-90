@@ -545,8 +545,8 @@ export default function Scenes() {
 
       console.log('Image generation response:', data);
 
-      // The image URL will be in data.output or data.outputs
-      const imageUrl = data?.output || data?.outputs?.[0];
+      // The image URL will be in data.images array
+      const imageUrl = data?.images?.[0];
       if (imageUrl) {
         updateScene(sceneId, { 
           status: 'ready',

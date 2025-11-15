@@ -8,7 +8,13 @@ import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
 import AdvancedOptions from './AdvancedOptions';
 import CADTemplates from './CADTemplates';
+import PromptEnhancer from './PromptEnhancer';
 import { z } from 'zod';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 const promptSchema = z.string()
   .trim()
@@ -60,6 +66,7 @@ export default function Hero() {
   const { submitJob } = useJobs();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showEnhancer, setShowEnhancer] = useState(false);
   
   const [options, setOptions] = useState<Partial<GenerationOptions>>({
     type: 'image',
@@ -196,6 +203,24 @@ export default function Hero() {
                 <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
                 {isGenerating ? 'Submitting...' : 'Generate'}
               </Button>
+
+              <Collapsible open={showEnhancer} onOpenChange={setShowEnhancer}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {showEnhancer ? 'Hide' : 'Show'} AI Prompt Assistant
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-4">
+                  <PromptEnhancer 
+                    type={options.type || 'image'}
+                    onPromptGenerated={(enhancedPrompt) => {
+                      setPrompt(enhancedPrompt);
+                      setShowEnhancer(false);
+                    }}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
               
               <div className="grid grid-cols-3 gap-2">
                 <Button
