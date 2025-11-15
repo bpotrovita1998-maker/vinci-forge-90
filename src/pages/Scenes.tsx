@@ -541,7 +541,7 @@ export default function Scenes() {
 
   const addScene = () => {
     const newScene: Scene = {
-      id: `scene-${Date.now()}`,
+      id: crypto.randomUUID(),
       title: `Scene ${scenes.length + 1}`,
       description: '',
       status: 'draft',
@@ -1073,21 +1073,28 @@ export default function Scenes() {
 
       const { title, script, shots } = response.data;
 
-      // Create scenes from shots
+      // Create scenes from shots with proper UUIDs
       const newScenes: Scene[] = shots.map((shot: any) => ({
-        id: `scene-${Date.now()}-${shot.shot_number}`,
+        id: crypto.randomUUID(),
         title: `Shot ${shot.shot_number}: ${shot.title}`,
         description: `${shot.camera_angle} shot, ${shot.camera_movement}. ${shot.visual_description}${shot.dialogue ? `\n\nDialogue: "${shot.dialogue}"` : ''}`,
         status: 'draft' as const,
-        duration: shot.duration || 3 // Default 3 seconds per scene for video creation
+        duration: shot.duration || 3,
+        type: 'video' as const // Default to video for AI-generated scripts
       }));
 
       setScenes(newScenes);
+      
+      // Save immediately to database to ensure persistence
+      setTimeout(() => {
+        saveCurrentStoryboard(false);
+      }, 500);
+      
       setVideoIdea('');
 
       toast({
         title: "Script Generated!",
-        description: `Created ${shots.length} shots. You can now generate images for each scene.`
+        description: `Created ${shots.length} shots. You can now generate videos for each scene.`
       });
 
       console.log('Generated script:', script);
