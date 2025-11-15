@@ -193,7 +193,45 @@ export default function Gallery() {
           type: scene.video_url ? 'video' : 'image'
         }));
 
-      setScenes(loadedScenes);
+      // Fallback: also surface completed jobs as scenes when DB scene rows weren't updated
+      const sceneUrls = new Set(loadedScenes.map(s => s.videoUrl || s.imageUrl).filter(Boolean) as string[]);
+
+      const { data: jobsFallback, error: jobsFallbackError } = await supabase
+        .from('jobs')
+        .select('id, outputs, type, status, completed_at, prompt, manifest, user_id')
+        .eq('user_id', user.id)
+        .eq('status', 'completed')
+        .not('outputs', 'is', null)
+        .order('completed_at', { ascending: false });
+
+      if (jobsFallbackError) throw jobsFallbackError;
+
+      const storyboardsMap = new Map<string, string>((storyboardsData || []).map(sb => [sb.id, sb.title]));
+
+      const fallbackScenes: SceneItem[] = (jobsFallback || [])
+        .map((job: any) => {
+          const outputs = Array.isArray(job.outputs) ? job.outputs : [job.outputs];
+          const url = outputs?.[0];
+          if (!url || typeof url !== 'string') return null;
+          const isVideo = job.type === 'video';
+          const manifest = (job.manifest || {}) as any;
+          const sbId = manifest.storyboard_id || manifest.storyboardId || 'unassigned';
+          return {
+            id: job.id,
+            title: job.prompt?.slice(0, 80) || (isVideo ? 'Generated video' : 'Generated image'),
+            description: job.prompt || '',
+            imageUrl: isVideo ? undefined : url,
+            videoUrl: isVideo ? url : undefined,
+            storyboardTitle: storyboardsMap.get(sbId) || 'Unassigned',
+            storyboardId: sbId,
+            createdAt: job.completed_at ? new Date(job.completed_at) : new Date(),
+            type: isVideo ? 'video' : 'image',
+          } as SceneItem;
+        })
+        .filter(Boolean)
+        .filter((s: any) => !sceneUrls.has(s.videoUrl || s.imageUrl));
+
+      setScenes([...loadedScenes, ...fallbackScenes]);
     } catch (error) {
       console.error('Error loading scenes:', error);
       toast.error('Failed to load scenes');
