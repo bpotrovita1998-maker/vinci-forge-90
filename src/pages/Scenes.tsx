@@ -479,20 +479,31 @@ export default function Scenes() {
       scene.id === id ? { ...scene, ...updates } : scene
     ));
     
-    // Persist to database
+    // Persist to database with snake_case mapping
     try {
-      const { error } = await supabase
-        .from('storyboard_scenes')
-        .update(updates)
-        .eq('id', id);
-      
-      if (error) {
-        console.error('Failed to update scene in database:', error);
+      const dbUpdates: any = {};
+      if (updates.title !== undefined) dbUpdates.title = updates.title;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
+      if (updates.duration !== undefined) dbUpdates.duration = updates.duration;
+      if (updates.jobId !== undefined) dbUpdates.job_id = updates.jobId;
+      if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
+      if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
+
+      if (Object.keys(dbUpdates).length > 0) {
+        const { error } = await supabase
+          .from('storyboard_scenes')
+          .update(dbUpdates)
+          .eq('id', id);
+        
+        if (error) {
+          console.error('Failed to update scene in database:', error);
+        }
       }
     } catch (error) {
       console.error('Error updating scene:', error);
     }
-  };
+  }; 
 
   const deleteScene = (id: string) => {
     setScenes(prev => prev.filter(scene => scene.id !== id));
@@ -1409,27 +1420,26 @@ export default function Scenes() {
                                 </div>
 
                                 <div className="flex gap-2 flex-wrap">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setViewingScene(scene)}
+                                    className="gap-2"
+                                    disabled={!scene.imageUrl && !scene.videoUrl}
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    Output
+                                  </Button>
                                   {(scene.imageUrl || scene.videoUrl) && (
-                                    <>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setViewingScene(scene)}
-                                        className="gap-2"
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                        Output
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => exportToGallery(scene)}
-                                        className="gap-2"
-                                      >
-                                        <Download className="w-4 h-4" />
-                                        Export to Gallery
-                                      </Button>
-                                    </>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => exportToGallery(scene)}
+                                      className="gap-2"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      Export to Gallery
+                                    </Button>
                                   )}
                                   {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && scene.type === 'image' && (
                                     <Button
