@@ -216,6 +216,14 @@ class LovableAIService {
         // Check if job was cancelled
         if (this.cancelledJobs.has(jobId)) {
           console.log('LovableAI: Job cancelled, breaking polling loop');
+          this.cancelledJobs.delete(jobId); // Clean up here
+          return;
+        }
+        
+        // Also check job status from local state
+        const currentJob = this.jobs.get(jobId);
+        if (currentJob && (currentJob.status === 'failed' || currentJob.status === 'completed')) {
+          console.log('LovableAI: Job status changed externally, stopping polling');
           return;
         }
         
@@ -349,6 +357,14 @@ class LovableAIService {
           // Check if job was cancelled
           if (this.cancelledJobs.has(jobId)) {
             console.log('LovableAI: CAD job cancelled, breaking polling loop');
+            this.cancelledJobs.delete(jobId); // Clean up here
+            return;
+          }
+          
+          // Also check job status from local state
+          const currentJob = this.jobs.get(jobId);
+          if (currentJob && (currentJob.status === 'failed' || currentJob.status === 'completed')) {
+            console.log('LovableAI: CAD job status changed externally, stopping polling');
             return;
           }
           
@@ -576,6 +592,9 @@ class LovableAIService {
       console.log('LovableAI: Cancelling job:', jobId);
       this.cancelledJobs.add(jobId);
       
+      // Update job status immediately so polling loop sees it
+      this.failJob(jobId, 'Cancelled by user');
+      
       // If there's a prediction running, cancel it on Replicate
       const predictionId = this.predictionIds.get(jobId);
       if (predictionId) {
@@ -598,12 +617,9 @@ class LovableAIService {
           }
         });
         
-        // Clean up
+        // Clean up prediction ID
         this.predictionIds.delete(jobId);
       }
-      
-      this.failJob(jobId, 'Cancelled by user');
-      this.cancelledJobs.delete(jobId); // Clean up after marking as failed
     }
   }
 }
