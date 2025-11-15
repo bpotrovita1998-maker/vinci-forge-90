@@ -47,8 +47,14 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
 }
 
 function Model({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
-  return <primitive object={scene} scale={1} />;
+  const gltf = useGLTF(url);
+  
+  if (!gltf?.scene) {
+    console.error('No scene in GLTF:', gltf);
+    return null;
+  }
+  
+  return <primitive object={gltf.scene} scale={1} />;
 }
 
 export default function ThreeDThumbnail({ modelUrl }: ThreeDThumbnailProps) {

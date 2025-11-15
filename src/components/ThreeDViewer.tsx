@@ -49,8 +49,14 @@ function Model({ url }: { url: string }) {
     return null;
   }
 
-  const { scene } = useGLTF(modelUrl);
-  return <primitive object={scene} />;
+  const gltf = useGLTF(modelUrl);
+  
+  if (!gltf?.scene) {
+    console.error('No scene in GLTF:', gltf);
+    return null;
+  }
+  
+  return <primitive object={gltf.scene} />;
 }
 
 export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerProps) {
