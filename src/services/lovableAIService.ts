@@ -82,66 +82,131 @@ class LovableAIService {
       return;
     }
 
-    console.log('LovableAI: Generating video with Replicate for', jobId);
+    console.log('LovableAI: Starting async video generation for', jobId);
 
     try {
-      // Step 1: Generate a key frame image first
-      this.updateJobStage(jobId, 'running', 'Generating key frame...');
-      
-      const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
-        body: {
-          prompt: `Cinematic ${job.options.prompt}. High-quality video frame, professional cinematography, 4K resolution.`,
-          width: job.options.width,
-          height: job.options.height,
-          numImages: 1,
-        }
-      });
-
-      if (imageError || !imageData?.images?.[0]) {
-        throw new Error('Failed to generate key frame');
-      }
-
-      console.log('LovableAI: Key frame generated, starting video generation');
-      
-      // Step 2: Convert image to video using Replicate
-      this.updateJobStage(jobId, 'encoding', 'Converting to video...');
+      // Start async video generation (returns prediction ID)
+      this.updateJobStage(jobId, 'running', 'Starting video generation...');
       
       const { data: videoData, error: videoError } = await supabase.functions.invoke('generate-video', {
         body: {
           prompt: job.options.prompt,
-          inputImage: imageData.images[0],
-          fps: job.options.fps || 6,
+          jobId: jobId,
         }
       });
 
-      console.log('LovableAI: Video generation response:', { videoData, videoError });
+      console.log('LovableAI: Video generation started:', { videoData, videoError });
 
       if (videoError) {
-        console.error('LovableAI: Video generation error:', videoError);
-        try {
-          // Parse structured error from edge function
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const httpErr = videoError as any;
-          if (httpErr?.context?.json) {
-            const errBody = await httpErr.context.json();
-            const msg = errBody?.error || errBody?.message || httpErr.message;
-            throw new Error(msg || 'Failed to generate video');
+        console.error('LovableAI: Failed to start video generation:', videoError);
+        throw new Error('Failed to start video generation');
+      }
+
+      if (!videoData?.predictionId) {
+        console.error('LovableAI: No prediction ID in response:', videoData);
+        throw new Error('Failed to start video generation');
+      }
+
+      const predictionId = videoData.predictionId;
+      console.log('LovableAI: Video prediction started with ID:', predictionId);
+      
+      // Store prediction ID for cancellation
+      this.predictionIds.set(jobId, predictionId);
+      
+      // Poll for completion
+      this.updateJobStage(jobId, 'encoding', 'Video generation in progress...');
+      
+      let attempts = 0;
+      const maxAttempts = 120; // 10 minutes max (5s intervals)
+      
+      while (attempts < maxAttempts) {
+        // Check if job was cancelled
+        if (this.cancelledJobs.has(jobId)) {
+          console.log('LovableAI: Job cancelled, breaking polling loop');
+          this.cancelledJobs.delete(jobId);
+          return;
+        }
+        
+        // Check job status from local state
+        const currentJob = this.jobs.get(jobId);
+        if (currentJob && (currentJob.status === 'failed' || currentJob.status === 'completed')) {
+          console.log('LovableAI: Job status changed externally, stopping polling');
+          return;
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        attempts++;
+        
+        console.log(`LovableAI: Polling video status (attempt ${attempts}/${maxAttempts})`);
+        
+        const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
+          body: {
+            predictionId: predictionId,
+            jobId: jobId,
           }
-        } catch (_) {
-          // Fallback to message
-          throw new Error((videoError as Error).message || 'Failed to generate video');
+        });
+        
+        if (statusError) {
+          console.error('LovableAI: Status check error:', statusError);
+          continue;
+        }
+        
+        console.log('LovableAI: Prediction status:', statusData?.status);
+        
+        if (statusData?.status === 'succeeded') {
+          console.log('LovableAI: Video generation completed successfully');
+          this.updateJobStage(jobId, 'completed', 'Video generated successfully');
+          
+          // Fetch the updated job from database to get the final URL
+          const { data: updatedJob, error: fetchError } = await supabase
+            .from('jobs')
+            .select('outputs')
+            .eq('id', jobId)
+            .maybeSingle();
+          
+          if (fetchError) {
+            console.error('LovableAI: Failed to fetch job outputs:', fetchError);
+            throw new Error('Failed to fetch completed job data');
+          }
+          
+          if (updatedJob?.outputs && Array.isArray(updatedJob.outputs) && updatedJob.outputs.length > 0) {
+            this.completeJob(jobId, updatedJob.outputs as string[]);
+          } else {
+            // Fallback: extract URL from prediction
+            const videoUrl = statusData?.output || (Array.isArray(statusData?.output) ? statusData.output[0] : null);
+            if (videoUrl) {
+              this.completeJob(jobId, [videoUrl]);
+            } else {
+              // Grace period
+              await new Promise(r => setTimeout(r, 1500));
+              const { data: updatedJob2 } = await supabase
+                .from('jobs')
+                .select('outputs')
+                .eq('id', jobId)
+                .maybeSingle();
+              if (updatedJob2?.outputs && Array.isArray(updatedJob2.outputs) && updatedJob2.outputs.length > 0) {
+                this.completeJob(jobId, updatedJob2.outputs as string[]);
+              } else {
+                console.warn('LovableAI: No video URL found after completion; keeping job completed');
+                this.updateJobStage(jobId, 'completed', 'Video generated, finalizing...');
+              }
+            }
+          }
+          return;
+        } else if (statusData?.status === 'failed') {
+          console.error('LovableAI: Video generation failed');
+          throw new Error('Video generation failed');
+        }
+        
+        // Update progress if available
+        if (statusData?.logs) {
+          this.updateJobStage(jobId, 'encoding', 'Processing video...');
         }
       }
-
-      if (!videoData?.output) {
-        console.error('LovableAI: No video output in response:', videoData);
-        throw new Error('No video generated');
-      }
-
-      console.log('LovableAI: Video generated successfully for', jobId);
-
-      // Complete the job with the video URL
-      this.completeJob(jobId, Array.isArray(videoData.output) ? videoData.output : [videoData.output]);
+      
+      // Timeout
+      console.error('LovableAI: Video generation timed out');
+      throw new Error('Video generation timed out');
 
     } catch (error) {
       console.error('LovableAI: Video generation error for', jobId, ':', error);

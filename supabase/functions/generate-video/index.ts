@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Replicate from "https://esm.sh/replicate@0.25.2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,11 +27,103 @@ serve(async (req) => {
     const body = await req.json();
     console.log("Request body:", JSON.stringify(body, null, 2));
 
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     // Check if this is a status check request
     if (body.predictionId) {
       console.log("Checking status for prediction:", body.predictionId);
       const prediction = await replicate.predictions.get(body.predictionId);
       console.log("Prediction status:", prediction.status);
+      
+      // If completed, persist the video to storage
+      if (prediction.status === 'succeeded' && prediction.output) {
+        const videoUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
+        console.log("Video URL from Replicate:", videoUrl);
+        
+        // Get job details to find user_id
+        const { data: jobData, error: jobError } = await supabase
+          .from('jobs')
+          .select('user_id, id')
+          .eq('id', body.jobId)
+          .maybeSingle();
+
+        if (jobError || !jobData) {
+          console.error("Failed to fetch job:", jobError);
+          return new Response(JSON.stringify(prediction), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        try {
+          // Download video from Replicate
+          console.log("Downloading video from Replicate...");
+          const videoResponse = await fetch(videoUrl);
+          if (!videoResponse.ok) {
+            throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+          }
+          
+          const videoBlob = await videoResponse.blob();
+          const videoBuffer = await videoBlob.arrayBuffer();
+          console.log("Video downloaded, size:", videoBuffer.byteLength);
+
+          // Upload to Supabase storage
+          const fileName = `${jobData.user_id}/${body.jobId}/video.mp4`;
+          console.log("Uploading to storage:", fileName);
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('generated-models')
+            .upload(fileName, videoBuffer, {
+              contentType: 'video/mp4',
+              upsert: true
+            });
+
+          if (uploadError) {
+            console.error("Storage upload error:", uploadError);
+            throw uploadError;
+          }
+
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('generated-models')
+            .getPublicUrl(fileName);
+
+          console.log("Video stored at:", publicUrl);
+
+          // Update job with permanent URL
+          const { error: updateError } = await supabase
+            .from('jobs')
+            .update({
+              outputs: [publicUrl],
+              status: 'completed',
+              progress_stage: 'completed',
+              progress_percent: 100,
+              progress_message: 'Video generation complete!',
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', body.jobId);
+
+          if (updateError) {
+            console.error("Failed to update job:", updateError);
+          }
+
+          // Return prediction with permanent URL
+          return new Response(JSON.stringify({
+            ...prediction,
+            output: publicUrl
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error("Error persisting video:", error);
+          // Return original prediction even if storage fails
+          return new Response(JSON.stringify(prediction), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
       
       return new Response(JSON.stringify(prediction), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
