@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { 
   Plus, 
   Trash2, 
@@ -24,7 +25,8 @@ import {
   FileText,
   Wand2,
   Edit,
-  DollarSign
+  DollarSign,
+  Timer
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -68,6 +70,9 @@ interface Scene {
   jobId?: string;
   duration: number; // in seconds, used when creating final video
   type: 'image' | 'video'; // Type of scene media
+  generationProgress?: number; // 0-100
+  estimatedTimeRemaining?: number; // in seconds
+  generationStartTime?: number; // timestamp
 }
 
 interface StoryboardSettings {
@@ -670,7 +675,15 @@ export default function Scenes() {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || scene.status === 'generating') return;
 
-    updateScene(sceneId, { status: 'generating' });
+    const startTime = Date.now();
+    const estimatedDuration = 240000; // 4 minutes in milliseconds
+    
+    updateScene(sceneId, { 
+      status: 'generating',
+      generationProgress: 0,
+      generationStartTime: startTime,
+      estimatedTimeRemaining: 240 // 4 minutes in seconds
+    });
 
     try {
       const sceneIndex = scenes.findIndex(s => s.id === sceneId);
@@ -708,6 +721,18 @@ export default function Scenes() {
 
       console.log('Video generation started, prediction ID:', startData.predictionId);
 
+      // Progress update interval (every 2 seconds)
+      const progressInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(95, (elapsed / estimatedDuration) * 100);
+        const remaining = Math.max(0, Math.ceil((estimatedDuration - elapsed) / 1000));
+        
+        updateScene(sceneId, {
+          generationProgress: progress,
+          estimatedTimeRemaining: remaining
+        });
+      }, 2000);
+
       // Poll for completion
       const pollInterval = setInterval(async () => {
         try {
@@ -724,12 +749,15 @@ export default function Scenes() {
 
           if (statusData?.status === 'succeeded' && statusData?.output) {
             clearInterval(pollInterval);
+            clearInterval(progressInterval);
             
             const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
             
             await updateScene(sceneId, { 
               status: 'ready',
-              videoUrl: videoUrl
+              videoUrl: videoUrl,
+              generationProgress: 100,
+              estimatedTimeRemaining: 0
             });
             
             toast({
@@ -739,10 +767,12 @@ export default function Scenes() {
             });
           } else if (statusData?.status === 'failed') {
             clearInterval(pollInterval);
+            clearInterval(progressInterval);
             throw new Error(statusData?.error || 'Video generation failed');
           }
         } catch (err) {
           clearInterval(pollInterval);
+          clearInterval(progressInterval);
           console.error('Polling error:', err);
           updateScene(sceneId, { status: 'draft' });
           toast({
@@ -756,6 +786,7 @@ export default function Scenes() {
       // Set timeout after 10 minutes
       setTimeout(() => {
         clearInterval(pollInterval);
+        clearInterval(progressInterval);
         const currentScene = scenes.find(s => s.id === sceneId);
         if (currentScene?.status === 'generating') {
           updateScene(sceneId, { status: 'draft' });
@@ -1531,6 +1562,33 @@ export default function Scenes() {
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
                                 </div>
+
+                                {/* Progress Indicator */}
+                                {scene.status === 'generating' && scene.type === 'video' && (
+                                  <div className="space-y-2 mt-4 p-3 bg-muted/30 rounded-lg border border-border/40">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="flex items-center gap-1.5 font-medium">
+                                        <Sparkles className="w-3.5 h-3.5 animate-pulse text-primary" />
+                                        Generating Video...
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {scene.generationProgress?.toFixed(0) || 0}%
+                                      </span>
+                                    </div>
+                                    <Progress 
+                                      value={scene.generationProgress || 0} 
+                                      className="h-2"
+                                    />
+                                    {scene.estimatedTimeRemaining !== undefined && scene.estimatedTimeRemaining > 0 && (
+                                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                        <Timer className="w-3.5 h-3.5" />
+                                        <span>
+                                          Est. {Math.floor(scene.estimatedTimeRemaining / 60)}m {scene.estimatedTimeRemaining % 60}s remaining
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </CardContent>
                           </Card>
