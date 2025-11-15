@@ -28,7 +28,42 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { prompt, imageUrl, inputImage, seed, jobId, statusCheck, predictionId } = await req.json();
+    const { prompt, imageUrl, inputImage, seed, jobId, statusCheck, predictionId, cancel } = await req.json();
+    
+    // Handle cancellation requests
+    if (cancel && predictionId) {
+      console.log('Cancelling prediction:', predictionId);
+      const replicate = new Replicate({ auth: REPLICATE_API_KEY });
+      
+      try {
+        await replicate.predictions.cancel(predictionId);
+        console.log('Prediction cancelled successfully');
+        
+        // Update job status
+        if (jobId) {
+          await supabase
+            .from('jobs')
+            .update({
+              status: 'failed',
+              error: 'Cancelled by user',
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', jobId);
+        }
+        
+        return new Response(
+          JSON.stringify({ success: true, message: 'Prediction cancelled' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Error cancelling prediction:', error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : 'Cancellation failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     
     // Handle status check requests
     if (statusCheck && predictionId) {

@@ -27,9 +27,47 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    const replicate = new Replicate({
+      auth: REPLICATE_API_KEY,
+    });
 
     const body = await req.json();
-    const { prompt, inputImage, seed, jobId, predictionId } = body;
+    const { prompt, inputImage, seed, jobId, predictionId, cancel } = body;
+    
+    // Handle cancellation requests
+    if (cancel && predictionId) {
+      console.log('Cancelling CAD prediction:', predictionId);
+      
+      try {
+        await replicate.predictions.cancel(predictionId);
+        console.log('CAD prediction cancelled successfully');
+        
+        // Update job status
+        if (jobId) {
+          await supabase
+            .from('jobs')
+            .update({
+              status: 'failed',
+              error: 'Cancelled by user',
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', jobId);
+        }
+        
+        return new Response(
+          JSON.stringify({ success: true, message: 'CAD prediction cancelled' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Error cancelling CAD prediction:', error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : 'Cancellation failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     
     if (!predictionId && !prompt && !inputImage) {
       return new Response(
@@ -39,10 +77,6 @@ serve(async (req) => {
     }
 
     console.log('Generating CAD model:', { prompt, imageProvided: !!inputImage, seed, jobId, predictionId });
-
-    const replicate = new Replicate({
-      auth: REPLICATE_API_KEY,
-    });
 
     // If a predictionId is provided, return its current status (async polling pattern)
     if (predictionId) {
