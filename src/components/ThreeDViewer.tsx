@@ -1,10 +1,11 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, useState, Component, ReactNode } from 'react';
+import { Suspense, useState, Component, ReactNode, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 
 interface ThreeDViewerProps {
   modelUrl: string;
+  jobId?: string;
 }
 
 interface ErrorBoundaryProps {
@@ -53,11 +54,40 @@ function Model({ url }: { url: string }) {
   return <primitive object={scene} />;
 }
 
-export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
+export default function ThreeDViewer({ modelUrl, jobId }: ThreeDViewerProps) {
   const [loadError, setLoadError] = useState(false);
+  const [activeUrl, setActiveUrl] = useState<string>('');
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
   
-  if (!normalizedUrl || typeof normalizedUrl !== 'string' || loadError) {
+  // Try to construct Supabase storage URL as fallback for expired Replicate URLs
+  useEffect(() => {
+    const checkAndSetUrl = async () => {
+      // If it's a Replicate URL and we have a jobId, try Supabase storage first
+      if (normalizedUrl?.includes('replicate.delivery') && jobId) {
+        const supabaseUrl = `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`;
+        
+        try {
+          const response = await fetch(supabaseUrl, { method: 'HEAD' });
+          if (response.ok) {
+            console.log('Found model in Supabase storage, using permanent URL');
+            setActiveUrl(supabaseUrl);
+            return;
+          }
+        } catch (error) {
+          console.log('Model not in Supabase storage, trying original URL');
+        }
+      }
+      
+      // Use the original URL
+      setActiveUrl(normalizedUrl);
+    };
+    
+    if (normalizedUrl) {
+      checkAndSetUrl();
+    }
+  }, [normalizedUrl, jobId]);
+  
+  if (!activeUrl || loadError) {
     return (
       <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden flex items-center justify-center">
         <div className="text-center text-muted-foreground max-w-md px-4">
@@ -76,7 +106,7 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
     );
   }
   
-  console.log('ThreeDViewer rendering with URL:', normalizedUrl);
+  console.log('ThreeDViewer rendering with URL:', activeUrl);
   
   return (
     <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden">
@@ -94,7 +124,7 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
               polar={[-Math.PI / 4, Math.PI / 4]}
             >
               <Stage environment="city" intensity={0.6} shadows={false}>
-                <Model url={normalizedUrl} />
+                <Model url={activeUrl} />
               </Stage>
             </PresentationControls>
           </ModelErrorBoundary>
