@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +13,12 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, width = 1024, height = 1024, numImages = 1 } = await req.json();
+    const { prompt, width = 1024, height = 1024, numImages = 1, jobId, userId } = await req.json();
+    
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     
     if (!prompt) {
       return new Response(
@@ -134,10 +140,45 @@ serve(async (req) => {
           );
         }
 
-        const imgs = Array.isArray(result.output) ? result.output : [result.output];
-        console.log('Fallback succeeded with', imgs.length, 'image(s)');
+        const replicateUrls = Array.isArray(result.output) ? result.output : [result.output];
+        console.log('Fallback succeeded with', replicateUrls.length, 'image(s)');
+        
+        // Store Replicate images permanently if jobId and userId provided
+        let finalUrls = replicateUrls;
+        if (jobId && userId) {
+          finalUrls = [];
+          for (let i = 0; i < replicateUrls.length; i++) {
+            try {
+              const imgResp = await fetch(replicateUrls[i]);
+              const imgBlob = await imgResp.blob();
+              const imgBuffer = await imgBlob.arrayBuffer();
+              
+              const fileName = `${userId}/${jobId}/image_${i}.webp`;
+              const { error: uploadError } = await supabase.storage
+                .from('generated-models')
+                .upload(fileName, imgBuffer, {
+                  contentType: 'image/webp',
+                  upsert: true
+                });
+              
+              if (uploadError) {
+                console.error('Storage upload error:', uploadError);
+                finalUrls.push(replicateUrls[i]); // Use original URL as fallback
+              } else {
+                const { data: { publicUrl } } = supabase.storage
+                  .from('generated-models')
+                  .getPublicUrl(fileName);
+                finalUrls.push(publicUrl);
+              }
+            } catch (e) {
+              console.error('Error storing image:', e);
+              finalUrls.push(replicateUrls[i]); // Use original URL as fallback
+            }
+          }
+        }
+        
         return new Response(
-          JSON.stringify({ success: true, images: imgs, prompt, model: 'replicate/flux-schnell' }),
+          JSON.stringify({ success: true, images: finalUrls, prompt, model: 'replicate/flux-schnell' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -194,10 +235,59 @@ serve(async (req) => {
 
     console.log('Successfully generated', images.length, 'image(s)');
 
+    // Store base64 images permanently if jobId and userId provided
+    let finalUrls = images;
+    if (jobId && userId) {
+      finalUrls = [];
+      for (let i = 0; i < images.length; i++) {
+        try {
+          const base64Data = images[i];
+          // Extract base64 content and determine format
+          const matches = base64Data.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+          if (!matches) {
+            console.error('Invalid base64 format:', base64Data.substring(0, 50));
+            finalUrls.push(base64Data); // Keep original as fallback
+            continue;
+          }
+          
+          const [, format, content] = matches;
+          const binaryString = atob(content);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let j = 0; j < binaryString.length; j++) {
+            bytes[j] = binaryString.charCodeAt(j);
+          }
+          
+          const fileName = `${userId}/${jobId}/image_${i}.${format}`;
+          console.log('Uploading to storage:', fileName);
+          
+          const { error: uploadError } = await supabase.storage
+            .from('generated-models')
+            .upload(fileName, bytes.buffer, {
+              contentType: `image/${format}`,
+              upsert: true
+            });
+          
+          if (uploadError) {
+            console.error('Storage upload error:', uploadError);
+            finalUrls.push(base64Data); // Keep original as fallback
+          } else {
+            const { data: { publicUrl } } = supabase.storage
+              .from('generated-models')
+              .getPublicUrl(fileName);
+            console.log('Image stored at:', publicUrl);
+            finalUrls.push(publicUrl);
+          }
+        } catch (e) {
+          console.error('Error storing image:', e);
+          finalUrls.push(images[i]); // Keep original as fallback
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true,
-        images: images,
+        images: finalUrls,
         prompt,
         model: 'google/gemini-2.5-flash-image-preview'
       }),
