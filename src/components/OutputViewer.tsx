@@ -205,7 +205,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                     </div>
                   </div>
                 }>
-                  <ThreeDViewer modelUrl={job.outputs[0]} jobId={job.id} />
+                  <ThreeDViewer modelUrl={job.outputs[0]} jobId={job.id} userId={job.userId} />
                 </Suspense>
               ) : (
                 <div className="w-full h-[500px] flex items-center justify-center">
