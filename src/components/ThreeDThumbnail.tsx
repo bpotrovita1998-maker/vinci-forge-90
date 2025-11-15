@@ -55,8 +55,17 @@ function Model({ url }: { url: string }) {
 export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
+  const [canvasKey, setCanvasKey] = useState(0);
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
-  
+
+  const handleModelError = () => {
+    setLoadError(true);
+    // Auto-retry by remounting the Canvas to recover from context loss
+    setTimeout(() => {
+      setLoadError(false);
+      setCanvasKey((k) => k + 1);
+    }, 200);
+  };
   // Try to construct Supabase storage URL for models
   useEffect(() => {
     const checkAndSetUrl = async () => {
@@ -107,12 +116,22 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
   return (
     <div className="w-full h-full bg-muted/20">
       <Canvas
+        key={canvasKey}
         camera={{ position: [0, 0, 3], fov: 50 }}
         className="w-full h-full"
-        gl={{ antialias: true, alpha: true }}
+        dpr={[1, 1]}
+        frameloop="demand"
+        gl={{ antialias: true, alpha: true, powerPreference: 'low-power', preserveDrawingBuffer: false }}
+        onCreated={({ gl }) => {
+          const elem = gl.domElement as HTMLCanvasElement;
+          const onLost = (e: any) => { e.preventDefault?.(); setCanvasKey((k: number) => k + 1); };
+          const onRestored = () => setCanvasKey((k: number) => k + 1);
+          elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
+          elem.addEventListener('webglcontextrestored', onRestored as any);
+        }}
       >
         <Suspense fallback={null}>
-          <ModelErrorBoundary onError={() => setLoadError(true)}>
+          <ModelErrorBoundary onError={handleModelError}>
             <PresentationControls
               speed={1.5}
               global
