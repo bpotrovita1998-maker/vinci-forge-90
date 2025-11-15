@@ -680,30 +680,24 @@ export default function Scenes() {
 
   const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
-    if (!scene || !scene.description) {
-      toast({
-        title: "Error",
-        description: "Please add a description first",
-        variant: "destructive"
-      });
+    if (!scene || scene.status === 'generating') return;
+    if (!user) {
+      toast({ title: "Error", description: "Please sign in first", variant: "destructive" });
       return;
     }
 
-    updateScene(sceneId, { status: 'generating' });
+    const sceneIndex = scenes.findIndex(s => s.id === sceneId);
+    const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
 
     try {
-      const sceneIndex = scenes.findIndex(s => s.id === sceneId);
-      const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
-
-      // Build enhanced prompt with continuity context
-      let enhancedPrompt = scene.description;
+      // Create a job in the database first
+      const jobId = crypto.randomUUID();
       
-      // Add previous scene context for continuity
+      let enhancedPrompt = scene.description;
       if (previousScene && previousScene.description && !isRegenerate) {
         enhancedPrompt = `Continue from previous scene: "${previousScene.description}". Now: ${scene.description}. Maintain the same characters, style, and story continuity.`;
       }
       
-      // Add shared settings
       const contextParts = [
         enhancedPrompt,
         settings.character && `Character: ${settings.character}`,
@@ -713,63 +707,128 @@ export default function Scenes() {
       
       const finalPrompt = contextParts.join(', ');
 
-      console.log('Generating image with prompt:', finalPrompt);
+      // Create job record
+      const { error: jobError } = await supabase
+        .from('jobs')
+        .insert({
+          id: jobId,
+          user_id: user.id,
+          type: 'image',
+          prompt: finalPrompt,
+          width: 1024,
+          height: 576,
+          status: 'queued',
+          progress_stage: 'Initializing',
+          progress_percent: 0,
+          manifest: {
+            scene_id: sceneId,
+            storyboard_id: currentStoryboard?.id,
+            scene_title: scene.title,
+          }
+        });
 
-      // Call image generation endpoint
+      if (jobError) throw jobError;
+
+      // Update scene with job_id and status
+      await updateScene(sceneId, {
+        status: 'generating',
+        jobId: jobId,
+        generationProgress: 0,
+      });
+
+      // Call generation endpoint
       const requestBody: any = {
+        jobId: jobId,
         prompt: finalPrompt,
         width: 1024,
-        height: 576, // 16:9 aspect ratio
+        height: 576,
         num_images: 1,
       };
 
-      // Only include inputImage if previous scene has a valid HTTP(S) image URL for continuity
       if (previousScene?.imageUrl &&
           (previousScene.imageUrl.startsWith('http://') || previousScene.imageUrl.startsWith('https://'))) {
         requestBody.inputImage = previousScene.imageUrl;
-        requestBody.strength = 0.3; // Low strength to maintain continuity while allowing changes
+        requestBody.strength = 0.3;
       }
 
-      const { data, error } = await supabase.functions.invoke('generate-image', {
+      const { error: genError } = await supabase.functions.invoke('generate-image', {
         body: requestBody
       });
 
-      if (error) {
-        console.error('Image generation error:', error);
-        throw error;
-      }
+      if (genError) throw genError;
 
-      console.log('Image generation response:', data);
+      // Monitor the job status via polling
+      const checkJobStatus = async () => {
+        const { data: jobData, error } = await supabase
+          .from('jobs')
+          .select('status, outputs, error, progress_percent')
+          .eq('id', jobId)
+          .single();
 
-      // The image URL will be in data.images array
-      const imageUrl = data?.images?.[0];
-      if (imageUrl) {
-        await updateScene(sceneId, {
-          status: 'ready',
-          imageUrl: imageUrl
-        });
-        
+        if (error) {
+          console.error('Error checking job status:', error);
+          return false;
+        }
+
+        // Update scene progress
+        if (jobData.progress_percent) {
+          await updateScene(sceneId, {
+            generationProgress: jobData.progress_percent
+          });
+        }
+
+        if (jobData.status === 'completed' && jobData.outputs) {
+          const outputs = Array.isArray(jobData.outputs) ? jobData.outputs : [jobData.outputs];
+          const imageUrl = typeof outputs[0] === 'string' ? outputs[0] : String(outputs[0]);
+          
+          await updateScene(sceneId, {
+            status: 'ready',
+            imageUrl: imageUrl,
+            generationProgress: 100
+          });
+          
+          toast({
+            title: "Image Generated!",
+            description: `Scene ${sceneIndex + 1} image is ready`
+          });
+          return true;
+        } else if (jobData.status === 'failed' || jobData.error) {
+          throw new Error(jobData.error || 'Generation failed');
+        }
+
+        return false;
+      };
+
+      // Poll every 2 seconds for completion
+      const pollInterval = setInterval(async () => {
+        const isDone = await checkJobStatus();
+        if (isDone) {
+          clearInterval(pollInterval);
+        }
+      }, 2000);
+
+      // Set timeout after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        updateScene(sceneId, { status: 'draft' });
         toast({
-          title: "Image Generated!",
-          description: `Scene ${sceneIndex + 1} image is ready`
+          title: "Timeout",
+          description: "Generation took too long",
+          variant: "destructive"
         });
-      } else {
-        throw new Error('No image output received');
-      }
+      }, 300000);
 
     } catch (error) {
       console.error('Error generating image:', error);
       updateScene(sceneId, { status: 'draft' });
       
-      // Parse error response if available
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
       let userMessage = errorMessage;
       
-      // Check if it's a safety filter error
       if (errorMessage.includes('safety filters') || errorMessage.includes('SAFETY_FILTER')) {
-        userMessage = '⚠️ Content blocked by safety filters. Please avoid violence, weapons, adult content, or sensitive topics. Try a more peaceful or creative description.';
+        userMessage = '⚠️ Content blocked by safety filters. Please avoid violence, weapons, adult content, or sensitive topics.';
       } else if (errorMessage.includes('text instead of an image')) {
-        userMessage = 'Unable to generate image. Try being more specific and visual in your description (colors, setting, objects, mood).';
+        userMessage = 'Unable to generate image. Try being more specific and visual in your description.';
       }
       
       toast({
@@ -794,32 +853,19 @@ export default function Scenes() {
   const generateSceneVideo = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || scene.status === 'generating') return;
+    if (!user) {
+      toast({ title: "Error", description: "Please sign in first", variant: "destructive" });
+      return;
+    }
 
-    const startTime = Date.now();
-    const estimatedDuration = 240000; // 4 minutes in milliseconds
+    const sceneIndex = scenes.findIndex(s => s.id === sceneId);
     
-    updateScene(sceneId, { 
-      status: 'generating',
-      generationProgress: 0,
-      generationStartTime: startTime,
-      estimatedTimeRemaining: 240 // 4 minutes in seconds
-    });
-
     try {
-      const sceneIndex = scenes.findIndex(s => s.id === sceneId);
-      const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
-
-      // Build enhanced prompt with continuity context
-      let enhancedPrompt = scene.description;
+      // Create a job in the database first
+      const jobId = crypto.randomUUID();
       
-      // Add previous scene context for continuity
-      if (previousScene && previousScene.description && !isRegenerate) {
-        enhancedPrompt = `Continue from previous scene: "${previousScene.description}". Now: ${scene.description}. Maintain the same characters, style, and story continuity.`;
-      }
-      
-      // Add shared settings
       const contextParts = [
-        enhancedPrompt,
+        scene.description,
         settings.character && `Character: ${settings.character}`,
         settings.style && `Style: ${settings.style}`,
         settings.brand && `Brand: ${settings.brand}`
@@ -827,95 +873,112 @@ export default function Scenes() {
       
       const finalPrompt = contextParts.join(', ');
 
-      console.log('Generating video with prompt:', finalPrompt);
+      // Create job record
+      const { error: jobError } = await supabase
+        .from('jobs')
+        .insert({
+          id: jobId,
+          user_id: user.id,
+          type: 'video',
+          prompt: finalPrompt,
+          width: 1024,
+          height: 576,
+          duration: scene.duration,
+          fps: 24,
+          status: 'queued',
+          progress_stage: 'Initializing',
+          progress_percent: 0,
+          manifest: {
+            scene_id: sceneId,
+            storyboard_id: currentStoryboard?.id,
+            scene_title: scene.title,
+          }
+        });
 
-      // Start video generation (returns immediately with prediction ID)
-      const { data: startData, error: startError } = await supabase.functions.invoke('generate-video', {
-        body: { prompt: finalPrompt }
+      if (jobError) throw jobError;
+
+      // Update scene with job_id and status
+      await updateScene(sceneId, {
+        status: 'generating',
+        jobId: jobId,
+        generationProgress: 0,
+        estimatedTimeRemaining: 240 // 4 minutes
       });
 
-      if (startError || !startData?.predictionId) {
-        console.error('Failed to start video generation:', startError);
-        throw new Error('Failed to start video generation');
-      }
+      // Call generation endpoint
+      const { error: genError } = await supabase.functions.invoke('generate-video', {
+        body: {
+          jobId: jobId,
+          prompt: finalPrompt,
+          image: scene.imageUrl || undefined,
+          duration: scene.duration,
+          aspectRatio: '16:9'
+        }
+      });
 
-      console.log('Video generation started, prediction ID:', startData.predictionId);
+      if (genError) throw genError;
 
-      // Progress update interval (every 2 seconds)
-      const progressInterval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(95, (elapsed / estimatedDuration) * 100);
-        const remaining = Math.max(0, Math.ceil((estimatedDuration - elapsed) / 1000));
-        
-        updateScene(sceneId, {
-          generationProgress: progress,
-          estimatedTimeRemaining: remaining
-        });
-      }, 2000);
+      // Monitor the job status via polling
+      const checkJobStatus = async () => {
+        const { data: jobData, error } = await supabase
+          .from('jobs')
+          .select('status, outputs, error, progress_percent')
+          .eq('id', jobId)
+          .single();
 
-      // Poll for completion
-      const pollInterval = setInterval(async () => {
-        try {
-          const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
-            body: { predictionId: startData.predictionId }
-          });
+        if (error) {
+          console.error('Error checking job status:', error);
+          return false;
+        }
 
-          if (statusError) {
-            console.error('Status check error:', statusError);
-            return;
-          }
-
-          console.log('Video status:', statusData?.status);
-
-          if (statusData?.status === 'succeeded' && statusData?.output) {
-            clearInterval(pollInterval);
-            clearInterval(progressInterval);
-            
-            const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
-            
-            await updateScene(sceneId, { 
-              status: 'ready',
-              videoUrl: videoUrl,
-              generationProgress: 100,
-              estimatedTimeRemaining: 0
-            });
-            
-            toast({
-              title: "Video Generated!",
-              description: `Scene ${sceneIndex + 1} video is ready. Cost: ~$0.40`,
-              duration: 6000
-            });
-          } else if (statusData?.status === 'failed') {
-            clearInterval(pollInterval);
-            clearInterval(progressInterval);
-            throw new Error(statusData?.error || 'Video generation failed');
-          }
-        } catch (err) {
-          clearInterval(pollInterval);
-          clearInterval(progressInterval);
-          console.error('Polling error:', err);
-          updateScene(sceneId, { status: 'draft' });
-          toast({
-            title: "Generation Failed",
-            description: err instanceof Error ? err.message : 'Failed to generate video',
-            variant: "destructive"
+        // Update scene progress
+        if (jobData.progress_percent) {
+          await updateScene(sceneId, {
+            generationProgress: jobData.progress_percent,
+            estimatedTimeRemaining: Math.max(0, 240 - (jobData.progress_percent / 100 * 240))
           });
         }
-      }, 10000); // Poll every 10 seconds
+
+        if (jobData.status === 'completed' && jobData.outputs) {
+          const outputs = Array.isArray(jobData.outputs) ? jobData.outputs : [jobData.outputs];
+          const videoUrl = typeof outputs[0] === 'string' ? outputs[0] : String(outputs[0]);
+          
+          await updateScene(sceneId, {
+            status: 'ready',
+            videoUrl: videoUrl,
+            generationProgress: 100,
+            estimatedTimeRemaining: 0
+          });
+          
+          toast({
+            title: "Video Generated!",
+            description: `Scene ${sceneIndex + 1} video is ready`
+          });
+          return true;
+        } else if (jobData.status === 'failed' || jobData.error) {
+          throw new Error(jobData.error || 'Generation failed');
+        }
+
+        return false;
+      };
+
+      // Poll every 3 seconds for completion
+      const pollInterval = setInterval(async () => {
+        const isDone = await checkJobStatus();
+        if (isDone) {
+          clearInterval(pollInterval);
+        }
+      }, 3000);
 
       // Set timeout after 10 minutes
       setTimeout(() => {
         clearInterval(pollInterval);
-        clearInterval(progressInterval);
-        const currentScene = scenes.find(s => s.id === sceneId);
-        if (currentScene?.status === 'generating') {
-          updateScene(sceneId, { status: 'draft' });
-          toast({
-            title: "Generation Timeout",
-            description: "Video generation is taking longer than expected. Please try again.",
-            variant: "destructive"
-          });
-        }
+        updateScene(sceneId, { status: 'draft' });
+        toast({
+          title: "Timeout",
+          description: "Video generation took too long",
+          variant: "destructive"
+        });
       }, 600000);
 
     } catch (error) {
@@ -923,15 +986,10 @@ export default function Scenes() {
       updateScene(sceneId, { status: 'draft' });
       
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
-      let userMessage = errorMessage;
-      
-      if (errorMessage.includes('safety filters') || errorMessage.includes('SAFETY_FILTER')) {
-        userMessage = '⚠️ Content blocked by safety filters. Please avoid violence, weapons, adult content, or sensitive topics.';
-      }
       
       toast({
         title: "Generation Failed",
-        description: userMessage,
+        description: errorMessage,
         variant: "destructive"
       });
     }
