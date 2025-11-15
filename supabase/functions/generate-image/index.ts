@@ -282,6 +282,24 @@ serve(async (req) => {
           finalUrls.push(images[i]); // Keep original as fallback
         }
       }
+      
+      // Update job status to completed
+      const { error: updateError } = await supabase
+        .from('jobs')
+        .update({
+          status: 'completed',
+          progress_stage: 'completed',
+          progress_percent: 100,
+          outputs: finalUrls,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+      
+      if (updateError) {
+        console.error('Error updating job status:', updateError);
+      } else {
+        console.log('Job marked as completed:', jobId);
+      }
     }
 
     return new Response(
