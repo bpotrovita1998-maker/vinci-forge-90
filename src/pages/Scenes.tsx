@@ -23,7 +23,8 @@ import {
   FolderOpen,
   FileText,
   Wand2,
-  Edit
+  Edit,
+  DollarSign
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -472,10 +473,25 @@ export default function Scenes() {
     });
   };
 
-  const updateScene = (id: string, updates: Partial<Scene>) => {
+  const updateScene = async (id: string, updates: Partial<Scene>) => {
+    // Update local state immediately for responsive UI
     setScenes(prev => prev.map(scene => 
       scene.id === id ? { ...scene, ...updates } : scene
     ));
+    
+    // Persist to database
+    try {
+      const { error } = await supabase
+        .from('storyboard_scenes')
+        .update(updates)
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Failed to update scene in database:', error);
+      }
+    } catch (error) {
+      console.error('Error updating scene:', error);
+    }
   };
 
   const deleteScene = (id: string) => {
@@ -552,7 +568,7 @@ export default function Scenes() {
       // The image URL will be in data.images array
       const imageUrl = data?.images?.[0];
       if (imageUrl) {
-        updateScene(sceneId, { 
+        await updateScene(sceneId, {
           status: 'ready',
           imageUrl: imageUrl
         });
@@ -646,14 +662,15 @@ export default function Scenes() {
       // The video URL will be in data.output
       const videoUrl = Array.isArray(data?.output) ? data.output[0] : data?.output;
       if (videoUrl) {
-        updateScene(sceneId, { 
+        await updateScene(sceneId, { 
           status: 'ready',
           videoUrl: videoUrl
         });
         
         toast({
           title: "Video Generated!",
-          description: `Scene ${sceneIndex + 1} video is ready`
+          description: `Scene ${sceneIndex + 1} video is ready. Cost: ~$0.40`,
+          duration: 6000
         });
       } else {
         throw new Error('No video output received');
@@ -1343,6 +1360,12 @@ export default function Scenes() {
                                       </SelectItem>
                                     </SelectContent>
                                   </Select>
+                                  {scene.type === 'video' && (
+                                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                                      <DollarSign className="w-3 h-3" />
+                                      Cost: ~$0.40 per 6-second video via Minimax AI
+                                    </p>
+                                  )}
                                 </div>
 
                                 <div className="flex gap-2 flex-wrap">
