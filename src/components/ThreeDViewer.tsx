@@ -7,27 +7,18 @@ interface ThreeDViewerProps {
   modelUrl: string;
 }
 
-function Model({ url, onError }: { url: string; onError: () => void }) {
+function Model({ url }: { url: string }) {
   const modelUrl = Array.isArray(url) ? url[0] : url;
-  
+
   if (!modelUrl || typeof modelUrl !== 'string') {
     console.error('Invalid model URL:', url);
-    onError();
     return null;
   }
-  
-  try {
-    console.log('Loading 3D model from:', modelUrl);
-    const { scene } = useGLTF(modelUrl, undefined, undefined, (error) => {
-      console.error('Error loading 3D model:', error);
-      onError();
-    });
-    return <primitive object={scene} />;
-  } catch (error) {
-    console.error('Error loading 3D model:', error);
-    onError();
-    return null;
-  }
+
+  // Important: do not wrap useGLTF in try/catch; it uses Suspense and throws a Promise while loading
+  // Drei will handle loading via Suspense and throw on real errors which can be handled by an ErrorBoundary if needed
+  const { scene } = useGLTF(modelUrl);
+  return <primitive object={scene} />;
 }
 
 export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
@@ -61,7 +52,6 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
         camera={{ position: [0, 0, 5], fov: 50 }}
         shadows
         className="w-full h-full"
-        onError={() => setLoadError(true)}
       >
         <Suspense fallback={null}>
           <PresentationControls
@@ -71,7 +61,7 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
             polar={[-Math.PI / 4, Math.PI / 4]}
           >
             <Stage environment="city" intensity={0.6} shadows={false}>
-              <Model url={normalizedUrl} onError={() => setLoadError(true)} />
+              <Model url={normalizedUrl} />
             </Stage>
           </PresentationControls>
         </Suspense>
