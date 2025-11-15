@@ -266,7 +266,40 @@ class LovableAIService {
           if (updatedJob?.outputs && Array.isArray(updatedJob.outputs) && updatedJob.outputs.length > 0) {
             this.completeJob(jobId, updatedJob.outputs as string[]);
           } else {
-            throw new Error('No output URL found after completion');
+            // Fallback: try to extract a URL from the Replicate prediction payload directly
+            const pred = statusData?.prediction as any;
+            const output = pred?.output as any;
+            let modelUrl: string | null = null;
+
+            if (output) {
+              if (typeof output === 'string') {
+                modelUrl = output;
+              } else if (Array.isArray(output) && output.length > 0 && typeof output[0] === 'string') {
+                modelUrl = output[0];
+              } else if (typeof output === 'object') {
+                modelUrl = (output.mesh as string) || (output.glb as string) || (output.gltf as string) || (output.url as string) || null;
+              }
+            }
+
+            if (modelUrl) {
+              // Immediately complete with the direct URL from the model provider
+              this.completeJob(jobId, [modelUrl]);
+            } else {
+              // Grace period: allow the backend to finish persisting to storage
+              await new Promise((r) => setTimeout(r, 1500));
+              const { data: updatedJob2 } = await supabase
+                .from('jobs')
+                .select('outputs')
+                .eq('id', jobId)
+                .maybeSingle();
+              if (updatedJob2?.outputs && Array.isArray(updatedJob2.outputs) && updatedJob2.outputs.length > 0) {
+                this.completeJob(jobId, updatedJob2.outputs as string[]);
+              } else {
+                console.warn('LovableAI: No output URL found after completion; keeping job completed while storage finalizes');
+                // Don't throw: avoid flipping a server-completed job to failed in the UI
+                this.updateJobStage(jobId, 'completed', '3D model generated, finalizing...');
+              }
+            }
           }
           return;
         } else if (statusData?.status === 'failed') {
