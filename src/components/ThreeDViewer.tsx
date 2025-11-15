@@ -1,10 +1,42 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, Component, ReactNode } from 'react';
 import { AlertCircle } from 'lucide-react';
 
 interface ThreeDViewerProps {
   modelUrl: string;
+}
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  onError: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('3D Model loading error:', error);
+    this.props.onError();
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
 }
 
 function Model({ url }: { url: string }) {
@@ -54,16 +86,18 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
         className="w-full h-full"
       >
         <Suspense fallback={null}>
-          <PresentationControls
-            speed={1.5}
-            global
-            zoom={0.8}
-            polar={[-Math.PI / 4, Math.PI / 4]}
-          >
-            <Stage environment="city" intensity={0.6} shadows={false}>
-              <Model url={normalizedUrl} />
-            </Stage>
-          </PresentationControls>
+          <ModelErrorBoundary onError={() => setLoadError(true)}>
+            <PresentationControls
+              speed={1.5}
+              global
+              zoom={0.8}
+              polar={[-Math.PI / 4, Math.PI / 4]}
+            >
+              <Stage environment="city" intensity={0.6} shadows={false}>
+                <Model url={normalizedUrl} />
+              </Stage>
+            </PresentationControls>
+          </ModelErrorBoundary>
         </Suspense>
         <OrbitControls 
           enablePan={true}
