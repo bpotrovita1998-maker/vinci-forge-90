@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, Component, ReactNode, useState } from 'react';
+import { Suspense, Component, ReactNode, useState, useEffect } from 'react';
 import { Package } from 'lucide-react';
 
 interface ThreeDThumbnailProps {
@@ -52,10 +52,48 @@ function Model({ url }: { url: string }) {
   return <primitive object={gltf.scene} scale={1} />;
 }
 
-export default function ThreeDThumbnail({ modelUrl }: ThreeDThumbnailProps) {
+export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
+  const [activeUrl, setActiveUrl] = useState<string>('');
+  const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
+  
+  // Try to construct Supabase storage URL for models
+  useEffect(() => {
+    const checkAndSetUrl = async () => {
+      // Reset error state when URL changes
+      setLoadError(false);
+      
+      // If it's a Replicate URL and we have a jobId, try Supabase storage first
+      if (normalizedUrl?.includes('replicate.delivery') && jobId) {
+        const patterns = userId 
+          ? [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${userId}/${jobId}/model.glb`]
+          : [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`];
+        
+        for (const supabaseUrl of patterns) {
+          try {
+            const response = await fetch(supabaseUrl, { method: 'HEAD' });
+            if (response.ok) {
+              console.log('Thumbnail: Found model in Supabase storage');
+              setActiveUrl(supabaseUrl);
+              return;
+            }
+          } catch (error) {
+            console.log(`Thumbnail: Model not found at ${supabaseUrl}`);
+          }
+        }
+      }
+      
+      // Use the original URL
+      setActiveUrl(normalizedUrl);
+    };
+    
+    if (normalizedUrl) {
+      checkAndSetUrl();
+    }
+  }, [normalizedUrl, jobId, userId]);
+
   // If no valid URL or error, show fallback
-  if (!modelUrl || typeof modelUrl !== 'string' || loadError) {
+  if (!activeUrl || loadError) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-muted/20">
         <div className="text-center">
@@ -88,7 +126,7 @@ export default function ThreeDThumbnail({ modelUrl }: ThreeDThumbnailProps) {
                 shadows={false}
                 adjustCamera={1.2}
               >
-                <Model url={modelUrl} />
+                <Model url={activeUrl} />
               </Stage>
             </PresentationControls>
           </ModelErrorBoundary>
