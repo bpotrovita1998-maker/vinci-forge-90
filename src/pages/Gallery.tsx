@@ -79,8 +79,78 @@ export default function Gallery() {
 
   useEffect(() => {
     if (!user) return;
-    loadAllScenes();
+    syncCompletedJobs();
   }, [user]);
+
+  const syncCompletedJobs = async () => {
+    if (!user) return;
+    
+    try {
+      // First, get all scenes that might need syncing
+      const { data: allScenesData, error: allScenesError } = await supabase
+        .from('storyboard_scenes')
+        .select('*')
+        .neq('status', 'ready');
+
+      if (allScenesError) throw allScenesError;
+
+      if (allScenesData && allScenesData.length > 0) {
+        // Get completed jobs
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, outputs, type, status')
+          .eq('user_id', user.id)
+          .eq('status', 'completed')
+          .not('outputs', 'is', null);
+
+        if (jobsError) throw jobsError;
+
+        let updatedCount = 0;
+        
+        // Sync scenes with completed jobs
+        for (const scene of allScenesData) {
+          if (scene.job_id) {
+            const matchingJob = jobsData?.find(job => job.id === scene.job_id);
+            
+            if (matchingJob && matchingJob.outputs) {
+              const outputs = Array.isArray(matchingJob.outputs) ? matchingJob.outputs : [];
+              
+              if (outputs.length > 0) {
+                const output = outputs[0];
+                const updateData: any = {
+                  status: 'ready',
+                };
+
+                if (matchingJob.type === 'video') {
+                  updateData.video_url = output;
+                } else {
+                  updateData.image_url = output;
+                }
+
+                const { error: updateError } = await supabase
+                  .from('storyboard_scenes')
+                  .update(updateData)
+                  .eq('id', scene.id);
+
+                if (!updateError) {
+                  updatedCount++;
+                }
+              }
+            }
+          }
+        }
+
+        if (updatedCount > 0) {
+          toast.success(`Recovered ${updatedCount} completed scene${updatedCount > 1 ? 's' : ''}!`);
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing completed jobs:', error);
+    }
+
+    // Load all scenes after sync
+    loadAllScenes();
+  };
 
   const loadAllScenes = async () => {
     try {
