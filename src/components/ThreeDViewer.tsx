@@ -41,23 +41,16 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
   }
 }
 
-function Model({ url, onError }: { url: string; onError: () => void }) {
+function Model({ url }: { url: string }) {
   const modelUrl = Array.isArray(url) ? url[0] : url;
 
   if (!modelUrl || typeof modelUrl !== 'string') {
     console.error('Invalid model URL:', url);
-    onError();
     return null;
   }
 
-  try {
-    const { scene } = useGLTF(modelUrl);
-    return <primitive object={scene} />;
-  } catch (error) {
-    console.error('Model loading error:', error);
-    onError();
-    return null;
-  }
+  const { scene } = useGLTF(modelUrl);
+  return <primitive object={scene} />;
 }
 
 export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerProps) {
@@ -65,23 +58,20 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
   const [activeUrl, setActiveUrl] = useState<string>('');
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
   
-  // Try to construct Supabase storage URL as fallback for expired Replicate URLs
+  // Try to construct Supabase storage URL for models
   useEffect(() => {
     const checkAndSetUrl = async () => {
       // If it's a Replicate URL and we have a jobId, try Supabase storage first
       if (normalizedUrl?.includes('replicate.delivery') && jobId) {
-        // Try with userId if available, otherwise try without
         const patterns = userId 
           ? [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${userId}/${jobId}/model.glb`]
-          : [
-              `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`,
-            ];
+          : [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`];
         
         for (const supabaseUrl of patterns) {
           try {
             const response = await fetch(supabaseUrl, { method: 'HEAD' });
             if (response.ok) {
-              console.log('Found model in Supabase storage, using permanent URL');
+              console.log('Found model in Supabase storage');
               setActiveUrl(supabaseUrl);
               return;
             }
@@ -137,7 +127,7 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
               polar={[-Math.PI / 4, Math.PI / 4]}
             >
               <Stage environment="city" intensity={0.6} shadows={false}>
-                <Model url={activeUrl} onError={() => setLoadError(true)} />
+                <Model url={activeUrl} />
               </Stage>
             </PresentationControls>
           </ModelErrorBoundary>
