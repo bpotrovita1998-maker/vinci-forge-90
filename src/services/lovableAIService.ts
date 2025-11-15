@@ -589,6 +589,8 @@ class LovableAIService {
           width: job.options.width,
           height: job.options.height,
           numImages: job.options.numImages || 1,
+          jobId: jobId,
+          userId: job.userId,
         }
       });
 
