@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { Package } from 'lucide-react';
 
 interface ThreeDThumbnailProps {
@@ -8,16 +8,41 @@ interface ThreeDThumbnailProps {
   jobId?: string;
 }
 
-function Model({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
-  return <primitive object={scene} scale={1} />;
+function Model({ url, onError }: { url: string; onError: () => void }) {
+  try {
+    const { scene } = useGLTF(url);
+    return <primitive object={scene} scale={1} />;
+  } catch (error) {
+    onError();
+    return null;
+  }
 }
 
 export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProps) {
-  // Try to use Supabase storage URL for expired Replicate URLs
-  const activeUrl = modelUrl?.includes('replicate.delivery') && jobId
-    ? `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`
-    : modelUrl;
+  const [loadError, setLoadError] = useState(false);
+  const [checkedUrl, setCheckedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkUrl = async () => {
+      // First, try to check if Supabase storage URL exists for expired Replicate URLs
+      if (modelUrl?.includes('replicate.delivery') && jobId) {
+        const supabaseUrl = `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`;
+        try {
+          const response = await fetch(supabaseUrl, { method: 'HEAD' });
+          if (response.ok) {
+            setCheckedUrl(supabaseUrl);
+            return;
+          }
+        } catch {
+          // Supabase URL doesn't exist, fall back to original
+        }
+      }
+      // Use original URL
+      setCheckedUrl(modelUrl);
+    };
+
+    checkUrl();
+  }, [modelUrl, jobId]);
 
   const fallback = (
     <div className="w-full h-full flex items-center justify-center bg-muted/20">
@@ -28,7 +53,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProp
     </div>
   );
 
-  if (!activeUrl) return fallback;
+  if (!checkedUrl || loadError) return fallback;
 
   return (
     <div className="w-full h-full bg-muted/20">
@@ -36,6 +61,9 @@ export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProp
         camera={{ position: [0, 0, 3], fov: 50 }}
         className="w-full h-full"
         gl={{ antialias: true, alpha: true }}
+        onCreated={({ gl }) => {
+          gl.setClearColor('#00000000', 0);
+        }}
       >
         <Suspense fallback={null}>
           <PresentationControls
@@ -51,7 +79,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProp
               shadows={false}
               adjustCamera={1.2}
             >
-              <Model url={activeUrl} />
+              <Model url={checkedUrl} onError={() => setLoadError(true)} />
             </Stage>
           </PresentationControls>
         </Suspense>
