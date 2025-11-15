@@ -565,10 +565,20 @@ export default function Scenes() {
       console.error('Error generating image:', error);
       updateScene(sceneId, { status: 'draft' });
       
+      // Parse error response if available
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
+      let userMessage = errorMessage;
+      
+      // Check if it's a safety filter error
+      if (errorMessage.includes('safety filters') || errorMessage.includes('SAFETY_FILTER')) {
+        userMessage = '⚠️ Content blocked by safety filters. Please avoid violence, weapons, adult content, or sensitive topics. Try a more peaceful or creative description.';
+      } else if (errorMessage.includes('text instead of an image')) {
+        userMessage = 'Unable to generate image. Try being more specific and visual in your description (colors, setting, objects, mood).';
+      }
+      
       toast({
         title: "Generation Failed",
-        description: errorMessage,
+        description: userMessage,
         variant: "destructive"
       });
     }

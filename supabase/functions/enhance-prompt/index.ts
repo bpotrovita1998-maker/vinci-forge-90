@@ -35,6 +35,8 @@ serve(async (req) => {
 - Color palette and mood
 - Composition and framing
 - Quality keywords (4K, highly detailed, professional, etc.)
+
+CRITICAL: Avoid prompts with violence, weapons, gore, adult content, hate symbols, or sensitive topics. Focus on creative, peaceful, or artistic scenes.
 Keep prompts concise but descriptive (2-3 sentences max).`,
       
       video: `You are an expert prompt engineer for AI video generation. Transform user ideas into cinematic prompts that create engaging videos. Include:
@@ -43,6 +45,8 @@ Keep prompts concise but descriptive (2-3 sentences max).`,
 - Visual effects and atmosphere
 - Action and motion description
 - Duration considerations
+
+CRITICAL: Avoid prompts with violence, weapons, gore, adult content, or sensitive topics. Focus on dynamic but safe content.
 Keep prompts clear and action-focused (2-3 sentences max).`,
       
       '3d': `You are an expert prompt engineer for 3D model generation. Transform user ideas into precise 3D modeling prompts. Include:
@@ -51,6 +55,8 @@ Keep prompts clear and action-focused (2-3 sentences max).`,
 - Scale and proportions
 - Style (realistic, stylized, low-poly, etc.)
 - Topology and detail level
+
+CRITICAL: Avoid prompts for weapons, violent objects, or adult content. Focus on creative, functional, or artistic models.
 Keep prompts technical but clear (2-3 sentences max).`,
       
       cad: `You are an expert prompt engineer for CAD/technical modeling. Transform user ideas into precise engineering prompts. Include:
@@ -59,6 +65,8 @@ Keep prompts technical but clear (2-3 sentences max).`,
 - Tolerances and standards
 - Functional requirements
 - Manufacturing considerations
+
+CRITICAL: Focus on industrial, mechanical, or architectural components. Avoid weapon designs or harmful devices.
 Keep prompts technical and specific (2-3 sentences max).`
     };
 
