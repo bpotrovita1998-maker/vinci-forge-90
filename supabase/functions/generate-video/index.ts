@@ -51,39 +51,20 @@ serve(async (req) => {
 
     console.log("Generating video with prompt:", body.prompt);
     
-    // Build input object with defaults and validation
-    const duration = body.duration && Number(body.duration) > 5 ? 8 : 5; // Only 5 or 8 allowed
-    const allowedRatios = ["16:9", "9:16", "1:1", "3:4"] as const;
-    const allowedQualities = ["360p", "540p", "720p", "1080p"] as const;
-    const aspect_ratio = allowedRatios.includes(body.aspectRatio) ? body.aspectRatio : "16:9";
-    const quality = allowedQualities.includes(body.quality) ? body.quality : "540p";
-
-    const input: any = { prompt: body.prompt, duration, aspect_ratio, quality };
-
-    // Optional parameters
-    if (body.negativePrompt) input.negative_prompt = body.negativePrompt;
-    if (body.seed) input.seed = body.seed;
-
-    // Only include inputImage if it's a valid HTTP/HTTPS URL (not a data URL)
-    if (typeof body.inputImage === 'string' && (body.inputImage.startsWith('http://') || body.inputImage.startsWith('https://'))) {
-      input.image = body.inputImage;
-    }
-
-    console.log("Video generation input:", JSON.stringify(input, null, 2));
-    
-    // Use Minimax Video-01 for cost-effective video generation (up to 6 seconds)
-    const output = await replicate.run(
-      "minimax/video-01-director",
-      { 
-        input: { 
-          prompt: body.prompt
-        } 
+    // Start prediction without waiting (async)
+    const prediction = await replicate.predictions.create({
+      version: "minimax/video-01-director",
+      input: {
+        prompt: body.prompt
       }
-    );
+    });
 
-    console.log("Video generation response:", output);
+    console.log("Video prediction started:", prediction.id);
     
-    return new Response(JSON.stringify({ output }), {
+    return new Response(JSON.stringify({ 
+      predictionId: prediction.id,
+      status: prediction.status 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
