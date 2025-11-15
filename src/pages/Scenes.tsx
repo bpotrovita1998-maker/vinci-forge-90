@@ -558,6 +558,49 @@ export default function Scenes() {
     }
   };
 
+  const downloadScene = async (scene: Scene) => {
+    const url = scene.videoUrl || scene.imageUrl;
+    if (!url) return;
+
+    try {
+      // Fetch the file
+      const response = await fetch(url);
+      const blob = await response.blob();
+      
+      // Determine file extension
+      let extension = 'webm';
+      if (scene.type === 'video') {
+        extension = 'mp4';
+      } else if (url.includes('.png')) {
+        extension = 'png';
+      } else if (url.includes('.jpg') || url.includes('.jpeg')) {
+        extension = 'jpg';
+      }
+      
+      // Create download link
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${scene.title.replace(/\s+/g, '_')}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      toast({
+        title: "Downloaded",
+        description: `"${scene.title}" has been downloaded`
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the file",
+        variant: "destructive"
+      });
+    }
+  };
+
   const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || !scene.description) {
@@ -1170,10 +1213,14 @@ export default function Scenes() {
           </AlertDialog>
 
           <Tabs defaultValue="storyboard" className="w-full">
-            <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8">
+            <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-4 mb-8">
               <TabsTrigger value="storyboard">
-                <Video className="w-4 h-4 mr-2" />
-                Storyboard
+                <FileText className="w-4 h-4 mr-2" />
+                All Scenes
+              </TabsTrigger>
+              <TabsTrigger value="ready">
+                <Eye className="w-4 h-4 mr-2" />
+                Ready
               </TabsTrigger>
               <TabsTrigger value="script">
                 <Wand2 className="w-4 h-4 mr-2" />
@@ -1329,6 +1376,114 @@ export default function Scenes() {
                   </CardContent>
                 </Card>
               </motion.div>
+            </TabsContent>
+
+            {/* Ready Tab - Shows only completed scenes */}
+            <TabsContent value="ready">
+              <div className="space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-base px-4 py-2">
+                      {readyScenes} Ready Scene{readyScenes !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Ready Scenes Grid */}
+                {scenes.filter(s => s.status === 'ready').length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-16"
+                  >
+                    <Eye className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+                    <h3 className="text-xl font-semibold mb-2">No Ready Scenes Yet</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Generate images or videos in the "All Scenes" tab to see them here
+                    </p>
+                  </motion.div>
+                ) : (
+                  <AnimatePresence mode="popLayout">
+                    {scenes.filter(s => s.status === 'ready').map((scene, index) => (
+                      <motion.div
+                        key={scene.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <Card className="glass border-primary/20 overflow-hidden">
+                          <CardContent className="p-6">
+                            <div className="flex flex-col md:flex-row gap-6">
+                              {/* Preview Thumbnail */}
+                              <div className="flex-shrink-0 w-full md:w-64">
+                                {scene.videoUrl ? (
+                                  <video
+                                    src={scene.videoUrl}
+                                    className="w-full h-auto rounded-lg border border-border"
+                                    controls
+                                  />
+                                ) : scene.imageUrl ? (
+                                  <img
+                                    src={scene.imageUrl}
+                                    alt={scene.title}
+                                    className="w-full h-auto rounded-lg border border-border object-cover"
+                                  />
+                                ) : null}
+                              </div>
+
+                              {/* Scene Info */}
+                              <div className="flex-1 space-y-4">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <h3 className="text-xl font-semibold mb-2">{scene.title}</h3>
+                                    <p className="text-sm text-muted-foreground">{scene.description}</p>
+                                  </div>
+                                  <Badge variant="default" className="ml-2">
+                                    {scene.type === 'video' ? 'Video' : 'Image'}
+                                  </Badge>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-2 flex-wrap">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setViewingScene(scene)}
+                                    className="gap-2"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    View Full
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => downloadScene(scene)}
+                                    className="gap-2"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    Download
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => exportToGallery(scene)}
+                                    className="gap-2"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    Export to Gallery
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
             </TabsContent>
 
             {/* Storyboard Tab */}
@@ -1491,28 +1646,38 @@ export default function Scenes() {
                                 </div>
 
                                 <div className="flex gap-2 flex-wrap">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setViewingScene(scene)}
-                                    className="gap-2"
-                                    disabled={!scene.imageUrl && !scene.videoUrl}
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                    Output
-                                  </Button>
-                                  {(scene.imageUrl || scene.videoUrl) && (
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => exportToGallery(scene)}
-                                      className="gap-2"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                      Export to Gallery
-                                    </Button>
+                                  {scene.status === 'ready' && (scene.imageUrl || scene.videoUrl) && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setViewingScene(scene)}
+                                        className="gap-2"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                        Output
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => downloadScene(scene)}
+                                        className="gap-2"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                        Download
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => exportToGallery(scene)}
+                                        className="gap-2"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                        Export to Gallery
+                                      </Button>
+                                    </>
                                   )}
-                                  {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && scene.type === 'image' && (
+                                  {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && scene.type === 'image' && scene.status === 'ready' && (
                                     <Button
                                       size="sm"
                                       variant="outline"
