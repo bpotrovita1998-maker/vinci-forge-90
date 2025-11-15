@@ -135,6 +135,83 @@ export default function Scenes() {
     }
   }, [currentStoryboard]);
 
+  // Sync completed jobs with scenes to recover lost generations
+  useEffect(() => {
+    if (!currentStoryboard || !user || scenes.length === 0) return;
+
+    const syncCompletedJobs = async () => {
+      try {
+        // Find scenes that might have completed but weren't updated
+        const scenesToCheck = scenes.filter(
+          scene => scene.status !== 'ready' || (!scene.imageUrl && !scene.videoUrl)
+        );
+
+        if (scenesToCheck.length === 0) return;
+
+        // Get all completed jobs for this user
+        const { data: completedJobs, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, outputs, type, status')
+          .eq('user_id', user.id)
+          .eq('status', 'completed')
+          .not('outputs', 'is', null);
+
+        if (jobsError || !completedJobs || completedJobs.length === 0) return;
+
+        let hasUpdates = false;
+
+        for (const scene of scenesToCheck) {
+          // If scene has a jobId, look for that specific job
+          let matchingJob = scene.jobId 
+            ? completedJobs.find(j => j.id === scene.jobId)
+            : null;
+
+          if (matchingJob && matchingJob.outputs) {
+            const outputs = Array.isArray(matchingJob.outputs) 
+              ? matchingJob.outputs 
+              : [matchingJob.outputs];
+            const url = outputs[0];
+
+            if (url && typeof url === 'string') {
+              hasUpdates = true;
+              const updates: any = {
+                status: 'ready',
+                generationProgress: 100,
+                estimatedTimeRemaining: 0
+              };
+
+              if (matchingJob.type === 'video') {
+                updates.videoUrl = url;
+                updates.type = 'video';
+              } else {
+                updates.imageUrl = url;
+                updates.type = 'image';
+              }
+
+              // Update in database
+              await updateScene(scene.id, updates);
+            }
+          }
+        }
+
+        if (hasUpdates) {
+          // Reload scenes to get the updated data
+          await loadScenes(currentStoryboard.id);
+          toast({
+            title: "Content Recovered",
+            description: "Previously generated scenes have been restored",
+          });
+        }
+      } catch (error) {
+        console.error('Error syncing completed jobs:', error);
+      }
+    };
+
+    // Run sync after a short delay to ensure scenes are loaded
+    const timer = setTimeout(syncCompletedJobs, 1000);
+    return () => clearTimeout(timer);
+  }, [currentStoryboard?.id, scenes.length, user]);
+
   // Auto-save when scenes or settings change (disabled by default)
   useEffect(() => {
     if (!AUTOSAVE) return;
