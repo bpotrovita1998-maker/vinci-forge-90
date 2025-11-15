@@ -1,35 +1,53 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 
 interface ThreeDViewerProps {
   modelUrl: string;
 }
 
-function Model({ url }: { url: string }) {
-  // Ensure URL is a string and not an array or object
+function Model({ url, onError }: { url: string; onError: () => void }) {
   const modelUrl = Array.isArray(url) ? url[0] : url;
   
   if (!modelUrl || typeof modelUrl !== 'string') {
     console.error('Invalid model URL:', url);
-    throw new Error('Invalid model URL provided');
+    onError();
+    return null;
   }
   
-  console.log('Loading 3D model from:', modelUrl);
-  const { scene } = useGLTF(modelUrl);
-  return <primitive object={scene} />;
+  try {
+    console.log('Loading 3D model from:', modelUrl);
+    const { scene } = useGLTF(modelUrl, undefined, undefined, (error) => {
+      console.error('Error loading 3D model:', error);
+      onError();
+    });
+    return <primitive object={scene} />;
+  } catch (error) {
+    console.error('Error loading 3D model:', error);
+    onError();
+    return null;
+  }
 }
 
 export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
-  // Validate and normalize the model URL
+  const [loadError, setLoadError] = useState(false);
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
   
-  if (!normalizedUrl || typeof normalizedUrl !== 'string') {
+  if (!normalizedUrl || typeof normalizedUrl !== 'string' || loadError) {
     return (
       <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <p>Invalid 3D model URL</p>
-          <p className="text-xs mt-2">URL received: {JSON.stringify(modelUrl)}</p>
+        <div className="text-center text-muted-foreground max-w-md px-4">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
+          <p className="font-semibold mb-2">Unable to Load 3D Model</p>
+          <p className="text-sm">
+            {!normalizedUrl || typeof normalizedUrl !== 'string' 
+              ? 'Invalid model URL provided'
+              : 'The 3D model file could not be loaded. The URL may have expired or the file may no longer be available.'}
+          </p>
+          <p className="text-xs mt-3 opacity-70">
+            Try generating a new model or check if the file still exists.
+          </p>
         </div>
       </div>
     );
@@ -43,6 +61,7 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
         camera={{ position: [0, 0, 5], fov: 50 }}
         shadows
         className="w-full h-full"
+        onError={() => setLoadError(true)}
       >
         <Suspense fallback={null}>
           <PresentationControls
@@ -52,7 +71,7 @@ export default function ThreeDViewer({ modelUrl }: ThreeDViewerProps) {
             polar={[-Math.PI / 4, Math.PI / 4]}
           >
             <Stage environment="city" intensity={0.6} shadows={false}>
-              <Model url={normalizedUrl} />
+              <Model url={normalizedUrl} onError={() => setLoadError(true)} />
             </Stage>
           </PresentationControls>
         </Suspense>
