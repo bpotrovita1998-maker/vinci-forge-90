@@ -154,7 +154,7 @@ class LovableAIService {
       return;
     }
 
-    console.log('LovableAI: Generating 3D model with Replicate for', jobId);
+    console.log('LovableAI: Starting async 3D generation for', jobId);
 
     try {
       // Step 1: Generate a reference image first
@@ -173,45 +173,88 @@ class LovableAIService {
         throw new Error('Failed to generate reference image');
       }
 
-      console.log('LovableAI: Reference image generated, converting to 3D');
+      console.log('LovableAI: Reference image generated, starting async 3D conversion');
       
-      // Step 2: Convert image to 3D using Replicate TRELLIS
-      this.updateJobStage(jobId, 'upscaling', 'Converting to 3D mesh...');
+      // Step 2: Start async 3D generation (returns prediction ID)
+      this.updateJobStage(jobId, 'upscaling', 'Starting 3D generation...');
       
       const { data: threeDData, error: threeDError } = await supabase.functions.invoke('generate-3d', {
         body: {
           inputImage: imageData.images[0],
           seed: job.options.seed,
-          jobId: jobId, // Pass jobId so edge function can update database
+          jobId: jobId,
         }
       });
 
-      console.log('LovableAI: 3D generation response:', { threeDData, threeDError });
+      console.log('LovableAI: 3D generation started:', { threeDData, threeDError });
 
       if (threeDError) {
-        console.error('LovableAI: 3D generation error:', threeDError);
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const httpErr = threeDError as any;
-          if (httpErr?.context?.json) {
-            const errBody = await httpErr.context.json();
-            const msg = errBody?.error || errBody?.message || httpErr.message;
-            throw new Error(msg || 'Failed to generate 3D model');
+        console.error('LovableAI: Failed to start 3D generation:', threeDError);
+        throw new Error('Failed to start 3D generation');
+      }
+
+      if (!threeDData?.predictionId) {
+        console.error('LovableAI: No prediction ID in response:', threeDData);
+        throw new Error('Failed to start 3D generation');
+      }
+
+      const predictionId = threeDData.predictionId;
+      console.log('LovableAI: 3D prediction started with ID:', predictionId);
+      
+      // Step 3: Poll for completion
+      this.updateJobStage(jobId, 'upscaling', '3D generation in progress...');
+      
+      let attempts = 0;
+      const maxAttempts = 120; // 10 minutes max (5s intervals)
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        attempts++;
+        
+        console.log(`LovableAI: Polling 3D status (attempt ${attempts}/${maxAttempts})`);
+        
+        const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-3d', {
+          body: {
+            statusCheck: true,
+            predictionId: predictionId,
+            jobId: jobId,
           }
-        } catch (_) {
-          throw new Error((threeDError as Error).message || 'Failed to generate 3D model');
+        });
+        
+        if (statusError) {
+          console.error('LovableAI: Status check error:', statusError);
+          continue;
         }
+        
+        console.log('LovableAI: Prediction status:', statusData?.status);
+        
+        if (statusData?.status === 'succeeded') {
+          console.log('LovableAI: 3D generation completed successfully');
+          this.updateJobStage(jobId, 'completed', '3D model generated successfully');
+          
+          // Fetch the updated job from database to get the final URL
+          const { data: updatedJob } = await supabase
+            .from('jobs')
+            .select('outputs')
+            .eq('id', jobId)
+            .single();
+          
+          if (updatedJob?.outputs && Array.isArray(updatedJob.outputs) && updatedJob.outputs.length > 0) {
+            this.completeJob(jobId, updatedJob.outputs as string[]);
+          } else {
+            throw new Error('No output URL found after completion');
+          }
+          return;
+        } else if (statusData?.status === 'failed') {
+          throw new Error('3D generation failed on Replicate');
+        }
+        
+        // Update progress message
+        const progressPercent = Math.min(90, 10 + (attempts / maxAttempts) * 80);
+        this.updateJobStage(jobId, 'upscaling', `3D generation in progress... (${Math.floor(progressPercent)}%)`);
       }
-
-      if (!threeDData?.output) {
-        console.error('LovableAI: No 3D output in response:', threeDData);
-        throw new Error('No 3D model generated');
-      }
-
-      console.log('LovableAI: 3D model generated successfully for', jobId);
-
-      // Complete the job with the 3D model URL
-      this.completeJob(jobId, Array.isArray(threeDData.output) ? threeDData.output : [threeDData.output]);
+      
+      throw new Error('3D generation timed out');
 
     } catch (error) {
       console.error('LovableAI: 3D generation error for', jobId, ':', error);

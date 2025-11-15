@@ -28,7 +28,110 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { prompt, imageUrl, inputImage, seed, jobId } = await req.json();
+    const { prompt, imageUrl, inputImage, seed, jobId, statusCheck, predictionId } = await req.json();
+    
+    // Handle status check requests
+    if (statusCheck && predictionId) {
+      console.log('Checking status for prediction:', predictionId);
+      const replicate = new Replicate({ auth: REPLICATE_API_KEY });
+      
+      try {
+        const prediction = await replicate.predictions.get(predictionId);
+        console.log('Prediction status:', prediction.status);
+        
+        // If succeeded, finalize the job
+        if (prediction.status === 'succeeded' && jobId) {
+          console.log('Prediction succeeded, finalizing job:', jobId);
+          
+          // deno-lint-ignore no-explicit-any
+          const output: any = prediction.output;
+          const modelUrl = output?.mesh || (Array.isArray(output) ? output[0] : null) || (typeof output === 'string' ? output : null);
+          
+          if (!modelUrl) {
+            throw new Error('No model URL in prediction output');
+          }
+          
+          const urlString = typeof modelUrl === 'string' ? modelUrl : String(modelUrl);
+          
+          // Get user_id for storage path
+          const { data: jobRow, error: jobError } = await supabase
+            .from('jobs')
+            .select('user_id')
+            .eq('id', jobId)
+            .single();
+          
+          if (jobError) throw new Error('Cannot determine user_id for storage');
+          
+          const userId = jobRow?.user_id || 'anonymous';
+          const urlObj = new URL(urlString);
+          const pathname = urlObj.pathname.toLowerCase();
+          const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : 'glb';
+          const filename = `model.${ext}`;
+          
+          // Download and persist to storage
+          console.log('Downloading model from Replicate:', urlString);
+          const resp = await fetch(urlString);
+          if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+          
+          const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
+          const buffer = await resp.arrayBuffer();
+          console.log(`Downloaded ${buffer.byteLength} bytes`);
+          
+          const storagePath = `${userId}/${jobId}/${filename}`;
+          const { error: uploadError } = await supabase.storage
+            .from('generated-models')
+            .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
+          
+          if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+          
+          const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
+          const finalUrl = pub?.publicUrl;
+          
+          if (!finalUrl) throw new Error('Failed to get public URL');
+          
+          console.log('Model persisted to:', finalUrl);
+          
+          // Update job as completed
+          await supabase
+            .from('jobs')
+            .update({
+              status: 'completed',
+              progress_percent: 100,
+              progress_stage: 'completed',
+              progress_message: '3D model generated successfully',
+              outputs: [finalUrl],
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', jobId);
+        } else if (prediction.status === 'failed' && jobId) {
+          console.error('Prediction failed:', prediction.error);
+          await supabase
+            .from('jobs')
+            .update({
+              status: 'failed',
+              error: prediction.error || 'Prediction failed',
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', jobId);
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            status: prediction.status,
+            prediction: prediction
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Error checking prediction status:', error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : 'Status check failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     
     // Support both inputImage and imageUrl for flexibility
     const actualImageUrl = inputImage || imageUrl;
@@ -40,20 +143,18 @@ serve(async (req) => {
       );
     }
 
-    console.log('Generating 3D model with TripoSR:', { prompt, imageUrl: actualImageUrl, seed });
+    console.log('Starting async 3D generation:', { prompt, imageUrl: actualImageUrl, seed, jobId });
 
     const replicate = new Replicate({
       auth: REPLICATE_API_KEY,
     });
 
-    // Use TripoSR for text/image-to-3D generation
-    // If prompt is provided, we'll use stable-diffusion to generate an image first, then convert to 3D
+    // Generate image first if needed
     let finalImageUrl = actualImageUrl;
     
     if (prompt && !actualImageUrl) {
-      console.log('First generating image from prompt for 3D conversion...');
+      console.log('Generating image from prompt...');
       
-      // Generate image using flux-schnell
       const imageOutput = await replicate.run(
         "black-forest-labs/flux-schnell",
         {
@@ -75,208 +176,49 @@ serve(async (req) => {
       }
 
       finalImageUrl = imageOutput[0];
-      console.log('Generated image for 3D conversion:', finalImageUrl);
+      console.log('Image generated:', finalImageUrl);
     }
 
-    // Now convert the image to 3D with robust fallbacks
-    console.log('Converting image to 3D model...');
-
-    // Use Hunyuan3D 2.1 with optimized settings for faster generation
-    console.log('Generating 3D model with Hunyuan3D 2.1 (PBR-enabled, optimized)...');
+    // Start async 3D prediction (don't wait for completion)
+    console.log('Starting async 3D prediction with Hunyuan3D...');
     
-    let output: unknown;
-    try {
-      // Optimized settings: faster generation while maintaining PBR quality
-      console.log('Starting Replicate API call with optimized parameters...');
-      const startTime = Date.now();
-      
-      output = await replicate.run(
-        "ndreca/hunyuan3d-2.1:895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
-        {
-          input: {
-            image: finalImageUrl,
-            seed: seed || 1234,
-            steps: 30,              // Reduced from 50 for faster generation
-            num_chunks: 4000,       // Reduced from 8000 for speed
-            max_facenum: 15000,     // Reduced from 20000 for speed
-            guidance_scale: 7.5,
-            generate_texture: true, // Keep PBR textures enabled
-            octree_resolution: 196, // Valid values: 196, 256, 384, 512
-            remove_background: true
-          }
-        }
-      );
-      
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(`3D generation completed in ${duration}s`);
-    } catch (primaryErr) {
-      console.error('Hunyuan3D 2.1 failed:', primaryErr);
-      console.error('Error details:', JSON.stringify(primaryErr, null, 2));
-      
-      // Update job as failed if jobId provided
-      if (jobId) {
-        await supabase
-          .from('jobs')
-          .update({
-            status: 'failed',
-            error: (primaryErr as Error)?.message || 'Unknown error during 3D generation',
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', jobId);
+    const prediction = await replicate.predictions.create({
+      version: "895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
+      input: {
+        image: finalImageUrl,
+        seed: seed || 1234,
+        steps: 30,
+        num_chunks: 4000,
+        max_facenum: 15000,
+        guidance_scale: 7.5,
+        generate_texture: true,
+        octree_resolution: 196,
+        remove_background: true
       }
-      
-      return new Response(
-        JSON.stringify({ 
-          error: '3D generation failed', 
-          details: (primaryErr as Error)?.message || 'Unknown error during 3D generation'
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Log the full output structure for debugging
-    console.log('3D generation raw output type:', typeof output);
-    console.log('3D generation raw output:', JSON.stringify(output, null, 2));
-    
-    // Resolve mesh URL from Hunyuan3D 2.1 output
-    // According to schema: output should be { mesh: "uri" }
-    // deno-lint-ignore no-explicit-any
-    const o: any = output;
-    
-    console.log('Checking output properties:', {
-      hasMesh: 'mesh' in o,
-      isArray: Array.isArray(o),
-      isString: typeof o === 'string',
-      keys: Object.keys(o || {})
     });
     
-    const modelUrl = o?.mesh || (Array.isArray(o) ? o[0] : null) || (typeof o === 'string' ? o : null);
+    console.log('Prediction started:', prediction.id, 'Status:', prediction.status);
     
-    console.log('Extracted model URL:', modelUrl);
-    console.log('Model URL type:', typeof modelUrl);
-
-    if (!modelUrl) {
-      console.error('FAILED to extract model URL');
-      console.error('Output type:', typeof output);
-      console.error('Output is array:', Array.isArray(output));
-      console.error('Full output structure:', JSON.stringify(output, null, 2));
-      
-      // Update job as failed if jobId provided
-      if (jobId) {
-        await supabase
-          .from('jobs')
-          .update({
-            status: 'failed',
-            error: '3D model URL not found in response',
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', jobId);
-      }
-      
-      return new Response(
-        JSON.stringify({ error: '3D model URL not found in response', raw: output }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Ensure modelUrl is a string
-    const urlString = typeof modelUrl === 'string' ? modelUrl : String(modelUrl);
-
-    // CRITICAL: Persist the model file to permanent storage so links never expire
-    let finalUrl = urlString;
-
-    // Update job as completed in database
+    // Update job with prediction ID for polling
     if (jobId) {
-      console.log(`Updating job ${jobId} as completed with model URL: ${modelUrl}`);
-      console.log(`Model URL type: ${typeof modelUrl}`);
-      
-      try {
-        console.log('Starting 3D model persistence to Supabase storage...');
-        
-        // Get the user id for folder scoping
-        const { data: jobRow, error: jobError } = await supabase
-          .from('jobs')
-          .select('user_id')
-          .eq('id', jobId)
-          .single();
-        
-        if (jobError) {
-          console.error('Failed to fetch job for user_id:', jobError);
-          throw new Error('Cannot determine user_id for storage path');
-        }
-        
-        const userId = jobRow?.user_id || 'anonymous';
-        console.log('Storing 3D model for user:', userId);
-
-        const urlObj = new URL(urlString);
-        const pathname = urlObj.pathname.toLowerCase();
-        const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : 'glb';
-        const filename = `model.${ext}`;
-        
-        console.log(`Downloading 3D model from Replicate: ${urlString}`);
-        const resp = await fetch(urlString);
-        if (!resp.ok) {
-          console.error(`Download failed with status: ${resp.status}`);
-          throw new Error(`Failed to download model for persistence: ${resp.status} ${resp.statusText}`);
-        }
-        
-        const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
-        const buffer = await resp.arrayBuffer();
-        console.log(`Downloaded ${buffer.byteLength} bytes, content-type: ${contentType}`);
-
-        const storagePath = `${userId}/${jobId}/${filename}`;
-        console.log(`Uploading to storage path: ${storagePath}`);
-        
-        const { error: uploadError } = await supabase.storage
-          .from('generated-models')
-          .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
-
-        if (uploadError) {
-          console.error('Storage upload failed:', uploadError);
-          throw new Error(`Storage upload failed: ${uploadError.message}`);
-        }
-        
-        console.log('Upload successful, getting public URL...');
-        const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
-        if (pub?.publicUrl) {
-          finalUrl = pub.publicUrl;
-          console.log('3D model persisted successfully to:', finalUrl);
-        } else {
-          throw new Error('Failed to get public URL after upload');
-        }
-      } catch (persistErr) {
-        console.error('CRITICAL: Failed to persist 3D model to storage:', persistErr);
-        console.error('Falling back to Replicate URL which will expire in 24 hours:', urlString);
-        // Keep original URL as fallback
-      }
-      
-      const { error: updateError } = await supabase
+      await supabase
         .from('jobs')
         .update({
-          status: 'completed',
-          progress_percent: 100,
-          progress_stage: 'completed',
-          progress_message: '3D model generated successfully',
-          outputs: [finalUrl],
-          completed_at: new Date().toISOString(),
+          status: 'running',
+          progress_percent: 10,
+          progress_stage: 'running',
+          progress_message: '3D model generation in progress...',
           updated_at: new Date().toISOString()
         })
         .eq('id', jobId);
-      
-      if (updateError) {
-        console.error('Failed to update job in database:', updateError);
-      } else {
-        console.log(`Successfully updated job ${jobId} in database`);
-      }
     }
 
+    // Return prediction ID immediately (client will poll for status)
     return new Response(
       JSON.stringify({ 
-        output: finalUrl,
-        modelUrl: finalUrl,
-        format: 'glb'
+        predictionId: prediction.id,
+        status: prediction.status,
+        message: '3D generation started, polling for completion...'
       }), 
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
