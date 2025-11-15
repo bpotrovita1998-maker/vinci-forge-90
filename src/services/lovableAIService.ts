@@ -252,11 +252,16 @@ class LovableAIService {
           this.updateJobStage(jobId, 'completed', '3D model generated successfully');
           
           // Fetch the updated job from database to get the final URL
-          const { data: updatedJob } = await supabase
+          const { data: updatedJob, error: fetchError } = await supabase
             .from('jobs')
             .select('outputs')
             .eq('id', jobId)
-            .single();
+            .maybeSingle();
+          
+          if (fetchError) {
+            console.error('LovableAI: Failed to fetch job outputs:', fetchError);
+            throw new Error('Failed to fetch completed job data');
+          }
           
           if (updatedJob?.outputs && Array.isArray(updatedJob.outputs) && updatedJob.outputs.length > 0) {
             this.completeJob(jobId, updatedJob.outputs as string[]);
@@ -403,16 +408,19 @@ class LovableAIService {
             }
             // Fallback: the edge function may have persisted the file and updated the DB
             try {
-              const { data: jobRow } = await supabase
+              const { data: jobRow, error: fetchError } = await supabase
                 .from('jobs')
                 .select('outputs')
                 .eq('id', jobId)
-                .single();
-              const outs = (jobRow?.outputs as string[] | null) || [];
-              if (outs.length > 0) {
-                console.log('LovableAI: CAD model persisted and found in DB for', jobId, outs[0]);
-                this.completeJob(jobId, outs);
-                return;
+                .maybeSingle();
+              
+              if (!fetchError && jobRow) {
+                const outs = (jobRow.outputs as string[] | null) || [];
+                if (outs.length > 0) {
+                  console.log('LovableAI: CAD model persisted and found in DB for', jobId, outs[0]);
+                  this.completeJob(jobId, outs);
+                  return;
+                }
               }
             } catch (e) {
               console.warn('LovableAI: DB lookup after success failed, will keep polling', e);
@@ -431,16 +439,19 @@ class LovableAIService {
 
         // Timeout: last attempt to salvage from DB
         try {
-          const { data: jobRow } = await supabase
+          const { data: jobRow, error: fetchError } = await supabase
             .from('jobs')
             .select('outputs, status')
             .eq('id', jobId)
-            .single();
-          const outs = (jobRow?.outputs as string[] | null) || [];
-          if (outs.length > 0) {
-            console.log('LovableAI: Completing from DB after timeout for', jobId);
-            this.completeJob(jobId, outs);
-            return;
+            .maybeSingle();
+          
+          if (!fetchError && jobRow) {
+            const outs = (jobRow.outputs as string[] | null) || [];
+            if (outs.length > 0) {
+              console.log('LovableAI: Completing from DB after timeout for', jobId);
+              this.completeJob(jobId, outs);
+              return;
+            }
           }
         } catch {}
         

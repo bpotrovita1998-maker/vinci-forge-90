@@ -93,11 +93,19 @@ serve(async (req) => {
             .from('jobs')
             .select('user_id')
             .eq('id', jobId)
-            .single();
+            .maybeSingle();
           
-          if (jobError) throw new Error('Cannot determine user_id for storage');
+          if (jobError) {
+            console.error('Failed to fetch job for user_id:', jobError);
+            throw new Error(`Database error fetching job: ${jobError.message}`);
+          }
           
-          const userId = jobRow?.user_id || 'anonymous';
+          if (!jobRow) {
+            console.error('Job not found in database:', jobId);
+            throw new Error('Job not found - cannot determine storage path');
+          }
+          
+          const userId = jobRow.user_id || 'anonymous';
           const urlObj = new URL(urlString);
           const pathname = urlObj.pathname.toLowerCase();
           const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : 'glb';

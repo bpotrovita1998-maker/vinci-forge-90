@@ -94,10 +94,15 @@ export function JobProvider({ children }: { children: ReactNode }) {
             .from('jobs')
             .select('*')
             .eq('id', job.id)
-            .single();
+            .maybeSingle();
 
           if (error) {
             console.error('Failed to poll job status:', error);
+            return;
+          }
+          
+          if (!data) {
+            console.warn('Job not found during polling:', job.id);
             return;
           }
 
