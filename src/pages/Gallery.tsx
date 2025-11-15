@@ -59,7 +59,7 @@ export default function Gallery() {
       
       // Determine file extension based on job type
       const extension = job.options.type === 'video' ? 'mp4' : 
-                       job.options.type === '3d' ? 'glb' : 'png';
+                       (job.options.type === '3d' || job.options.type === 'cad') ? 'glb' : 'png';
       link.download = `${job.options.type}-${job.id.slice(0, 8)}.${extension}`;
       
       document.body.appendChild(link);
@@ -118,6 +118,8 @@ export default function Gallery() {
         return <Video className="w-4 h-4" />;
       case '3d':
         return <Box className="w-4 h-4" />;
+      case 'cad':
+        return <Package className="w-4 h-4" />;
     }
   };
 
@@ -127,6 +129,7 @@ export default function Gallery() {
       image: completedJobs.filter(j => j.options.type === 'image').length,
       video: completedJobs.filter(j => j.options.type === 'video').length,
       '3d': completedJobs.filter(j => j.options.type === '3d').length,
+      cad: completedJobs.filter(j => j.options.type === 'cad').length,
     };
   };
 
@@ -190,6 +193,11 @@ export default function Gallery() {
                 3D Models
                 {counts['3d'] > 0 && <Badge variant="secondary" className="ml-1">{counts['3d']}</Badge>}
               </TabsTrigger>
+              <TabsTrigger value="cad" className="gap-2">
+                <Package className="w-4 h-4" />
+                CAD Models
+                {counts.cad > 0 && <Badge variant="secondary" className="ml-1">{counts.cad}</Badge>}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -245,6 +253,19 @@ export default function Gallery() {
                           e.currentTarget.currentTime = 0;
                         }}
                       />
+                    ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
+                      <div className="w-full h-full flex items-center justify-center bg-muted/20">
+                        <div className="text-center">
+                          {job.options.type === 'cad' ? (
+                            <Package className="w-16 h-16 text-primary mx-auto mb-2" />
+                          ) : (
+                            <Box className="w-16 h-16 text-primary mx-auto mb-2" />
+                          )}
+                          <p className="text-sm text-muted-foreground">
+                            {job.options.type === 'cad' ? 'CAD Model' : '3D Model'}
+                          </p>
+                        </div>
+                      </div>
                     ) : (
                       <img
                         src={job.outputs[0]}
