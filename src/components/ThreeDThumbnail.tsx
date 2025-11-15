@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, Component, ReactNode } from 'react';
 import { Package } from 'lucide-react';
 
 interface ThreeDThumbnailProps {
@@ -9,14 +9,53 @@ interface ThreeDThumbnailProps {
   userId?: string;
 }
 
-function Model({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
-  return <primitive object={scene} scale={1} />;
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  onError: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('3D Thumbnail loading error:', error);
+    this.props.onError();
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
+function Model({ url, onError }: { url: string; onError: () => void }) {
+  try {
+    const { scene } = useGLTF(url);
+    return <primitive object={scene} scale={1} />;
+  } catch (error) {
+    console.error('Thumbnail model loading error:', error);
+    onError();
+    return null;
+  }
 }
 
 export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
   const [validatedUrl, setValidatedUrl] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const validateUrl = async () => {
@@ -88,8 +127,8 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
     );
   }
 
-  // Show fallback if URL is invalid
-  if (!validatedUrl) return fallback;
+  // Show fallback if URL is invalid or load failed
+  if (!validatedUrl || loadError) return fallback;
 
   return (
     <div className="w-full h-full bg-muted/20">
@@ -102,22 +141,24 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
         }}
       >
         <Suspense fallback={null}>
-          <PresentationControls
-            speed={1.5}
-            global
-            zoom={0.8}
-            polar={[-Math.PI / 4, Math.PI / 4]}
-            enabled={false}
-          >
-            <Stage 
-              environment="city" 
-              intensity={0.5}
-              shadows={false}
-              adjustCamera={1.2}
+          <ModelErrorBoundary onError={() => setLoadError(true)}>
+            <PresentationControls
+              speed={1.5}
+              global
+              zoom={0.8}
+              polar={[-Math.PI / 4, Math.PI / 4]}
+              enabled={false}
             >
-              <Model url={validatedUrl} />
-            </Stage>
-          </PresentationControls>
+              <Stage 
+                environment="city" 
+                intensity={0.5}
+                shadows={false}
+                adjustCamera={1.2}
+              >
+                <Model url={validatedUrl} onError={() => setLoadError(true)} />
+              </Stage>
+            </PresentationControls>
+          </ModelErrorBoundary>
         </Suspense>
       </Canvas>
     </div>
