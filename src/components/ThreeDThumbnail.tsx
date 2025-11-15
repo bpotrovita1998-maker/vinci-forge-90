@@ -80,12 +80,25 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  const retryCount = useRef(0);
+  const maxRetries = 2;
+
   const handleModelError = () => {
+    retryCount.current += 1;
+    console.log(`Model load attempt ${retryCount.current} failed for:`, activeUrl);
+    
+    if (retryCount.current >= maxRetries) {
+      console.log('Max retries reached, showing fallback');
+      setLoadError(true);
+      setIsLoading(false);
+      return;
+    }
+    
     setLoadError(true);
     setTimeout(() => {
       setLoadError(false);
       setCanvasKey((k) => k + 1);
-    }, 200);
+    }, 300);
   };
 
   const handlePosterCapture = (dataUrl: string) => {
@@ -96,6 +109,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
   // Try to construct Supabase storage URL for models
   useEffect(() => {
     const checkAndSetUrl = async () => {
+      retryCount.current = 0; // Reset retry count for new URL
       setLoadError(false);
       setIsLoading(true);
       
@@ -117,9 +131,12 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
             console.log(`Thumbnail: Model not found at ${supabaseUrl}`);
           }
         }
+        
+        // If we couldn't find the model in storage and the Replicate URL is dead, show error
+        console.warn('Model not found in Supabase storage and original URL may be expired');
       }
       
-      // Use the original URL
+      // Use the original URL (will show error if expired)
       setActiveUrl(normalizedUrl);
     };
     
