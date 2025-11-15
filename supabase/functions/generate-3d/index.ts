@@ -188,6 +188,42 @@ serve(async (req) => {
       
       // Ensure modelUrl is a string
       const urlString = typeof modelUrl === 'string' ? modelUrl : String(modelUrl);
+
+      // Try to persist the model file to permanent storage so links never expire
+      let finalUrl = urlString;
+      try {
+        // Get the user id for folder scoping
+        const { data: jobRow } = await supabase
+          .from('jobs')
+          .select('user_id')
+          .eq('id', jobId)
+          .single();
+        const userId = jobRow?.user_id || 'anonymous';
+
+        const urlObj = new URL(urlString);
+        const pathname = urlObj.pathname.toLowerCase();
+        const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : 'glb';
+        const filename = `model.${ext}`;
+
+        const resp = await fetch(urlString);
+        if (!resp.ok) throw new Error(`Failed to download model for persistence: ${resp.status}`);
+        const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
+        const buffer = await resp.arrayBuffer();
+
+        const storagePath = `${userId}/${jobId}/${filename}`;
+        const { error: uploadError } = await supabase.storage
+          .from('generated-models')
+          .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
+
+        if (uploadError) {
+          console.error('Failed to upload model to storage:', uploadError);
+        } else {
+          const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
+          if (pub?.publicUrl) finalUrl = pub.publicUrl;
+        }
+      } catch (persistErr) {
+        console.error('Non-fatal: persisting model to storage failed, falling back to original URL', persistErr);
+      }
       
       const { error: updateError } = await supabase
         .from('jobs')
@@ -196,7 +232,7 @@ serve(async (req) => {
           progress_percent: 100,
           progress_stage: 'completed',
           progress_message: '3D model generated successfully',
-          outputs: [urlString],
+          outputs: [finalUrl],
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })

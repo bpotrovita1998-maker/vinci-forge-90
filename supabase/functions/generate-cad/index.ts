@@ -79,9 +79,45 @@ serve(async (req) => {
           } catch (_) {}
         }
 
-        // If the prediction finished successfully and we have a jobId, update DB
+        // If the prediction finished successfully and we have a jobId, persist file and update DB
         if ((prediction as any).status === 'succeeded' && jobId) {
           try {
+            // Persist to storage so URL never expires
+            let finalUrl = modelUrl || '';
+            try {
+              const { data: jobRow } = await supabase
+                .from('jobs')
+                .select('user_id')
+                .eq('id', jobId)
+                .single();
+              const userId = jobRow?.user_id || 'anonymous';
+
+              if (modelUrl) {
+                const urlObj = new URL(modelUrl);
+                const pathname = urlObj.pathname.toLowerCase();
+                const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : pathname.endsWith('.zip') ? 'zip' : 'glb';
+                const filename = `model.${ext}`;
+
+                const resp = await fetch(modelUrl);
+                if (!resp.ok) throw new Error(`Failed to download model for persistence: ${resp.status}`);
+                const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
+                const buffer = await resp.arrayBuffer();
+
+                const storagePath = `${userId}/${jobId}/${filename}`;
+                const { error: uploadError } = await supabase.storage
+                  .from('generated-models')
+                  .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
+                if (uploadError) {
+                  console.error('Failed to upload CAD model to storage:', uploadError);
+                } else {
+                  const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
+                  if (pub?.publicUrl) finalUrl = pub.publicUrl;
+                }
+              }
+            } catch (persistErr) {
+              console.error('Non-fatal: persisting CAD model to storage failed, falling back to original URL', persistErr);
+            }
+
             const { data: updatedJob, error: updateError } = await supabase
               .from('jobs')
               .update({
@@ -89,7 +125,7 @@ serve(async (req) => {
                 progress_stage: 'completed',
                 progress_percent: 100,
                 progress_message: 'CAD model generated successfully',
-                outputs: modelUrl ? [modelUrl] : [],
+                outputs: finalUrl ? [finalUrl] : [],
                 completed_at: new Date().toISOString(),
                 manifest: {
                   jobId,
