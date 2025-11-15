@@ -55,6 +55,7 @@ export default function Gallery() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
+  const [thumbnailRefreshKey, setThumbnailRefreshKey] = useState(0);
   
   // Scenes state
   const [scenes, setScenes] = useState<SceneItem[]>([]);
@@ -505,7 +506,7 @@ export default function Gallery() {
                             />
                           ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
                             <ThreeDThumbnail 
-                              key={`${job.id}-${job.outputs[0]}`}
+                              key={`${job.id}-${thumbnailRefreshKey}`}
                               modelUrl={job.outputs[0]} 
                               jobId={job.id} 
                               userId={job.userId} 
@@ -737,7 +738,10 @@ export default function Gallery() {
         </div>
       </div>
 
-      {selectedJob && <OutputViewer job={selectedJob} onClose={() => setSelectedJob(null)} />}
+      {selectedJob && <OutputViewer job={selectedJob} onClose={() => {
+        setSelectedJob(null);
+        setThumbnailRefreshKey(prev => prev + 1);
+      }} />}
 
       {selectedScene && (
         <Dialog open={!!selectedScene} onOpenChange={() => setSelectedScene(null)}>

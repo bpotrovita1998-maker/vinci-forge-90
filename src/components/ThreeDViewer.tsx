@@ -1,7 +1,7 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Stage, PresentationControls } from '@react-three/drei';
 import { Suspense, useState, Component, ReactNode, useEffect } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 interface ThreeDViewerProps {
   modelUrl: string;
@@ -67,6 +67,8 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
   // Try to construct Supabase storage URL for models
   useEffect(() => {
     const checkAndSetUrl = async () => {
+      setLoadError(false); // Reset error state when checking URL
+      
       // If it's a Replicate URL and we have a jobId, try Supabase storage first
       if (normalizedUrl?.includes('replicate.delivery') && jobId) {
         const patterns = userId 
@@ -77,7 +79,7 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
           try {
             const response = await fetch(supabaseUrl, { method: 'HEAD' });
             if (response.ok) {
-              console.log('Found model in Supabase storage');
+              console.log('Found model in Supabase storage (permanent URL)');
               setActiveUrl(supabaseUrl);
               return;
             }
@@ -96,19 +98,27 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
     }
   }, [normalizedUrl, jobId, userId]);
   
-  if (!activeUrl || loadError) {
+  // Show loading spinner while URL is being resolved
+  if (!activeUrl) {
+    return (
+      <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 text-primary mx-auto animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading 3D model...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show error only if loading explicitly failed
+  if (loadError) {
     return (
       <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden flex items-center justify-center">
         <div className="text-center text-muted-foreground max-w-md px-4">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
           <p className="font-semibold mb-2">Unable to Load 3D Model</p>
           <p className="text-sm">
-            {!normalizedUrl || typeof normalizedUrl !== 'string' 
-              ? 'Invalid model URL provided'
-              : 'The 3D model file could not be loaded. The URL may have expired or the file may no longer be available.'}
-          </p>
-          <p className="text-xs mt-3 opacity-70">
-            Try generating a new model or check if the file still exists.
+            The 3D model file could not be loaded. Please try again.
           </p>
         </div>
       </div>
