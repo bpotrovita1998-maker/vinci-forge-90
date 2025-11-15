@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OutputViewer from '@/components/OutputViewer';
+import ThreeDThumbnail from '@/components/ThreeDThumbnail';
 import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -254,18 +255,7 @@ export default function Gallery() {
                         }}
                       />
                     ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
-                      <div className="w-full h-full flex items-center justify-center bg-muted/20">
-                        <div className="text-center">
-                          {job.options.type === 'cad' ? (
-                            <Package className="w-16 h-16 text-primary mx-auto mb-2" />
-                          ) : (
-                            <Box className="w-16 h-16 text-primary mx-auto mb-2" />
-                          )}
-                          <p className="text-sm text-muted-foreground">
-                            {job.options.type === 'cad' ? 'CAD Model' : '3D Model'}
-                          </p>
-                        </div>
-                      </div>
+                      <ThreeDThumbnail modelUrl={job.outputs[0]} jobId={job.id} />
                     ) : (
                       <img
                         src={job.outputs[0]}
