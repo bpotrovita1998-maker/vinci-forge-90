@@ -255,6 +255,30 @@ export default function Gallery() {
     }
   };
 
+  const handleMigrate3DModel = async (job: Job) => {
+    try {
+      toast.loading('Fixing 3D model...', { id: 'migrate' });
+      
+      const { data, error } = await supabase.functions.invoke('migrate-3d-models', {
+        body: { jobIds: [job.id] }
+      });
+
+      if (error) throw error;
+
+      if (data?.results?.[0]?.status === 'migrated') {
+        toast.success('3D model fixed! Reloading...', { id: 'migrate' });
+        setTimeout(() => window.location.reload(), 1000);
+      } else if (data?.results?.[0]?.status === 'expired') {
+        toast.error('Model file is no longer available. Please regenerate.', { id: 'migrate' });
+      } else {
+        throw new Error('Migration failed');
+      }
+    } catch (error) {
+      console.error('Migration error:', error);
+      toast.error('Failed to fix model', { id: 'migrate' });
+    }
+  };
+
   const handleUnityExport = async (job: Job) => {
     try {
       const url = job.outputs[0];
@@ -524,6 +548,11 @@ export default function Gallery() {
                               {formatDistanceToNow(job.completedAt || new Date(), { addSuffix: true })}
                             </div>
                           </div>
+                          {job.options.type === '3d' && job.outputs[0]?.includes('replicate.delivery') && (
+                            <div className="mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-xs text-destructive-foreground">
+                              ⚠️ Model URL expired. <button onClick={(e) => { e.stopPropagation(); handleMigrate3DModel(job); }} className="underline font-semibold">Fix now</button>
+                            </div>
+                          )}
                           <div className="flex gap-2">
                             <Button
                               size="sm"
