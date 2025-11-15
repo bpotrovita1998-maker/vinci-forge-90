@@ -1,42 +1,11 @@
 import { Canvas } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, Component, ReactNode } from 'react';
+import { Suspense } from 'react';
 import { Package } from 'lucide-react';
 
 interface ThreeDThumbnailProps {
   modelUrl: string;
   jobId?: string;
-}
-
-interface ErrorBoundaryProps {
-  children: ReactNode;
-  fallback: ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-}
-
-class ThumbnailErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error) {
-    console.error('3D Thumbnail loading error:', error);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-    return this.props.children;
-  }
 }
 
 function Model({ url }: { url: string }) {
@@ -69,24 +38,22 @@ export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProp
         gl={{ antialias: true, alpha: true }}
       >
         <Suspense fallback={null}>
-          <ThumbnailErrorBoundary fallback={fallback}>
-            <PresentationControls
-              speed={1.5}
-              global
-              zoom={0.8}
-              polar={[-Math.PI / 4, Math.PI / 4]}
-              enabled={false}
+          <PresentationControls
+            speed={1.5}
+            global
+            zoom={0.8}
+            polar={[-Math.PI / 4, Math.PI / 4]}
+            enabled={false}
+          >
+            <Stage 
+              environment="city" 
+              intensity={0.5}
+              shadows={false}
+              adjustCamera={1.2}
             >
-              <Stage 
-                environment="city" 
-                intensity={0.5}
-                shadows={false}
-                adjustCamera={1.2}
-              >
-                <Model url={activeUrl} />
-              </Stage>
-            </PresentationControls>
-          </ThumbnailErrorBoundary>
+              <Model url={activeUrl} />
+            </Stage>
+          </PresentationControls>
         </Suspense>
       </Canvas>
     </div>
