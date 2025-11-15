@@ -154,6 +154,33 @@ serve(async (req) => {
 
     console.log("Video prediction started:", prediction.id);
     
+    // Get existing manifest and save predictionId
+    const { data: jobData } = await supabase
+      .from('jobs')
+      .select('manifest')
+      .eq('id', body.jobId)
+      .single();
+
+    const existingManifest = jobData?.manifest || {};
+    
+    // Update job with prediction ID and mark as running
+    const { error: updateError } = await supabase
+      .from('jobs')
+      .update({
+        manifest: {
+          ...existingManifest,
+          predictionId: prediction.id,
+        },
+        status: 'running',
+        progress_stage: 'Generating video',
+        started_at: new Date().toISOString(),
+      })
+      .eq('id', body.jobId);
+
+    if (updateError) {
+      console.error("Error updating job with predictionId:", updateError);
+    }
+    
     return new Response(JSON.stringify({ 
       predictionId: prediction.id,
       status: prediction.status 
