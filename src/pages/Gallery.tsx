@@ -49,7 +49,7 @@ interface SceneItem {
 export default function Gallery() {
   const { jobs, deleteJob } = useJobs();
   const { user } = useAuth();
-  const [galleryMode, setGalleryMode] = useState<'image' | 'video' | '3d' | 'cad' | 'scenes'>('scenes');
+  const [galleryMode, setGalleryMode] = useState<'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes'>('all');
   const [selectedType, setSelectedType] = useState<JobType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -247,8 +247,12 @@ export default function Gallery() {
             <p className="text-muted-foreground">Browse all your generated creations</p>
           </motion.div>
 
-          <Tabs value={galleryMode} onValueChange={(v) => setGalleryMode(v as 'image' | 'video' | '3d' | 'cad' | 'scenes')} className="space-y-6">
+          <Tabs value={galleryMode} onValueChange={(v) => setGalleryMode(v as 'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes')} className="space-y-6">
             <TabsList className="glass border-border/30">
+              <TabsTrigger value="all" className="gap-2">
+                All
+                {counts.all > 0 && <Badge variant="secondary" className="ml-1">{counts.all}</Badge>}
+              </TabsTrigger>
               <TabsTrigger value="image" className="gap-2">
                 <ImageIcon className="w-4 h-4" />
                 Images
@@ -354,6 +358,152 @@ export default function Gallery() {
                     ))}
                   </AnimatePresence>
                 </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="all" className="space-y-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by prompt..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 glass border-border/30"
+                    />
+                  </div>
+
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'newest' | 'oldest')}>
+                    <SelectTrigger className="w-[180px] glass border-border/30">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Newest first</SelectItem>
+                      <SelectItem value="oldest">Oldest first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {sortedJobs.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center py-20"
+                >
+                  <div className="glass border-border/30 rounded-lg p-12 max-w-md mx-auto">
+                    <ImageIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-foreground mb-2">No generations yet</h3>
+                    <p className="text-muted-foreground mb-6">
+                      {searchQuery ? 'No results found.' : 'Start creating!'}
+                    </p>
+                    <Button asChild>
+                      <a href="/">Start Creating</a>
+                    </Button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                >
+                  {sortedJobs.map((job, index) => (
+                    <motion.div
+                      key={job.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Card className="glass border-border/30 overflow-hidden group cursor-pointer hover:border-primary/50 transition-all">
+                        <div
+                          className="relative aspect-video bg-background/50 overflow-hidden"
+                          onClick={() => setSelectedJob(job)}
+                        >
+                          {job.options.type === 'video' ? (
+                            <video
+                              src={job.outputs[0]}
+                              className="w-full h-full object-cover"
+                              muted
+                              loop
+                              onMouseEnter={(e) => e.currentTarget.play()}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.pause();
+                                e.currentTarget.currentTime = 0;
+                              }}
+                            />
+                          ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
+                            <ThreeDThumbnail modelUrl={job.outputs[0]} jobId={job.id} userId={job.userId} />
+                          ) : (
+                            <img
+                              src={job.outputs[0]}
+                              alt={job.options.prompt}
+                              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            />
+                          )}
+                          <Badge variant="secondary" className="absolute top-2 right-2 gap-1">
+                            {getTypeIcon(job.options.type)} {job.options.type.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="p-4">
+                          <p className="text-sm text-foreground line-clamp-2 mb-3">{job.options.prompt}</p>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatDistanceToNow(job.completedAt || new Date(), { addSuffix: true })}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="flex-1 gap-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedJob(job);
+                              }}
+                            >
+                              <Eye className="w-3 h-3" /> View
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(job);
+                              }}
+                            >
+                              <Download className="w-3 h-3" />
+                            </Button>
+                            {(job.options.type === '3d' || job.options.type === 'cad') && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnityExport(job);
+                                }}
+                              >
+                                <Package className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setJobToDelete(job);
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </motion.div>
               )}
             </TabsContent>
 
