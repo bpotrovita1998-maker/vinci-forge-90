@@ -502,6 +502,46 @@ export default function Scenes() {
     });
   };
 
+  const exportToGallery = async (scene: Scene) => {
+    if (!user) return;
+    
+    try {
+      const outputs = [];
+      if (scene.videoUrl) outputs.push(scene.videoUrl);
+      if (scene.imageUrl) outputs.push(scene.imageUrl);
+      
+      const { error } = await supabase
+        .from('jobs')
+        .insert({
+          user_id: user.id,
+          type: scene.type === 'video' ? 'video' : 'image',
+          prompt: `${scene.title}: ${scene.description}`,
+          status: 'completed',
+          progress_stage: 'completed',
+          progress_percent: 100,
+          outputs: outputs,
+          width: 1024,
+          height: 1024,
+          three_d_mode: 'none',
+          completed_at: new Date().toISOString()
+        });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Exported to Gallery",
+        description: `"${scene.title}" is now in your Gallery`
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Could not export scene to gallery",
+        variant: "destructive"
+      });
+    }
+  };
+
   const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || !scene.description) {
@@ -1370,15 +1410,26 @@ export default function Scenes() {
 
                                 <div className="flex gap-2 flex-wrap">
                                   {(scene.imageUrl || scene.videoUrl) && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setViewingScene(scene)}
-                                      className="gap-2"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                      Output
-                                    </Button>
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setViewingScene(scene)}
+                                        className="gap-2"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                        Output
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => exportToGallery(scene)}
+                                        className="gap-2"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                        Export to Gallery
+                                      </Button>
+                                    </>
                                   )}
                                   {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && scene.type === 'image' && (
                                     <Button
