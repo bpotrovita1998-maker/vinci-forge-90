@@ -41,18 +41,23 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
   }
 }
 
-function Model({ url }: { url: string }) {
+function Model({ url, onError }: { url: string; onError: () => void }) {
   const modelUrl = Array.isArray(url) ? url[0] : url;
 
   if (!modelUrl || typeof modelUrl !== 'string') {
     console.error('Invalid model URL:', url);
+    onError();
     return null;
   }
 
-  // Important: do not wrap useGLTF in try/catch; it uses Suspense and throws a Promise while loading
-  // Drei will handle loading via Suspense and throw on real errors which can be handled by an ErrorBoundary if needed
-  const { scene } = useGLTF(modelUrl);
-  return <primitive object={scene} />;
+  try {
+    const { scene } = useGLTF(modelUrl);
+    return <primitive object={scene} />;
+  } catch (error) {
+    console.error('Model loading error:', error);
+    onError();
+    return null;
+  }
 }
 
 export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerProps) {
@@ -132,7 +137,7 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
               polar={[-Math.PI / 4, Math.PI / 4]}
             >
               <Stage environment="city" intensity={0.6} shadows={false}>
-                <Model url={activeUrl} />
+                <Model url={activeUrl} onError={() => setLoadError(true)} />
               </Stage>
             </PresentationControls>
           </ModelErrorBoundary>
