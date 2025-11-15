@@ -6,6 +6,8 @@ type JobUpdateCallback = (job: Job) => void;
 class LovableAIService {
   private jobs: Map<string, Job> = new Map();
   private callbacks: Map<string, JobUpdateCallback> = new Map();
+  private predictionIds: Map<string, string> = new Map(); // Track prediction IDs for cancellation
+  private cancelledJobs: Set<string> = new Set(); // Track cancelled jobs
 
   async submitJob(options: GenerationOptions, jobId?: string): Promise<string> {
     // Use provided jobId or generate a new one
@@ -201,6 +203,9 @@ class LovableAIService {
       const predictionId = threeDData.predictionId;
       console.log('LovableAI: 3D prediction started with ID:', predictionId);
       
+      // Store prediction ID for cancellation
+      this.predictionIds.set(jobId, predictionId);
+      
       // Step 3: Poll for completion
       this.updateJobStage(jobId, 'upscaling', '3D generation in progress...');
       
@@ -208,6 +213,12 @@ class LovableAIService {
       const maxAttempts = 120; // 10 minutes max (5s intervals)
       
       while (attempts < maxAttempts) {
+        // Check if job was cancelled
+        if (this.cancelledJobs.has(jobId)) {
+          console.log('LovableAI: Job cancelled, breaking polling loop');
+          return;
+        }
+        
         await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
         attempts++;
         
@@ -325,6 +336,9 @@ class LovableAIService {
       if (first?.predictionId) {
         const predictionId: string = first.predictionId;
         console.log('LovableAI: Received predictionId for CAD:', predictionId);
+        
+        // Store prediction ID for cancellation
+        this.predictionIds.set(jobId, predictionId);
 
         // Poll the edge function for status until completion/failure
         const start = Date.now();
@@ -332,6 +346,12 @@ class LovableAIService {
         let delay = 2000; // 2s initial
 
         while (Date.now() - start < timeoutMs) {
+          // Check if job was cancelled
+          if (this.cancelledJobs.has(jobId)) {
+            console.log('LovableAI: CAD job cancelled, breaking polling loop');
+            return;
+          }
+          
           // Poll the edge function for status until completion/failure
           const { data: statusData, error: statusErr } = await supabase.functions.invoke('generate-cad', {
             body: { predictionId, jobId, prompt: job.options.prompt }
@@ -553,7 +573,37 @@ class LovableAIService {
   cancelJob(jobId: string) {
     const job = this.jobs.get(jobId);
     if (job && job.status !== 'completed' && job.status !== 'failed') {
+      console.log('LovableAI: Cancelling job:', jobId);
+      this.cancelledJobs.add(jobId);
+      
+      // If there's a prediction running, cancel it on Replicate
+      const predictionId = this.predictionIds.get(jobId);
+      if (predictionId) {
+        console.log('LovableAI: Cancelling Replicate prediction:', predictionId);
+        
+        // Determine which edge function to call based on job type
+        const functionName = job.options.type === 'cad' ? 'generate-cad' : 'generate-3d';
+        
+        supabase.functions.invoke(functionName, {
+          body: {
+            cancel: true,
+            predictionId: predictionId,
+            jobId: jobId,
+          }
+        }).then(({ error }) => {
+          if (error) {
+            console.error('LovableAI: Failed to cancel prediction:', error);
+          } else {
+            console.log('LovableAI: Prediction cancelled successfully');
+          }
+        });
+        
+        // Clean up
+        this.predictionIds.delete(jobId);
+      }
+      
       this.failJob(jobId, 'Cancelled by user');
+      this.cancelledJobs.delete(jobId); // Clean up after marking as failed
     }
   }
 }
