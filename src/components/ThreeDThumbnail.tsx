@@ -76,9 +76,6 @@ export default function ThreeDThumbnail({ modelUrl }: ThreeDThumbnailProps) {
         camera={{ position: [0, 0, 3], fov: 50 }}
         className="w-full h-full"
         gl={{ antialias: true, alpha: true }}
-        onCreated={({ gl }) => {
-          gl.setClearColor('#00000000', 0);
-        }}
       >
         <Suspense fallback={null}>
           <ModelErrorBoundary>
