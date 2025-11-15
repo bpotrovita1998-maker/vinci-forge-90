@@ -8,40 +8,53 @@ interface ThreeDThumbnailProps {
   jobId?: string;
 }
 
-function Model({ url, onError }: { url: string; onError: () => void }) {
-  try {
-    const { scene } = useGLTF(url);
-    return <primitive object={scene} scale={1} />;
-  } catch (error) {
-    onError();
-    return null;
-  }
+function Model({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  return <primitive object={scene} scale={1} />;
 }
 
 export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProps) {
-  const [loadError, setLoadError] = useState(false);
-  const [checkedUrl, setCheckedUrl] = useState<string | null>(null);
+  const [validatedUrl, setValidatedUrl] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
-    const checkUrl = async () => {
+    const validateUrl = async () => {
+      setIsValidating(true);
+      
       // First, try to check if Supabase storage URL exists for expired Replicate URLs
       if (modelUrl?.includes('replicate.delivery') && jobId) {
         const supabaseUrl = `https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`;
         try {
           const response = await fetch(supabaseUrl, { method: 'HEAD' });
           if (response.ok) {
-            setCheckedUrl(supabaseUrl);
+            setValidatedUrl(supabaseUrl);
+            setIsValidating(false);
             return;
           }
-        } catch {
-          // Supabase URL doesn't exist, fall back to original
+        } catch (error) {
+          console.log('Supabase storage URL not available, trying original URL');
         }
       }
-      // Use original URL
-      setCheckedUrl(modelUrl);
+      
+      // Validate the original URL
+      if (modelUrl) {
+        try {
+          const response = await fetch(modelUrl, { method: 'HEAD' });
+          if (response.ok) {
+            setValidatedUrl(modelUrl);
+          } else {
+            setValidatedUrl(null);
+          }
+        } catch (error) {
+          console.error('Model URL validation failed:', error);
+          setValidatedUrl(null);
+        }
+      }
+      
+      setIsValidating(false);
     };
 
-    checkUrl();
+    validateUrl();
   }, [modelUrl, jobId]);
 
   const fallback = (
@@ -53,7 +66,20 @@ export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProp
     </div>
   );
 
-  if (!checkedUrl || loadError) return fallback;
+  // Show loading state while validating
+  if (isValidating) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-muted/20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show fallback if URL is invalid
+  if (!validatedUrl) return fallback;
 
   return (
     <div className="w-full h-full bg-muted/20">
@@ -79,7 +105,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId }: ThreeDThumbnailProp
               shadows={false}
               adjustCamera={1.2}
             >
-              <Model url={checkedUrl} onError={() => setLoadError(true)} />
+              <Model url={validatedUrl} />
             </Stage>
           </PresentationControls>
         </Suspense>
