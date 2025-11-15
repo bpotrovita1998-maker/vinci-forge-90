@@ -315,10 +315,29 @@ class LovableAIService {
           const status: string | undefined = sd?.status;
           const outputUrl: string | undefined = sd?.output;
 
-          if (status === 'succeeded' && outputUrl) {
-            console.log('LovableAI: CAD model ready for', jobId, outputUrl);
-            this.completeJob(jobId, [outputUrl]);
-            return;
+          if (status === 'succeeded') {
+            // Prefer direct output from the status payload
+            if (outputUrl) {
+              console.log('LovableAI: CAD model ready for', jobId, outputUrl);
+              this.completeJob(jobId, [outputUrl]);
+              return;
+            }
+            // Fallback: the edge function may have persisted the file and updated the DB
+            try {
+              const { data: jobRow } = await supabase
+                .from('jobs')
+                .select('outputs')
+                .eq('id', jobId)
+                .single();
+              const outs = (jobRow?.outputs as string[] | null) || [];
+              if (outs.length > 0) {
+                console.log('LovableAI: CAD model persisted and found in DB for', jobId, outs[0]);
+                this.completeJob(jobId, outs);
+                return;
+              }
+            } catch (e) {
+              console.warn('LovableAI: DB lookup after success failed, will keep polling', e);
+            }
           }
 
           if (status === 'failed' || status === 'canceled') {
@@ -331,6 +350,21 @@ class LovableAIService {
           delay = Math.min(delay * 1.25, 10000);
         }
 
+        // Timeout: last attempt to salvage from DB
+        try {
+          const { data: jobRow } = await supabase
+            .from('jobs')
+            .select('outputs, status')
+            .eq('id', jobId)
+            .single();
+          const outs = (jobRow?.outputs as string[] | null) || [];
+          if (outs.length > 0) {
+            console.log('LovableAI: Completing from DB after timeout for', jobId);
+            this.completeJob(jobId, outs);
+            return;
+          }
+        } catch {}
+        
         // Timeout
         throw new Error('CAD generation timed out');
       }
