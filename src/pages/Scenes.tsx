@@ -1337,7 +1337,7 @@ export default function Scenes() {
                                       <SelectItem value="video">
                                         <div className="flex items-center gap-2">
                                           <Video className="w-4 h-4" />
-                                          Video (Minimax)
+                                          Video (Minimax - 6 sec)
                                         </div>
                                       </SelectItem>
                                     </SelectContent>
