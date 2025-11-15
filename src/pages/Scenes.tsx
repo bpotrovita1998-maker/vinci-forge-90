@@ -105,6 +105,7 @@ export default function Scenes() {
   const [editingScene, setEditingScene] = useState<Scene | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingImage, setIsEditingImage] = useState(false);
+  const [viewingScene, setViewingScene] = useState<Scene | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveQueuedRef = useRef<boolean>(false);
   const saveQueuedToastRef = useRef<boolean>(false);
@@ -1344,7 +1345,18 @@ export default function Scenes() {
                                   </Select>
                                 </div>
 
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap">
+                                  {(scene.imageUrl || scene.videoUrl) && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setViewingScene(scene)}
+                                      className="gap-2"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                      Output
+                                    </Button>
+                                  )}
                                   {scene.imageUrl && !scene.imageUrl.toLowerCase().includes('.mp4') && scene.type === 'image' && (
                                     <Button
                                       size="sm"
@@ -1408,6 +1420,41 @@ export default function Scenes() {
           </Tabs>
         </div>
       </div>
+
+      {/* View Output Dialog */}
+      <Dialog open={!!viewingScene} onOpenChange={(open) => {
+        if (!open) setViewingScene(null);
+      }}>
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>{viewingScene?.title}</DialogTitle>
+            <DialogDescription>
+              {viewingScene?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center bg-muted rounded-lg overflow-hidden">
+            {viewingScene?.videoUrl ? (
+              <video 
+                src={viewingScene.videoUrl} 
+                controls 
+                autoPlay
+                className="w-full max-h-[70vh]"
+              >
+                Your browser does not support the video tag.
+              </video>
+            ) : viewingScene?.imageUrl ? (
+              <img 
+                src={viewingScene.imageUrl} 
+                alt={viewingScene.title}
+                className="w-full max-h-[70vh] object-contain"
+              />
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewingScene(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Image Dialog */}
       <Dialog open={!!editingScene} onOpenChange={(open) => {
