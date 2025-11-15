@@ -189,40 +189,66 @@ serve(async (req) => {
       // Ensure modelUrl is a string
       const urlString = typeof modelUrl === 'string' ? modelUrl : String(modelUrl);
 
-      // Try to persist the model file to permanent storage so links never expire
+      // CRITICAL: Persist the model file to permanent storage so links never expire
       let finalUrl = urlString;
       try {
+        console.log('Starting 3D model persistence to Supabase storage...');
+        
         // Get the user id for folder scoping
-        const { data: jobRow } = await supabase
+        const { data: jobRow, error: jobError } = await supabase
           .from('jobs')
           .select('user_id')
           .eq('id', jobId)
           .single();
+        
+        if (jobError) {
+          console.error('Failed to fetch job for user_id:', jobError);
+          throw new Error('Cannot determine user_id for storage path');
+        }
+        
         const userId = jobRow?.user_id || 'anonymous';
+        console.log('Storing 3D model for user:', userId);
 
         const urlObj = new URL(urlString);
         const pathname = urlObj.pathname.toLowerCase();
         const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : 'glb';
         const filename = `model.${ext}`;
-
+        
+        console.log(`Downloading 3D model from Replicate: ${urlString}`);
         const resp = await fetch(urlString);
-        if (!resp.ok) throw new Error(`Failed to download model for persistence: ${resp.status}`);
+        if (!resp.ok) {
+          console.error(`Download failed with status: ${resp.status}`);
+          throw new Error(`Failed to download model for persistence: ${resp.status} ${resp.statusText}`);
+        }
+        
         const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
         const buffer = await resp.arrayBuffer();
+        console.log(`Downloaded ${buffer.byteLength} bytes, content-type: ${contentType}`);
 
         const storagePath = `${userId}/${jobId}/${filename}`;
+        console.log(`Uploading to storage path: ${storagePath}`);
+        
         const { error: uploadError } = await supabase.storage
           .from('generated-models')
           .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
 
         if (uploadError) {
-          console.error('Failed to upload model to storage:', uploadError);
+          console.error('Storage upload failed:', uploadError);
+          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        }
+        
+        console.log('Upload successful, getting public URL...');
+        const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
+        if (pub?.publicUrl) {
+          finalUrl = pub.publicUrl;
+          console.log('3D model persisted successfully to:', finalUrl);
         } else {
-          const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
-          if (pub?.publicUrl) finalUrl = pub.publicUrl;
+          throw new Error('Failed to get public URL after upload');
         }
       } catch (persistErr) {
-        console.error('Non-fatal: persisting model to storage failed, falling back to original URL', persistErr);
+        console.error('CRITICAL: Failed to persist 3D model to storage:', persistErr);
+        console.error('Falling back to Replicate URL which will expire in 24 hours:', urlString);
+        // Keep original URL as fallback
       }
       
       const { error: updateError } = await supabase
