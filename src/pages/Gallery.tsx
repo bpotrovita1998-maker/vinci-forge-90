@@ -504,7 +504,12 @@ export default function Gallery() {
                               }}
                             />
                           ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
-                            <ThreeDThumbnail modelUrl={job.outputs[0]} jobId={job.id} userId={job.userId} />
+                            <ThreeDThumbnail 
+                              key={`${job.id}-${job.outputs[0]}`}
+                              modelUrl={job.outputs[0]} 
+                              jobId={job.id} 
+                              userId={job.userId} 
+                            />
                           ) : (
                             <img
                               src={job.outputs[0]}
