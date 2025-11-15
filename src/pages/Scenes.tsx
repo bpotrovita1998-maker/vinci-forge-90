@@ -696,36 +696,76 @@ export default function Scenes() {
 
       console.log('Generating video with prompt:', finalPrompt);
 
-      // Call video generation endpoint with Minimax Video-01
-      const { data, error } = await supabase.functions.invoke('generate-video', {
-        body: {
-          prompt: finalPrompt,
-        }
+      // Start video generation (returns immediately with prediction ID)
+      const { data: startData, error: startError } = await supabase.functions.invoke('generate-video', {
+        body: { prompt: finalPrompt }
       });
 
-      if (error) {
-        console.error('Video generation error:', error);
-        throw error;
+      if (startError || !startData?.predictionId) {
+        console.error('Failed to start video generation:', startError);
+        throw new Error('Failed to start video generation');
       }
 
-      console.log('Video generation response:', data);
+      console.log('Video generation started, prediction ID:', startData.predictionId);
 
-      // The video URL will be in data.output
-      const videoUrl = Array.isArray(data?.output) ? data.output[0] : data?.output;
-      if (videoUrl) {
-        await updateScene(sceneId, { 
-          status: 'ready',
-          videoUrl: videoUrl
-        });
-        
-        toast({
-          title: "Video Generated!",
-          description: `Scene ${sceneIndex + 1} video is ready. Cost: ~$0.40`,
-          duration: 6000
-        });
-      } else {
-        throw new Error('No video output received');
-      }
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
+            body: { predictionId: startData.predictionId }
+          });
+
+          if (statusError) {
+            console.error('Status check error:', statusError);
+            return;
+          }
+
+          console.log('Video status:', statusData?.status);
+
+          if (statusData?.status === 'succeeded' && statusData?.output) {
+            clearInterval(pollInterval);
+            
+            const videoUrl = Array.isArray(statusData.output) ? statusData.output[0] : statusData.output;
+            
+            await updateScene(sceneId, { 
+              status: 'ready',
+              videoUrl: videoUrl
+            });
+            
+            toast({
+              title: "Video Generated!",
+              description: `Scene ${sceneIndex + 1} video is ready. Cost: ~$0.40`,
+              duration: 6000
+            });
+          } else if (statusData?.status === 'failed') {
+            clearInterval(pollInterval);
+            throw new Error(statusData?.error || 'Video generation failed');
+          }
+        } catch (err) {
+          clearInterval(pollInterval);
+          console.error('Polling error:', err);
+          updateScene(sceneId, { status: 'draft' });
+          toast({
+            title: "Generation Failed",
+            description: err instanceof Error ? err.message : 'Failed to generate video',
+            variant: "destructive"
+          });
+        }
+      }, 10000); // Poll every 10 seconds
+
+      // Set timeout after 10 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        const currentScene = scenes.find(s => s.id === sceneId);
+        if (currentScene?.status === 'generating') {
+          updateScene(sceneId, { status: 'draft' });
+          toast({
+            title: "Generation Timeout",
+            description: "Video generation is taking longer than expected. Please try again.",
+            variant: "destructive"
+          });
+        }
+      }, 600000);
 
     } catch (error) {
       console.error('Error generating video:', error);
