@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, Component, ReactNode, useState, useEffect } from 'react';
+import { Suspense, Component, ReactNode, useState, useEffect, useRef } from 'react';
 import { Package } from 'lucide-react';
 
 interface ThreeDThumbnailProps {
