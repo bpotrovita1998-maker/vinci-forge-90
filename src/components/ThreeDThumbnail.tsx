@@ -1,7 +1,7 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
 import { Suspense, Component, ReactNode, useState, useEffect, useRef } from 'react';
-import { Package } from 'lucide-react';
+import { Package, Loader2 } from 'lucide-react';
 
 interface ThreeDThumbnailProps {
   modelUrl: string;
@@ -52,25 +52,52 @@ function Model({ url }: { url: string }) {
   return <primitive object={gltf.scene} scale={1} />;
 }
 
+function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
+  const { gl } = useThree();
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const dataUrl = gl.domElement.toDataURL('image/png');
+        onCapture(dataUrl);
+      } catch (error) {
+        console.error('Failed to capture poster:', error);
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [gl, onCapture]);
+  
+  return null;
+}
+
 export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
   const [canvasKey, setCanvasKey] = useState(0);
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const handleModelError = () => {
     setLoadError(true);
-    // Auto-retry by remounting the Canvas to recover from context loss
     setTimeout(() => {
       setLoadError(false);
       setCanvasKey((k) => k + 1);
     }, 200);
   };
+
+  const handlePosterCapture = (dataUrl: string) => {
+    setPosterUrl(dataUrl);
+    setIsLoading(false);
+  };
+
   // Try to construct Supabase storage URL for models
   useEffect(() => {
     const checkAndSetUrl = async () => {
-      // Reset error state when URL changes
       setLoadError(false);
+      setIsLoading(true);
       
       // If it's a Replicate URL and we have a jobId, try Supabase storage first
       if (normalizedUrl?.includes('replicate.delivery') && jobId) {
@@ -101,6 +128,15 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
     }
   }, [normalizedUrl, jobId, userId]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (posterUrl) {
+        URL.revokeObjectURL(posterUrl);
+      }
+    };
+  }, [posterUrl]);
+
   // If no valid URL or error, show fallback
   if (!activeUrl || loadError) {
     return (
@@ -114,17 +150,40 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
   }
 
   return (
-    <div className="w-full h-full bg-muted/20">
+    <div className="w-full h-full bg-muted/20 relative" ref={canvasRef}>
+      {posterUrl && isLoading && (
+        <img 
+          src={posterUrl} 
+          alt="Model preview" 
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+      )}
       <Canvas
         key={canvasKey}
         camera={{ position: [0, 0, 3], fov: 50 }}
         className="w-full h-full"
         dpr={[1, 1]}
         frameloop="demand"
-        gl={{ antialias: true, alpha: true, powerPreference: 'low-power', preserveDrawingBuffer: false }}
+        gl={{ 
+          antialias: true, 
+          alpha: true, 
+          powerPreference: 'low-power', 
+          preserveDrawingBuffer: true 
+        }}
         onCreated={({ gl }) => {
           const elem = gl.domElement as HTMLCanvasElement;
-          const onLost = (e: any) => { e.preventDefault?.(); setCanvasKey((k: number) => k + 1); };
+          const onLost = (e: any) => { 
+            e.preventDefault?.(); 
+            if (posterUrl) {
+              setIsLoading(false);
+            }
+            setCanvasKey((k: number) => k + 1); 
+          };
           const onRestored = () => setCanvasKey((k: number) => k + 1);
           elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
           elem.addEventListener('webglcontextrestored', onRestored as any);
@@ -148,6 +207,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
                 <Model url={activeUrl} />
               </Stage>
             </PresentationControls>
+            <PosterCapture onCapture={handlePosterCapture} />
           </ModelErrorBoundary>
         </Suspense>
       </Canvas>
