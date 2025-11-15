@@ -407,8 +407,11 @@ export default function Scenes() {
     }
   };
 
-  const saveCurrentStoryboard = async (showToast: boolean = false) => {
+  const saveCurrentStoryboard = async (showToast: boolean = false, scenesToSave?: Scene[]) => {
     if (!currentStoryboard) return;
+    
+    // Use provided scenes or fall back to state
+    const activeScenes = scenesToSave || scenes;
     
     // Avoid overlapping saves; queue one more save if needed
     if (isSaving) {
@@ -435,8 +438,8 @@ export default function Scenes() {
       const isUuid = (v: string | undefined) => !!v && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v);
 
       // Prepare scenes for upsert
-      if (scenes.length > 0) {
-        const scenesToSave = scenes.map((scene, index) => {
+      if (activeScenes.length > 0) {
+        const scenesDataToSave = activeScenes.map((scene, index) => {
           const sceneData: any = {
             storyboard_id: currentStoryboard.id,
             title: scene.title,
@@ -459,7 +462,7 @@ export default function Scenes() {
         // Upsert and get back ids with their order_index
         const { data: savedScenes, error: scenesError } = await (supabase as any)
           .from('storyboard_scenes')
-          .upsert(scenesToSave)
+          .upsert(scenesDataToSave)
           .select('id, order_index');
 
         if (scenesError) throw scenesError;
@@ -468,7 +471,7 @@ export default function Scenes() {
         if (savedScenes && savedScenes.length > 0) {
           const idByIndex = new Map<number, string>();
           savedScenes.forEach((s: any) => idByIndex.set(s.order_index, s.id));
-          const updatedScenes = scenes.map((scene, index) => {
+          const updatedScenes = activeScenes.map((scene, index) => {
             if (!isUuid(scene.id)) {
               const newId = idByIndex.get(index);
               return newId ? { ...scene, id: newId } : scene;
@@ -489,7 +492,7 @@ export default function Scenes() {
             (savedScenes || []).map((s: any) => s.id)
           );
           // Also include any already-UUID ids from the current UI state
-          scenes.forEach(s => { if (isUuid(s.id)) keepIds.add(s.id as string); });
+          activeScenes.forEach(s => { if (isUuid(s.id)) keepIds.add(s.id as string); });
 
           const idsToDelete = existingRows
             .map((r: any) => r.id as string)
@@ -1085,10 +1088,8 @@ export default function Scenes() {
 
       setScenes(newScenes);
       
-      // Save immediately to database to ensure persistence
-      setTimeout(() => {
-        saveCurrentStoryboard(false);
-      }, 500);
+      // Save immediately to database with the new scenes
+      await saveCurrentStoryboard(false, newScenes);
       
       setVideoIdea('');
 
