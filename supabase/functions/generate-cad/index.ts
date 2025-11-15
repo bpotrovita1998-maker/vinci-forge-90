@@ -119,12 +119,23 @@ serve(async (req) => {
             // Persist to storage so URL never expires
             let finalUrl = modelUrl || '';
             try {
-              const { data: jobRow } = await supabase
+              const { data: jobRow, error: jobError } = await supabase
                 .from('jobs')
                 .select('user_id')
                 .eq('id', jobId)
-                .single();
-              const userId = jobRow?.user_id || 'anonymous';
+                .maybeSingle();
+              
+              if (jobError) {
+                console.error('Failed to fetch job for user_id:', jobError);
+                throw new Error(`Database error fetching job: ${jobError.message}`);
+              }
+              
+              if (!jobRow) {
+                console.error('CAD job not found in database:', jobId);
+                throw new Error('Job not found - cannot determine storage path');
+              }
+              
+              const userId = jobRow.user_id || 'anonymous';
 
               if (modelUrl) {
                 const urlObj = new URL(modelUrl);
@@ -173,7 +184,7 @@ serve(async (req) => {
               })
               .eq('id', jobId)
               .select()
-              .single();
+              .maybeSingle();
 
             if (updateError) console.error('Failed to update job from status check:', updateError);
             else console.log('Job updated from status check:', updatedJob);
