@@ -1,6 +1,7 @@
 import ParticleBackground from "@/components/ParticleBackground";
 import Hero from "@/components/Hero";
 import JobQueue from "@/components/JobQueue";
+import FreeTokenCounter from "@/components/FreeTokenCounter";
 
 const Index = () => {
   return (
@@ -9,6 +10,9 @@ const Index = () => {
       
       <div className="relative z-10 pt-20">
         <Hero />
+        
+        {/* Free Token Counter */}
+        <FreeTokenCounter />
         
         {/* Job Queue Section */}
         <div className="max-w-6xl mx-auto px-4 py-12">
