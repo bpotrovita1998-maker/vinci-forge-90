@@ -141,19 +141,19 @@ export default function Scenes() {
 
     const syncJobs = async () => {
       try {
-        // Find scenes that aren't ready yet
+        // Find scenes that aren't ready yet or are actively generating
         const scenesToCheck = scenes.filter(
-          scene => scene.status !== 'ready' || (!scene.imageUrl && !scene.videoUrl)
+          scene => scene.jobId && (scene.status === 'generating' || (!scene.imageUrl && !scene.videoUrl))
         );
 
         if (scenesToCheck.length === 0) return;
 
-        // Get all jobs (completed AND failed) for this user
+        // Query only specific job IDs to avoid timeout with large job tables
+        const jobIds = scenesToCheck.map(s => s.jobId).filter(Boolean) as string[];
         const { data: allJobs, error: jobsError } = await supabase
           .from('jobs')
           .select('id, outputs, type, status, error')
-          .eq('user_id', user.id)
-          .in('status', ['completed', 'failed']);
+          .in('id', jobIds);
 
         if (jobsError || !allJobs || allJobs.length === 0) return;
 
@@ -189,6 +189,11 @@ export default function Scenes() {
               }
 
               await updateScene(scene.id, updates);
+              
+              toast({
+                title: "Generation Complete!",
+                description: `${scene.title} is ready to view`
+              });
             }
           }
           
@@ -218,10 +223,22 @@ export default function Scenes() {
       }
     };
 
-    // Run sync after a short delay to ensure scenes are loaded
-    const timer = setTimeout(syncJobs, 1000);
-    return () => clearTimeout(timer);
-  }, [currentStoryboard?.id, scenes.length, user]);
+    // Initial sync after scenes load
+    const initialTimer = setTimeout(syncJobs, 1000);
+    
+    // Continuously poll every 5 seconds if there are generating scenes
+    const hasGeneratingScenes = scenes.some(s => s.status === 'generating');
+    let pollInterval: NodeJS.Timeout | null = null;
+    
+    if (hasGeneratingScenes) {
+      pollInterval = setInterval(syncJobs, 5000);
+    }
+
+    return () => {
+      clearTimeout(initialTimer);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [currentStoryboard?.id, scenes, user]);
 
   // Auto-save when scenes or settings change (disabled by default)
   useEffect(() => {
