@@ -84,6 +84,27 @@ serve(async (req) => {
           const updatedManifest = updatedJob.manifest as any;
           const scenePrompts = updatedManifest?.scenePrompts;
           
+          // Calculate proper aspect ratio format for Pixverse
+          const calculateAspectRatio = (width: number, height: number): string => {
+            const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+            const divisor = gcd(width, height);
+            const ratioWidth = width / divisor;
+            const ratioHeight = height / divisor;
+            
+            // Map to Pixverse supported formats: 16:9, 9:16, or 1:1
+            if (ratioWidth === ratioHeight) return "1:1";
+            if (ratioWidth > ratioHeight) {
+              const ratio = ratioWidth / ratioHeight;
+              if (Math.abs(ratio - 16/9) < 0.1) return "16:9";
+              return "16:9";
+            } else {
+              return "9:16";
+            }
+          };
+          
+          const aspectRatio = calculateAspectRatio(updatedJob.width, updatedJob.height);
+          console.log(`Calculated aspect ratio for next scene: ${aspectRatio} from ${updatedJob.width}x${updatedJob.height}`);
+          
           if (scenePrompts && scenePrompts.length > 0) {
             // Trigger next scene generation
             await supabase.functions.invoke('generate-video', {
@@ -91,7 +112,7 @@ serve(async (req) => {
                 jobId: job.id,
                 scenePrompts: scenePrompts,
                 duration: updatedJob.duration || 5,
-                aspectRatio: `${updatedJob.width}:${updatedJob.height}`,
+                aspectRatio: aspectRatio,
                 negativePrompt: updatedJob.negative_prompt
               }
             });
