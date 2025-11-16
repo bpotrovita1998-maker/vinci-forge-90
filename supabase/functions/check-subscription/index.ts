@@ -83,6 +83,13 @@ serve(async (req) => {
 
     if (hasActiveSub) {
       const subscription = subscriptions.data[0];
+      
+      // Validate subscription has valid period dates
+      if (!subscription.current_period_end || !subscription.current_period_start) {
+        logStep("Subscription missing period dates", { subscriptionId: subscription.id });
+        throw new Error("Subscription has invalid period dates");
+      }
+      
       subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
       stripeSubscriptionId = subscription.id;
       logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
