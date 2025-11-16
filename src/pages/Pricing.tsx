@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Settings } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
@@ -130,6 +130,29 @@ export default function Pricing() {
     }
   };
 
+  const handleManageSubscription = async () => {
+    try {
+      setLoading('portal');
+      
+      const { data, error } = await supabase.functions.invoke('customer-portal');
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (error: any) {
+      console.error('Error opening customer portal:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to open customer portal",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
   // Token costs match exact AI costs (no markup - profit from $1 subscription only)
   // Image AI cost: $0.01 → charge 1 token ($0.01)
   // Video AI cost: $0.30 → charge 30 tokens ($0.30)
@@ -205,9 +228,29 @@ export default function Pricing() {
               ))}
             </ul>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-2">
             {subscription?.status === 'active' ? (
-              <Button disabled className="w-full">Current Plan</Button>
+              <>
+                <Button disabled className="w-full">Current Plan</Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleManageSubscription}
+                  disabled={loading === 'portal'}
+                >
+                  {loading === 'portal' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Manage Subscription
+                    </>
+                  )}
+                </Button>
+              </>
             ) : (
               <Button 
                 className="w-full" 
