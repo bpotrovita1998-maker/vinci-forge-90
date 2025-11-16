@@ -180,10 +180,12 @@ serve(async (req) => {
           
           if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
           
-          const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
-          const finalUrl = pub?.publicUrl;
+          const { data: signedUrlData } = await supabase.storage
+            .from('generated-models')
+            .createSignedUrl(storagePath, 604800); // 7 days expiry
           
-          if (!finalUrl) throw new Error('Failed to get public URL');
+          const finalUrl = signedUrlData?.signedUrl;
+          if (!finalUrl) throw new Error('Failed to create signed URL');
           
           console.log('Model persisted to:', finalUrl);
           
