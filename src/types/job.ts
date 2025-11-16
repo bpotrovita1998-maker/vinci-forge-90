@@ -25,6 +25,7 @@ export interface GenerationOptions {
   steps?: number;
   cfgScale?: number;
   numImages?: number; // for image generation
+  upscaleQuality?: 2 | 4 | 8; // upscaling multiplier
 }
 
 export interface JobManifest {

@@ -79,6 +79,29 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
           </div>
         </div>
 
+        {/* Upscale Quality - Only for images larger than 1024 */}
+        {isImage && (options.width! > 1024 || options.height! > 1024) && (
+          <div className="space-y-2">
+            <Label>Upscale Quality</Label>
+            <Select
+              value={options.upscaleQuality?.toString() || '4'}
+              onValueChange={(v) => onChange({ ...options, upscaleQuality: parseInt(v) as 2 | 4 | 8 })}
+            >
+              <SelectTrigger className="bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2">2x - Faster (Smaller file)</SelectItem>
+                <SelectItem value="4">4x - Balanced (Recommended)</SelectItem>
+                <SelectItem value="8">8x - Maximum Quality (Larger file)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Higher quality produces sharper images but takes longer and creates larger files
+            </p>
+          </div>
+        )}
+
         {/* Video-specific options */}
         {isVideo && (
           <>

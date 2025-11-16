@@ -80,6 +80,7 @@ export default function Hero() {
     numImages: 1,
     duration: 5,
     fps: 24,
+    upscaleQuality: 4, // Default to 4x balanced quality
   });
 
   const handleGenerate = async () => {

@@ -487,6 +487,7 @@ class LovableAIService {
           width: job.options.width,
           height: job.options.height,
           numImages: job.options.numImages || 1,
+          upscaleQuality: job.options.upscaleQuality || 4,
           jobId: jobId,
           userId: job.userId,
         }
