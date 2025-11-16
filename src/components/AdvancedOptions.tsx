@@ -124,7 +124,7 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
                 value={[options.numImages || 1]}
                 onValueChange={(v) => onChange({ ...options, numImages: v[0] })}
                 min={1}
-                max={8}
+                max={4}
                 step={1}
                 className="flex-1"
               />
