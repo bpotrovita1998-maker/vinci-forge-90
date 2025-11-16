@@ -157,8 +157,6 @@ export function JobProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const JOB_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
-
     const checkAndTimeoutJobs = async (jobsList: Job[]) => {
       const now = Date.now();
       const timedOutJobs: string[] = [];
@@ -167,9 +165,16 @@ export function JobProvider({ children }: { children: ReactNode }) {
         const isActive = job.status === 'running' || job.status === 'queued';
         const jobAge = now - job.createdAt.getTime();
         
+        // Video jobs can take longer, so use 30 minute timeout for them
+        const JOB_TIMEOUT_MS = job.options.type === 'video' 
+          ? 30 * 60 * 1000  // 30 minutes for video
+          : 15 * 60 * 1000; // 15 minutes for others
+        
         if (isActive && jobAge > JOB_TIMEOUT_MS) {
           console.log(`Job ${job.id} timed out after ${Math.round(jobAge / 1000)}s`);
           timedOutJobs.push(job.id);
+          
+          const timeoutMinutes = Math.round(JOB_TIMEOUT_MS / 1000 / 60);
           
           // Mark as failed in database
           await supabase
@@ -177,13 +182,16 @@ export function JobProvider({ children }: { children: ReactNode }) {
             .update({
               status: 'failed',
               progress_stage: 'failed',
-              error: `Job timed out after ${Math.round(JOB_TIMEOUT_MS / 1000 / 60)} minutes`,
+              error: `Job timed out after ${timeoutMinutes} minutes`,
               completed_at: new Date().toISOString()
             })
             .eq('id', job.id);
 
           // Unsubscribe from WebSocket
           websocketService.unsubscribeFromJob(job.id);
+          
+          // Store the error message for later use
+          job.error = `Job timed out after ${timeoutMinutes} minutes`;
         }
       }
 
@@ -195,7 +203,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
                   ...j,
                   status: 'failed' as JobStatus,
                   progress: { ...j.progress, stage: 'failed' as JobStatus },
-                  error: `Job timed out after ${Math.round(JOB_TIMEOUT_MS / 1000 / 60)} minutes`,
+                  error: j.error || 'Job timed out',
                   completedAt: new Date()
                 }
               : j
