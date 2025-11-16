@@ -41,151 +41,212 @@ serve(async (req) => {
     // Enhance prompt to ensure image generation (not text response)
     const imagePrompt = `Generate a high-quality image of: ${prompt}`;
 
-    // Generate images using Lovable AI Gateway (Gemini Nano banana model)
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image',
-        messages: [
-          {
-            role: 'user',
-            content: imagePrompt
-          }
-        ],
-        modalities: ['image', 'text']
-      }),
-    });
+    // Define fallback models in order of preference (cost-effective to powerful)
+    const imageModels = [
+      'google/gemini-2.5-flash-image',     // Most cost-effective (~$0.01/image)
+      'google/gemini-2.5-flash-lite',      // Fallback option 1
+      'google/gemini-2.5-flash',           // Fallback option 2
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Lovable AI error:', response.status, errorText);
+    let response: Response | null = null;
+    let lastError: string = '';
+    let successfulModel: string = '';
 
-      // If credits exhausted or rate-limited on Lovable AI, fallback to Replicate automatically
-      if (response.status === 402 || response.status === 429) {
-        const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY');
-        if (!REPLICATE_API_KEY) {
-          const msg = response.status === 402
-            ? 'Payment required. Please add credits to your Lovable AI workspace.'
-            : 'Rate limits exceeded, please try again later.';
-          return new Response(
-            JSON.stringify({ error: msg }),
-            { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        console.log('Falling back to Replicate (flux-schnell)');
-
-        // Map dimensions to aspect ratio
-        let aspectRatio = '1:1';
-        if (width > height) aspectRatio = '16:9';
-        else if (height > width) aspectRatio = '9:16';
-
-        // Kick off prediction
-        const start = await fetch('https://api.replicate.com/v1/predictions', {
+    // Try each Lovable AI model in sequence
+    for (const model of imageModels) {
+      console.log(`Attempting generation with model: ${model}`);
+      
+      try {
+        response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${REPLICATE_API_KEY}`,
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            version: 'f2ab8a5bfe79f02f0789a146cf5e73d2a4ff2684a98c2b303d1e1ff3814271db',
-            input: {
-              prompt: prompt,
-              go_fast: true,
-              megapixels: '1',
-              num_outputs: numImages,
-              aspect_ratio: aspectRatio,
-              output_format: 'webp',
-              output_quality: 80,
-              num_inference_steps: 4
-            }
+            model,
+            messages: [
+              {
+                role: 'user',
+                content: imagePrompt
+              }
+            ],
+            modalities: ['image', 'text']
           }),
         });
 
-        if (!start.ok) {
-          const t = await start.text();
-          console.error('Replicate start error:', start.status, t);
-          return new Response(
-            JSON.stringify({ error: 'Failed to start fallback generation' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        if (response.ok) {
+          console.log(`Successfully generated with model: ${model}`);
+          successfulModel = model;
+          break; // Success! Exit the loop
         }
 
-        const prediction = await start.json();
-        console.log('Replicate prediction id:', prediction.id);
+        const errorText = await response.text();
+        lastError = errorText;
+        console.error(`Model ${model} failed:`, response.status, errorText);
 
-        // Poll for completion
-        let result = prediction;
-        let attempts = 0;
-        const maxAttempts = 60;
-        while (result.status !== 'succeeded' && result.status !== 'failed' && attempts < maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          const statusResp = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-            headers: { 'Authorization': `Bearer ${REPLICATE_API_KEY}` },
-          });
-          result = await statusResp.json();
-          attempts++;
-          console.log(`Replicate poll ${attempts}:`, result.status);
+        // If credits exhausted or rate-limited, try next model
+        if (response.status === 402 || response.status === 429) {
+          console.log(`Model ${model} unavailable (${response.status}), trying next model...`);
+          continue;
         }
 
-        if (result.status !== 'succeeded') {
-          console.error('Replicate generation failed or timed out:', result);
-          return new Response(
-            JSON.stringify({ error: 'Image generation failed' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
+        // For other errors (400, 500, etc.), also try next model
+        console.log(`Model ${model} returned error ${response.status}, trying next model...`);
+      } catch (error) {
+        console.error(`Exception with model ${model}:`, error);
+        lastError = error instanceof Error ? error.message : String(error);
+        continue;
+      }
+    }
 
-        const replicateUrls = Array.isArray(result.output) ? result.output : [result.output];
-        console.log('Fallback succeeded with', replicateUrls.length, 'image(s)');
-        
-        // Store Replicate images permanently if jobId and userId provided
-        let finalUrls = replicateUrls;
-        if (jobId && userId) {
-          finalUrls = [];
-          for (let i = 0; i < replicateUrls.length; i++) {
-            try {
-              const imgResp = await fetch(replicateUrls[i]);
-              const imgBlob = await imgResp.blob();
-              const imgBuffer = await imgBlob.arrayBuffer();
-              
-              const fileName = `${userId}/${jobId}/image_${i}.webp`;
-              const { error: uploadError } = await supabase.storage
-                .from('generated-models')
-                .upload(fileName, imgBuffer, {
-                  contentType: 'image/webp',
-                  upsert: true
-                });
-              
-              if (uploadError) {
-                console.error('Storage upload error:', uploadError);
-                finalUrls.push(replicateUrls[i]); // Use original URL as fallback
-              } else {
-                const { data: { publicUrl } } = supabase.storage
-                  .from('generated-models')
-                  .getPublicUrl(fileName);
-                finalUrls.push(publicUrl);
-              }
-            } catch (e) {
-              console.error('Error storing image:', e);
-              finalUrls.push(replicateUrls[i]); // Use original URL as fallback
-            }
-          }
-        }
-        
+    // If all Lovable AI models failed, fallback to Replicate
+    if (!response || !response.ok) {
+      console.log('All Lovable AI models failed, falling back to Replicate');
+      const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY');
+      
+      if (!REPLICATE_API_KEY) {
+        const msg = response?.status === 402
+          ? 'Payment required. Please add credits to your Lovable AI workspace.'
+          : response?.status === 429
+          ? 'Rate limits exceeded, please try again later.'
+          : 'All image generation models failed. Please try again.';
         return new Response(
-          JSON.stringify({ success: true, images: finalUrls, prompt, model: 'replicate/flux-schnell' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: msg, details: lastError }),
+          { status: response?.status || 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Other errors from Lovable AI
+      console.log('Using Replicate (flux-schnell) as final fallback');
+
+      // Map dimensions to aspect ratio
+      let aspectRatio = '1:1';
+      if (width > height) aspectRatio = '16:9';
+      else if (height > width) aspectRatio = '9:16';
+
+      // Kick off prediction
+      const start = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${REPLICATE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          version: 'f2ab8a5bfe79f02f0789a146cf5e73d2a4ff2684a98c2b303d1e1ff3814271db',
+          input: {
+            prompt: prompt,
+            go_fast: true,
+            megapixels: '1',
+            num_outputs: numImages,
+            aspect_ratio: aspectRatio,
+            output_format: 'webp',
+            output_quality: 80,
+            num_inference_steps: 4
+          }
+        }),
+      });
+
+      if (!start.ok) {
+        const error = await start.text();
+        console.error('Replicate start error:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to start Replicate generation', details: error }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const prediction = await start.json();
+      console.log('Replicate prediction started:', prediction.id);
+
+      // Poll for completion
+      let attempts = 0;
+      const maxAttempts = 60;
+      let finalPrediction = prediction;
+
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const check = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
+          headers: { 'Authorization': `Bearer ${REPLICATE_API_KEY}` }
+        });
+
+        if (!check.ok) {
+          console.error('Replicate check error:', await check.text());
+          attempts++;
+          continue;
+        }
+
+        finalPrediction = await check.json();
+        console.log('Replicate status:', finalPrediction.status);
+
+        if (finalPrediction.status === 'succeeded') {
+          const replicateImages = finalPrediction.output || [];
+          
+          // Store Replicate images if jobId and userId provided
+          let finalUrls = replicateImages;
+          if (jobId && userId) {
+            finalUrls = [];
+            for (let i = 0; i < replicateImages.length; i++) {
+              try {
+                const imageUrl = replicateImages[i];
+                const imageResponse = await fetch(imageUrl);
+                const imageBlob = await imageResponse.arrayBuffer();
+                
+                const fileName = `${userId}/${jobId}/image_${i}.webp`;
+                console.log('Uploading Replicate image to storage:', fileName);
+                
+                const { error: uploadError } = await supabase.storage
+                  .from('generated-models')
+                  .upload(fileName, imageBlob, {
+                    contentType: 'image/webp',
+                    upsert: true
+                  });
+                
+                if (uploadError) {
+                  console.error('Storage upload error:', uploadError);
+                  finalUrls.push(imageUrl);
+                  continue;
+                }
+                
+                const { data: { publicUrl } } = supabase.storage
+                  .from('generated-models')
+                  .getPublicUrl(fileName);
+                
+                finalUrls.push(publicUrl);
+              } catch (error) {
+                console.error('Error storing Replicate image:', error);
+                finalUrls.push(replicateImages[i]);
+              }
+            }
+
+            // Update job with outputs
+            if (finalUrls.length > 0) {
+              await supabase
+                .from('jobs')
+                .update({ outputs: finalUrls })
+                .eq('id', jobId);
+            }
+          }
+
+          return new Response(
+            JSON.stringify({ success: true, images: finalUrls, prompt, model: 'replicate/flux-schnell' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (finalPrediction.status === 'failed') {
+          console.error('Replicate generation failed:', finalPrediction.error);
+          return new Response(
+            JSON.stringify({ error: 'Replicate generation failed', details: finalPrediction.error }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        attempts++;
+      }
+
       return new Response(
-        JSON.stringify({ error: 'Failed to generate image' }),
+        JSON.stringify({ error: 'Replicate generation timeout' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
