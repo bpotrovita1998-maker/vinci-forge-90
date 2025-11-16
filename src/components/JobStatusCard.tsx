@@ -113,6 +113,11 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
     return `${minutes}m ${secs}s`;
   };
 
+  // Get scene progress for multi-part videos
+  const sceneProgress = job.manifest?.sceneProgress as Record<number, any> | undefined;
+  const scenePrompts = job.manifest?.scenePrompts as string[] | undefined;
+  const hasMultipleScenes = scenePrompts && scenePrompts.length > 1;
+
   const isActive = ['queued', 'running', 'upscaling', 'encoding'].includes(job.status);
   const canCancel = ['queued', 'running', 'upscaling', 'encoding'].includes(job.status);
   const canDelete = ['completed', 'failed'].includes(job.status);
@@ -219,6 +224,43 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
             <p className="text-xs text-muted-foreground">
               Step {job.progress.currentStep}/{job.progress.totalSteps}
             </p>
+          )}
+          
+          {/* Per-Scene Progress for Multi-Part Videos */}
+          {hasMultipleScenes && sceneProgress && (
+            <div className="mt-3 space-y-2 pt-2 border-t border-border/50">
+              <p className="text-xs font-medium text-muted-foreground">Scene Progress:</p>
+              <div className="grid gap-2">
+                {scenePrompts.map((_, index) => {
+                  const progress = sceneProgress[index];
+                  const sceneStatus = progress?.status || 'pending';
+                  const scenePercent = progress?.progress || 0;
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground min-w-[60px]">
+                        Scene {index + 1}:
+                      </span>
+                      <div className="flex-1">
+                        <Progress 
+                          value={scenePercent} 
+                          className="h-1.5"
+                        />
+                      </div>
+                      <span className={`text-xs min-w-[70px] ${
+                        sceneStatus === 'completed' ? 'text-primary' : 
+                        sceneStatus === 'running' ? 'text-accent' : 
+                        'text-muted-foreground'
+                      }`}>
+                        {sceneStatus === 'completed' ? '✓ Done' : 
+                         sceneStatus === 'running' ? '⟳ Running' : 
+                         '○ Pending'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       )}

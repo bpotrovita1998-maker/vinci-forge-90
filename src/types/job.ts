@@ -41,6 +41,14 @@ export interface JobManifest {
   pipelineVersion: string;
   createdAt: string;
   completedAt?: string;
+  scenePrompts?: string[];
+  currentSceneIndex?: number;
+  sceneProgress?: Record<number, {
+    status: 'pending' | 'running' | 'completed';
+    progress: number;
+    startedAt?: string;
+    completedAt?: string;
+  }>;
 }
 
 export interface JobProgress {

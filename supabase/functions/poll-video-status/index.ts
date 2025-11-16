@@ -66,13 +66,11 @@ serve(async (req) => {
         console.log(`Job ${job.id} status: ${statusData?.status}`);
         
         // If video completed and there are more scenes to generate, trigger next scene
-        if (statusData?.status === 'succeeded' && statusData?.allScenesComplete === false) {
-          console.log(`Scene completed for job ${job.id}, triggering next scene...`);
-          
-          // Get updated job data to get the scenePrompts
+        if (statusData?.status === 'succeeded') {
+          // Get updated job data to verify scene count
           const { data: updatedJob } = await supabase
             .from('jobs')
-            .select('manifest, prompt, negative_prompt, duration, width, height')
+            .select('manifest, prompt, negative_prompt, duration, width, height, outputs')
             .eq('id', job.id)
             .single();
             
@@ -83,6 +81,16 @@ serve(async (req) => {
             
           const updatedManifest = updatedJob.manifest as any;
           const scenePrompts = updatedManifest?.scenePrompts;
+          const existingOutputs = Array.isArray(updatedJob.outputs) ? updatedJob.outputs : [];
+          const totalScenes = scenePrompts ? scenePrompts.length : 1;
+          
+          // CRITICAL FIX: Check actual outputs count to prevent extra scene generation
+          if (existingOutputs.length >= totalScenes) {
+            console.log(`Job ${job.id} has all ${totalScenes} scenes complete, skipping next scene trigger`);
+            continue;
+          }
+          
+          console.log(`Scene ${existingOutputs.length}/${totalScenes} completed for job ${job.id}, triggering next scene...`);
           
           // Calculate proper aspect ratio format for Pixverse
           const calculateAspectRatio = (width: number, height: number): string => {

@@ -206,11 +206,20 @@ serve(async (req) => {
           // Check if all scenes are complete
           const allScenesComplete = updatedOutputs.length >= totalScenes;
           
-          // Update manifest
+          // Update manifest with per-scene progress tracking
+          const sceneProgress = manifest.sceneProgress || {};
+          const currentSceneKey = regeneratingIndex !== undefined ? regeneratingIndex : sceneIndex;
+          sceneProgress[currentSceneKey] = {
+            status: 'completed',
+            progress: 100,
+            completedAt: new Date().toISOString()
+          };
+          
           const updatedManifest = {
             ...manifest,
             currentSceneIndex: regeneratingIndex !== undefined ? regeneratingIndex : (sceneIndex + 1),
             regeneratingSceneIndex: undefined, // Clear regenerating flag
+            sceneProgress
           };
           
           // If regenerating, we need to re-stitch
@@ -338,19 +347,46 @@ serve(async (req) => {
       console.log(`Generating scene ${currentSceneIndex + 1} of ${scenePrompts.length}`);
       console.log("Scene prompt:", promptToUse);
       
-      // Save scene prompts to manifest on first scene
+      // Initialize scene progress tracking on first scene
       if (currentSceneIndex === 0) {
+        const sceneProgress: Record<number, any> = {};
+        for (let i = 0; i < scenePrompts.length; i++) {
+          sceneProgress[i] = {
+            status: 'pending',
+            progress: 0
+          };
+        }
+        
         await supabase
           .from('jobs')
           .update({
             manifest: {
               ...manifest,
               scenePrompts,
-              currentSceneIndex: 0
+              currentSceneIndex: 0,
+              sceneProgress
             }
           })
           .eq('id', body.jobId);
       }
+      
+      // Mark current scene as running
+      const updatedSceneProgress = manifest.sceneProgress || {};
+      updatedSceneProgress[currentSceneIndex] = {
+        status: 'running',
+        progress: 0,
+        startedAt: new Date().toISOString()
+      };
+      
+      await supabase
+        .from('jobs')
+        .update({
+          manifest: {
+            ...manifest,
+            sceneProgress: updatedSceneProgress
+          }
+        })
+        .eq('id', body.jobId);
     } else {
       // Single video generation
       if (!promptToUse) {
