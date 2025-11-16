@@ -82,8 +82,8 @@ serve(async (req) => {
 
     console.log('Generating image with Lovable AI:', { prompt, width, height, numImages });
 
-    // Enhance prompt to ensure image generation (not text response)
-    const imagePrompt = `Generate a high-quality image of: ${prompt}`;
+    // Enhance prompt for high quality image generation with resolution details
+    const imagePrompt = `Generate a high-quality, detailed, sharp ${width}x${height} image of: ${prompt}. Ultra high resolution, 4K quality, highly detailed.`;
 
     // Define fallback models in order of preference (cost-effective to powerful)
     const imageModels = [
@@ -334,18 +334,79 @@ serve(async (req) => {
       );
     }
 
-    // Use the collected images from successful generation
-    const images = allGeneratedImages;
-    
-    if (images.length === 0) {
-      console.error('No images were generated');
-      return new Response(
-        JSON.stringify({ error: 'No images generated. Please ensure your prompt describes a visual scene without sensitive content.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      // Use the collected images from successful generation
+      let images = allGeneratedImages;
+      
+      if (images.length === 0) {
+        console.error('No images were generated');
+        return new Response(
+          JSON.stringify({ error: 'No images generated. Please ensure your prompt describes a visual scene without sensitive content.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    console.log('Successfully generated', images.length, 'image(s) with', successfulModel);
+      console.log('Successfully generated', images.length, 'image(s) with', successfulModel);
+
+      // Upscale images if dimensions don't match 1024x1024 (default AI output)
+      if (width !== 1024 || height !== 1024) {
+        console.log(`Upscaling images from 1024x1024 to ${width}x${height}`);
+        const upscaledImages: string[] = [];
+        
+        for (let i = 0; i < images.length; i++) {
+          try {
+            console.log(`Upscaling image ${i + 1}/${images.length}`);
+            const upscaleResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.5-flash-image',
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: `Upscale and enhance this image to ${width}x${height} resolution with maximum quality and detail. Maintain the exact same content and composition, just increase the resolution and enhance details.`
+                      },
+                      {
+                        type: 'image_url',
+                        image_url: {
+                          url: images[i]
+                        }
+                      }
+                    ]
+                  }
+                ],
+                modalities: ['image', 'text']
+              }),
+            });
+
+            if (upscaleResponse.ok) {
+              const upscaleData = await upscaleResponse.json();
+              const upscaledImageUrl = upscaleData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+              if (upscaledImageUrl) {
+                upscaledImages.push(upscaledImageUrl);
+                console.log(`Successfully upscaled image ${i + 1}/${images.length}`);
+              } else {
+                console.warn(`Failed to upscale image ${i + 1}, using original`);
+                upscaledImages.push(images[i]);
+              }
+            } else {
+              console.warn(`Upscale failed for image ${i + 1}, using original`);
+              upscaledImages.push(images[i]);
+            }
+          } catch (error) {
+            console.error(`Error upscaling image ${i + 1}:`, error);
+            upscaledImages.push(images[i]);
+          }
+        }
+        
+        images = upscaledImages;
+        console.log('Upscaling complete');
+      }
 
     // Store base64 images permanently if jobId and userId provided
     let finalUrls = images;
