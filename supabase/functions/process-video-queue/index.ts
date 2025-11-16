@@ -64,38 +64,17 @@ serve(async (req) => {
 
     if (invokeError) {
       console.error("Error invoking generate-video:", invokeError);
-      
-      // Check if it's a rate limit error
-      if (invokeError.message?.includes('429') || invokeError.message?.includes('rate limit')) {
-        console.log("Rate limit hit, requeueing job");
-        // Requeue the job to try again later
-        await supabase
-          .from('jobs')
-          .update({
-            status: 'queued',
-            progress_stage: 'Waiting in queue (rate limit)',
-            progress_message: 'Waiting for API rate limit to reset...'
-          })
-          .eq('id', job.id);
-      } else {
-        // Other error, mark as failed
-        await supabase
-          .from('jobs')
-          .update({
-            status: 'failed',
-            progress_stage: 'failed',
-            error: invokeError.message || 'Failed to generate video',
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', job.id);
-      }
+      console.log("Job error will be handled by generate-video function");
+      // The generate-video function handles marking jobs as failed
+      // We just log the error and continue to the next job in the queue
     } else {
-      console.log(`Job ${job.id} started successfully`);
+      console.log(`Job ${job.id} started successfully, prediction ID: ${result?.predictionId}`);
     }
 
     return new Response(JSON.stringify({ 
       message: "Queue processed",
-      processedJob: job.id
+      processedJob: job.id,
+      success: !invokeError
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
