@@ -7,16 +7,21 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box, Printer } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
 import ThreeDViewer from './ThreeDViewer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import VideoThumbnailGrid from './VideoThumbnailGrid';
+import VideoComparisonSlider from './VideoComparisonSlider';
 
 interface OutputViewerProps {
   job: Job;
@@ -26,7 +31,10 @@ interface OutputViewerProps {
 export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [copied, setCopied] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [unityScale, setUnityScale] = useState<string>('1');
+  const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare'>('single');
+  const [isDownloadingBatch, setIsDownloadingBatch] = useState(false);
 
   const copyManifest = async () => {
     if (!job.manifest) return;
@@ -62,13 +70,14 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
   const handleDownload = async () => {
     try {
-      const url = job.outputs[currentImageIndex];
+      const index = job.options.type === 'video' ? currentVideoIndex : currentImageIndex;
+      const url = job.outputs[index];
       const response = await fetch(url);
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       const extension = job.options.type === 'video' ? 'mp4' : (job.options.type === '3d' || job.options.type === 'cad') ? 'glb' : 'png';
-      link.download = `${job.options.type}-${job.id.slice(0, 8)}.${extension}`;
+      link.download = `${job.options.type}-${job.id.slice(0, 8)}-${index + 1}.${extension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -84,6 +93,49 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
         description: "Could not download file",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleBatchDownload = async () => {
+    if (job.outputs.length <= 1) {
+      handleDownload();
+      return;
+    }
+
+    setIsDownloadingBatch(true);
+    try {
+      const zip = new JSZip();
+      const extension = job.options.type === 'video' ? 'mp4' : 'png';
+      
+      toast({
+        title: "Preparing download",
+        description: `Downloading ${job.outputs.length} files...`,
+      });
+
+      // Download all files and add to zip
+      for (let i = 0; i < job.outputs.length; i++) {
+        const response = await fetch(job.outputs[i]);
+        const blob = await response.blob();
+        zip.file(`${job.options.type}-${i + 1}.${extension}`, blob);
+      }
+
+      // Generate and download zip
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `${job.options.type}-batch-${job.id.slice(0, 8)}.zip`);
+
+      toast({
+        title: "Download complete",
+        description: `${job.outputs.length} files downloaded as ZIP`,
+      });
+    } catch (error) {
+      console.error('Batch download failed:', error);
+      toast({
+        title: "Batch download failed",
+        description: "Could not download all files",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingBatch(false);
     }
   };
 
@@ -272,6 +324,51 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                   </div>
                 )}
               </div>
+            ) : job.options.type === 'video' ? (
+              <div className="space-y-4">
+                {job.outputs.length > 1 && (
+                  <Tabs value={videoViewMode} onValueChange={(v) => setVideoViewMode(v as any)}>
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="single">Single View</TabsTrigger>
+                      <TabsTrigger value="grid">All Videos</TabsTrigger>
+                      <TabsTrigger value="compare">Compare</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
+
+                {videoViewMode === 'grid' && job.outputs.length > 1 ? (
+                  <VideoThumbnailGrid
+                    videos={job.outputs}
+                    selectedIndex={currentVideoIndex}
+                    onVideoClick={setCurrentVideoIndex}
+                  />
+                ) : videoViewMode === 'compare' && job.outputs.length >= 2 ? (
+                  <VideoComparisonSlider
+                    originalVideo={job.outputs[0]}
+                    upscaledVideo={job.outputs[1]}
+                    originalLabel={`Video 1 ${job.options.fps === 24 ? '(24 fps)' : ''}`}
+                    upscaledLabel={`Video 2 ${job.options.fps === 60 ? '(60 fps)' : ''}`}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <video
+                      src={job.outputs[currentVideoIndex]}
+                      controls
+                      className="w-full h-auto max-h-[600px]"
+                      autoPlay
+                      loop
+                      playsInline
+                    />
+                    {job.outputs.length > 1 && (
+                      <VideoThumbnailGrid
+                        videos={job.outputs}
+                        selectedIndex={currentVideoIndex}
+                        onVideoClick={setCurrentVideoIndex}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
               <video
                 src={job.outputs[0]}
@@ -424,8 +521,25 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 onClick={handleDownload}
               >
                 <Download className="w-4 h-4 mr-2" />
-                Download {job.options.type === 'image' && job.outputs.length > 1 && `(${currentImageIndex + 1}/${job.outputs.length})`}
+                Download {job.options.type === 'video' 
+                  ? `Video ${currentVideoIndex + 1}`
+                  : job.options.type === 'image' && job.outputs.length > 1 
+                    ? `(${currentImageIndex + 1}/${job.outputs.length})` 
+                    : ''}
               </Button>
+
+              {/* Batch Download for multiple outputs */}
+              {job.outputs.length > 1 && (
+                <Button
+                  variant="outline"
+                  className="glass border-accent/30 hover:bg-accent/10"
+                  onClick={handleBatchDownload}
+                  disabled={isDownloadingBatch}
+                >
+                  <Package className="w-4 h-4 mr-2" />
+                  {isDownloadingBatch ? 'Preparing ZIP...' : `Download All (${job.outputs.length})`}
+                </Button>
+              )}
 
               <Button
                 variant="outline"

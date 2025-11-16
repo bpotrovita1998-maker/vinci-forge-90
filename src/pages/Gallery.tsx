@@ -508,17 +508,36 @@ export default function Gallery() {
                           onClick={() => setSelectedJob(job)}
                         >
                           {job.options.type === 'video' ? (
-                            <video
-                              src={job.outputs[0]}
-                              className="w-full h-full object-cover"
-                              muted
-                              loop
-                              onMouseEnter={(e) => e.currentTarget.play()}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.pause();
-                                e.currentTarget.currentTime = 0;
-                              }}
-                            />
+                            job.outputs.length > 1 ? (
+                              <div className="relative w-full h-full">
+                                <video
+                                  src={job.outputs[0]}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  loop
+                                  onMouseEnter={(e) => e.currentTarget.play()}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.pause();
+                                    e.currentTarget.currentTime = 0;
+                                  }}
+                                />
+                                <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded-full text-white text-xs font-medium">
+                                  {job.outputs.length} videos
+                                </div>
+                              </div>
+                            ) : (
+                              <video
+                                src={job.outputs[0]}
+                                className="w-full h-full object-cover"
+                                muted
+                                loop
+                                onMouseEnter={(e) => e.currentTarget.play()}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.pause();
+                                  e.currentTarget.currentTime = 0;
+                                }}
+                              />
+                            )
                           ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
                             <ThreeDThumbnail 
                               key={`${job.id}-${thumbnailRefreshKey}`}
@@ -689,17 +708,36 @@ export default function Gallery() {
                               onClick={() => setSelectedJob(job)}
                             >
                               {job.options.type === 'video' ? (
-                                <video
-                                  src={job.outputs[0]}
-                                  className="w-full h-full object-cover"
-                                  muted
-                                  loop
-                                  onMouseEnter={(e) => e.currentTarget.play()}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.pause();
-                                    e.currentTarget.currentTime = 0;
-                                  }}
-                                />
+                                job.outputs.length > 1 ? (
+                                  <div className="relative w-full h-full">
+                                    <video
+                                      src={job.outputs[0]}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      loop
+                                      onMouseEnter={(e) => e.currentTarget.play()}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.pause();
+                                        e.currentTarget.currentTime = 0;
+                                      }}
+                                    />
+                                    <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded-full text-white text-xs font-medium">
+                                      {job.outputs.length} videos
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <video
+                                    src={job.outputs[0]}
+                                    className="w-full h-full object-cover"
+                                    muted
+                                    loop
+                                    onMouseEnter={(e) => e.currentTarget.play()}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.pause();
+                                      e.currentTarget.currentTime = 0;
+                                    }}
+                                  />
+                                )
                               ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
                                 <ThreeDThumbnail modelUrl={job.outputs[0]} jobId={job.id} userId={job.userId} />
                               ) : (
