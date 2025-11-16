@@ -105,6 +105,30 @@ serve(async (req) => {
     console.log(`Generating ${numVideos} video(s) for job ${job.id}`);
     console.log(`Job details - FPS: ${job.fps}, Duration: ${job.duration}, Dimensions: ${job.width}x${job.height}`);
     
+    // Calculate proper aspect ratio format for Pixverse
+    const calculateAspectRatio = (width: number, height: number): string => {
+      const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+      const divisor = gcd(width, height);
+      const ratioWidth = width / divisor;
+      const ratioHeight = height / divisor;
+      
+      // Map to Pixverse supported formats: 16:9, 9:16, or 1:1
+      if (ratioWidth === ratioHeight) return "1:1";
+      if (ratioWidth > ratioHeight) {
+        // Landscape - check if it's close to 16:9
+        const ratio = ratioWidth / ratioHeight;
+        if (Math.abs(ratio - 16/9) < 0.1) return "16:9";
+        // Default to 16:9 for other landscape ratios
+        return "16:9";
+      } else {
+        // Portrait - default to 9:16
+        return "9:16";
+      }
+    };
+    
+    const aspectRatio = calculateAspectRatio(job.width, job.height);
+    console.log(`Calculated aspect ratio: ${aspectRatio} from ${job.width}x${job.height}`);
+    
     // Generate all videos with the same prompt but different seeds for variation
     for (let i = 0; i < numVideos; i++) {
       const videoSeed = seed ? seed + i : undefined; // Vary seed for each video
@@ -116,7 +140,7 @@ serve(async (req) => {
             jobId: job.id,
             prompt: job.prompt,
             duration: job.duration,
-            aspectRatio: `${job.width}:${job.height}`,
+            aspectRatio: aspectRatio,
             characterDescription,
             styleDescription,
             referenceImage,
