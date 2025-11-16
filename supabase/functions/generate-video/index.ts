@@ -132,11 +132,24 @@ serve(async (req) => {
       });
     }
 
-    // Validate required fields for generation
+    // Handle multi-scene compilation (sceneImages provided)
+    if (body.sceneImages && Array.isArray(body.sceneImages)) {
+      console.log("Multi-scene video compilation not yet implemented");
+      return new Response(
+        JSON.stringify({ 
+          error: "Multi-scene video compilation is not yet supported. Please generate videos for individual scenes first." 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 501,
+        }
+      );
+    }
+
+    // Validate required fields for single scene generation
     if (!body.prompt) {
       return new Response(
         JSON.stringify({ 
-          error: "Missing required field: prompt is required" 
+          error: "Missing required field: prompt is required for video generation" 
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 400,
