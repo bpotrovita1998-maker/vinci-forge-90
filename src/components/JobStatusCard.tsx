@@ -111,7 +111,7 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
     return `${minutes}m ${secs}s`;
   };
 
-  const isActive = ['running', 'upscaling', 'encoding'].includes(job.status);
+  const isActive = ['queued', 'running', 'upscaling', 'encoding'].includes(job.status);
   const canCancel = ['queued', 'running', 'upscaling', 'encoding'].includes(job.status);
   const canDelete = ['completed', 'failed'].includes(job.status);
 
