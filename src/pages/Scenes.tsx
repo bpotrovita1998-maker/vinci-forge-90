@@ -135,38 +135,38 @@ export default function Scenes() {
     }
   }, [currentStoryboard]);
 
-  // Sync completed jobs with scenes to recover lost generations
+  // Sync completed/failed jobs with scenes to recover lost generations or show failures
   useEffect(() => {
     if (!currentStoryboard || !user || scenes.length === 0) return;
 
-    const syncCompletedJobs = async () => {
+    const syncJobs = async () => {
       try {
-        // Find scenes that might have completed but weren't updated
+        // Find scenes that aren't ready yet
         const scenesToCheck = scenes.filter(
           scene => scene.status !== 'ready' || (!scene.imageUrl && !scene.videoUrl)
         );
 
         if (scenesToCheck.length === 0) return;
 
-        // Get all completed jobs for this user
-        const { data: completedJobs, error: jobsError } = await supabase
+        // Get all jobs (completed AND failed) for this user
+        const { data: allJobs, error: jobsError } = await supabase
           .from('jobs')
-          .select('id, outputs, type, status')
+          .select('id, outputs, type, status, error')
           .eq('user_id', user.id)
-          .eq('status', 'completed')
-          .not('outputs', 'is', null);
+          .in('status', ['completed', 'failed']);
 
-        if (jobsError || !completedJobs || completedJobs.length === 0) return;
+        if (jobsError || !allJobs || allJobs.length === 0) return;
 
         let hasUpdates = false;
 
         for (const scene of scenesToCheck) {
-          // If scene has a jobId, look for that specific job
-          let matchingJob = scene.jobId 
-            ? completedJobs.find(j => j.id === scene.jobId)
-            : null;
+          if (!scene.jobId) continue;
+          
+          const matchingJob = allJobs.find(j => j.id === scene.jobId);
+          if (!matchingJob) continue;
 
-          if (matchingJob && matchingJob.outputs) {
+          // Handle completed jobs
+          if (matchingJob.status === 'completed' && matchingJob.outputs) {
             const outputs = Array.isArray(matchingJob.outputs) 
               ? matchingJob.outputs 
               : [matchingJob.outputs];
@@ -188,27 +188,38 @@ export default function Scenes() {
                 updates.type = 'image';
               }
 
-              // Update in database
               await updateScene(scene.id, updates);
             }
+          }
+          
+          // Handle failed jobs
+          if (matchingJob.status === 'failed') {
+            hasUpdates = true;
+            await updateScene(scene.id, {
+              status: 'draft',
+              generationProgress: 0,
+              estimatedTimeRemaining: 0
+            });
+            
+            toast({
+              title: "Generation Failed",
+              description: `${scene.title}: ${matchingJob.error || 'Unknown error'}`,
+              variant: "destructive"
+            });
           }
         }
 
         if (hasUpdates) {
           // Reload scenes to get the updated data
           await loadScenes(currentStoryboard.id);
-          toast({
-            title: "Content Recovered",
-            description: "Previously generated scenes have been restored",
-          });
         }
       } catch (error) {
-        console.error('Error syncing completed jobs:', error);
+        console.error('Error syncing jobs:', error);
       }
     };
 
     // Run sync after a short delay to ensure scenes are loaded
-    const timer = setTimeout(syncCompletedJobs, 1000);
+    const timer = setTimeout(syncJobs, 1000);
     return () => clearTimeout(timer);
   }, [currentStoryboard?.id, scenes.length, user]);
 
