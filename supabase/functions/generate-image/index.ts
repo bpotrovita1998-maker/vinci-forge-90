@@ -252,11 +252,16 @@ serve(async (req) => {
                   continue;
                 }
                 
-                const { data: { publicUrl } } = supabase.storage
+                const { data: signedUrlData } = await supabase.storage
                   .from('generated-models')
-                  .getPublicUrl(fileName);
+                  .createSignedUrl(fileName, 604800); // 7 days expiry
                 
-                finalUrls.push(publicUrl);
+                if (signedUrlData?.signedUrl) {
+                  finalUrls.push(signedUrlData.signedUrl);
+                } else {
+                  console.error('Failed to create signed URL');
+                  finalUrls.push(imageUrl);
+                }
               } catch (error) {
                 console.error('Error storing Replicate image:', error);
                 finalUrls.push(replicateImages[i]);
@@ -376,11 +381,17 @@ serve(async (req) => {
             console.error('Storage upload error:', uploadError);
             finalUrls.push(base64Data); // Keep original as fallback
           } else {
-            const { data: { publicUrl } } = supabase.storage
+            const { data: signedUrlData } = await supabase.storage
               .from('generated-models')
-              .getPublicUrl(fileName);
-            console.log('Image stored at:', publicUrl);
-            finalUrls.push(publicUrl);
+              .createSignedUrl(fileName, 604800); // 7 days expiry
+            
+            if (signedUrlData?.signedUrl) {
+              console.log('Image stored at:', signedUrlData.signedUrl);
+              finalUrls.push(signedUrlData.signedUrl);
+            } else {
+              console.error('Failed to create signed URL');
+              finalUrls.push(images[i]);
+            }
           }
         } catch (e) {
           console.error('Error storing image:', e);

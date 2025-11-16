@@ -139,11 +139,14 @@ serve(async (req) => {
             throw uploadError;
           }
 
-          // Get public URL
-          const { data: { publicUrl } } = supabase.storage
+          // Get signed URL (7 days expiry)
+          const { data: signedUrlData } = await supabase.storage
             .from('generated-models')
-            .getPublicUrl(fileName);
+            .createSignedUrl(fileName, 604800);
 
+          const publicUrl = signedUrlData?.signedUrl;
+          if (!publicUrl) throw new Error('Failed to create signed URL');
+          
           console.log("Video stored at:", publicUrl);
 
           // Update job with permanent URL

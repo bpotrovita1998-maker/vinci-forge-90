@@ -206,8 +206,10 @@ serve(async (req) => {
                 if (uploadError) {
                   console.error('Failed to upload CAD model to storage:', uploadError);
                 } else {
-                  const { data: pub } = supabase.storage.from('generated-models').getPublicUrl(storagePath);
-                  if (pub?.publicUrl) finalUrl = pub.publicUrl;
+                  const { data: signedUrlData } = await supabase.storage
+                    .from('generated-models')
+                    .createSignedUrl(storagePath, 604800); // 7 days expiry
+                  if (signedUrlData?.signedUrl) finalUrl = signedUrlData.signedUrl;
                 }
               }
             } catch (persistErr) {
