@@ -352,7 +352,109 @@ export default function Scenes() {
     }
   };
 
-  // Monitor job completions and update scenes
+  // Real-time job updates subscription
+  useEffect(() => {
+    if (!user || scenes.length === 0) return;
+
+    // Get all active job IDs from scenes
+    const activeJobIds = scenes
+      .filter(s => s.jobId && s.status === 'generating')
+      .map(s => s.jobId!);
+
+    if (activeJobIds.length === 0) return;
+
+    console.log('Setting up realtime subscription for jobs:', activeJobIds);
+
+    const channel = supabase
+      .channel('scene-job-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'jobs',
+          filter: `id=in.(${activeJobIds.join(',')})`
+        },
+        async (payload) => {
+          console.log('Real-time job update received:', payload);
+          const jobData = payload.new as any;
+          
+          // Find the scene associated with this job
+          const scene = scenes.find(s => s.jobId === jobData.id);
+          if (!scene) return;
+
+          // Update progress in real-time
+          if (jobData.status === 'running' && jobData.progress_percent !== undefined) {
+            const updates: Partial<Scene> = {
+              generationProgress: jobData.progress_percent
+            };
+
+            // Calculate estimated time remaining for video jobs
+            if (scene.type === 'video' && scene.estimatedTimeRemaining) {
+              const elapsed = scene.generationStartTime 
+                ? (Date.now() - scene.generationStartTime) / 1000 
+                : 0;
+              const estimatedTotal = 240; // 4 minutes default
+              updates.estimatedTimeRemaining = Math.max(0, estimatedTotal - (jobData.progress_percent / 100 * estimatedTotal));
+            }
+
+            await updateScene(scene.id, updates);
+          }
+
+          // Handle completion
+          if (jobData.status === 'completed' && jobData.outputs) {
+            const outputs = Array.isArray(jobData.outputs) ? jobData.outputs : [jobData.outputs];
+            const url = outputs[0];
+
+            if (url && typeof url === 'string') {
+              const updates: Partial<Scene> = {
+                status: 'ready',
+                generationProgress: 100,
+                estimatedTimeRemaining: 0
+              };
+
+              if (jobData.type === 'video') {
+                updates.videoUrl = url;
+                updates.type = 'video';
+              } else {
+                updates.imageUrl = url;
+                updates.type = 'image';
+              }
+
+              await updateScene(scene.id, updates);
+              
+              toast({
+                title: "Scene Ready",
+                description: `${scene.title} has been generated successfully`,
+              });
+            }
+          }
+
+          // Handle failure
+          if (jobData.status === 'failed') {
+            await updateScene(scene.id, {
+              status: 'draft',
+              generationProgress: 0,
+              estimatedTimeRemaining: 0
+            });
+
+            toast({
+              title: "Generation Failed",
+              description: jobData.error || "Failed to generate scene",
+              variant: "destructive"
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [user, scenes, toast]);
+
+  // Monitor job completions from context (fallback)
   useEffect(() => {
     scenes.forEach(scene => {
       if (scene.jobId) {
@@ -737,6 +839,7 @@ export default function Scenes() {
         status: 'generating',
         jobId: jobId,
         generationProgress: 0,
+        generationStartTime: Date.now()
       });
 
       // Call generation endpoint
@@ -905,7 +1008,8 @@ export default function Scenes() {
         status: 'generating',
         jobId: jobId,
         generationProgress: 0,
-        estimatedTimeRemaining: 240 // 4 minutes
+        estimatedTimeRemaining: 240, // 4 minutes
+        generationStartTime: Date.now()
       });
 
       // Call generation endpoint
@@ -1908,12 +2012,12 @@ export default function Scenes() {
                                 </div>
 
                                 {/* Progress Indicator */}
-                                {scene.status === 'generating' && scene.type === 'video' && (
+                                {scene.status === 'generating' && (
                                   <div className="space-y-2 mt-4 p-3 bg-muted/30 rounded-lg border border-border/40">
                                     <div className="flex items-center justify-between text-xs">
                                       <span className="flex items-center gap-1.5 font-medium">
                                         <Sparkles className="w-3.5 h-3.5 animate-pulse text-primary" />
-                                        Generating Video...
+                                        {scene.type === 'video' ? 'Generating Video...' : 'Generating Image...'}
                                       </span>
                                       <span className="text-muted-foreground">
                                         {scene.generationProgress?.toFixed(0) || 0}%
@@ -1923,7 +2027,7 @@ export default function Scenes() {
                                       value={scene.generationProgress || 0} 
                                       className="h-2"
                                     />
-                                    {scene.estimatedTimeRemaining !== undefined && scene.estimatedTimeRemaining > 0 && (
+                                    {scene.type === 'video' && scene.estimatedTimeRemaining !== undefined && scene.estimatedTimeRemaining > 0 && (
                                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                         <Timer className="w-3.5 h-3.5" />
                                         <span>
