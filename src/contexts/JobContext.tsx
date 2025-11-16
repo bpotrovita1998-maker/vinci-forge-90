@@ -353,7 +353,16 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
       if (tokenError) {
         console.error('Token deduction failed:', tokenError);
-        const errorMessage = tokenError.message || 'Failed to deduct tokens';
+        
+        // Extract error message from various possible locations
+        let errorMessage = tokenError.message || 'Failed to deduct tokens';
+        
+        // Check if error has a nested error property (common in edge function responses)
+        if (tokenData && typeof tokenData === 'object' && 'error' in tokenData) {
+          errorMessage = (tokenData as any).error;
+        }
+        
+        console.log('Extracted error message:', errorMessage);
         
         // Check if this is a PRO-only feature (CAD, Video, 3D)
         if (options.type === 'cad' || options.type === 'video' || options.type === '3d') {
