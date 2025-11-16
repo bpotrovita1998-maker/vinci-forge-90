@@ -31,8 +31,7 @@ serve(async (req) => {
 
     console.log('Starting video upscale:', { videoUrl, targetFps, upscaleTo4K });
 
-    // Use Replicate's video upscaling model (ESRGAN-based for frames + frame interpolation)
-    // First upscale resolution with ESRGAN, then interpolate frames for higher FPS
+    // Use Replicate's Real-ESRGAN video upscaling model
     const startResponse = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
@@ -40,11 +39,10 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: 'ca1f5e306e5721e19c473e0d13840142520085d096e94d1a828d866ddb5a0729',
+        version: '3e56ce4b57863bd03048b42bc09bdd4db20d427cca5fde9d8ae4dc60e1bb4775',
         input: {
-          video: videoUrl,
+          video_path: videoUrl,
           scale: upscaleTo4K ? 4 : 2, // 4x for 4K, 2x for HD
-          fps: targetFps,
         }
       }),
     });
