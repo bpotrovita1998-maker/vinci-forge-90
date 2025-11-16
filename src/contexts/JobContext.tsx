@@ -332,10 +332,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
       actionType = 'video_generation';
     } else if (options.type === '3d') {
       estimatedTokens = 10; // 10 tokens per 3D model ($0.10)
-      actionType = 'image_generation'; // Closest match
+      actionType = 'vectorization';
     } else if (options.type === 'cad') {
       estimatedTokens = 10; // 10 tokens per CAD model ($0.10)
-      actionType = 'image_generation'; // Closest match
+      actionType = 'vectorization';
     }
 
     // Check and deduct tokens before starting generation
