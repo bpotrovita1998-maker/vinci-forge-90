@@ -28,32 +28,28 @@ serve(async (req) => {
   let body: any = {};
   
   try {
-    // Authenticate user
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    // Authenticate with user's JWT
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // Initialize Supabase client with service role for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Optional user authentication (for direct client calls)
+    const authHeader = req.headers.get('Authorization');
+    let authenticatedUserId: string | null = null;
+    
+    if (authHeader) {
+      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+      if (!authError && user) {
+        authenticatedUserId = user.id;
+        console.log('Authenticated user:', user.id);
+      }
     }
-
-    console.log('Authenticated user:', user.id);
 
     const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY');
     if (!REPLICATE_API_KEY) {
@@ -70,6 +66,7 @@ serve(async (req) => {
     const validationResult = generateVideoSchema.safeParse(requestBody);
     
     if (!validationResult.success) {
+      console.error('Validation error:', validationResult.error.issues);
       return new Response(
         JSON.stringify({ 
           error: 'Invalid input parameters', 
@@ -81,10 +78,6 @@ serve(async (req) => {
 
     body = validationResult.data;
     console.log("Request body:", JSON.stringify(body, null, 2));
-
-    // Initialize Supabase client with service role for database operations
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Check if this is a status check request
     if (body.predictionId) {

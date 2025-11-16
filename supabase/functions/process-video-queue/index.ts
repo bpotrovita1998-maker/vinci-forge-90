@@ -103,37 +103,45 @@ serve(async (req) => {
     // Handle multiple videos by calling generate-video multiple times
     const numVideos = job.num_videos || 1;
     console.log(`Generating ${numVideos} video(s) for job ${job.id}`);
+    console.log(`Job details - FPS: ${job.fps}, Duration: ${job.duration}, Dimensions: ${job.width}x${job.height}`);
     
     // Generate all videos with the same prompt but different seeds for variation
     for (let i = 0; i < numVideos; i++) {
       const videoSeed = seed ? seed + i : undefined; // Vary seed for each video
-      console.log(`Starting generation ${i + 1} of ${numVideos}...`);
+      console.log(`Starting generation ${i + 1} of ${numVideos} with seed: ${videoSeed}...`);
       
-      const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
-        body: {
-          jobId: job.id,
-          prompt: job.prompt,
-          duration: job.duration,
-          aspectRatio: `${job.width}:${job.height}`,
-          characterDescription,
-          styleDescription,
-          referenceImage,
-          seed: videoSeed
-        }
-      });
+      try {
+        const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
+          body: {
+            jobId: job.id,
+            prompt: job.prompt,
+            duration: job.duration,
+            aspectRatio: `${job.width}:${job.height}`,
+            characterDescription,
+            styleDescription,
+            referenceImage,
+            seed: videoSeed
+          }
+        });
 
-      if (invokeError) {
-        console.error(`Error invoking generate-video for video ${i + 1}:`, invokeError);
-        // Continue with other videos even if one fails
-      } else {
-        console.log(`Video ${i + 1} generation started:`, result);
+        if (invokeError) {
+          console.error(`Error invoking generate-video for video ${i + 1}:`, JSON.stringify(invokeError));
+          // Continue with other videos even if one fails
+        } else {
+          console.log(`Video ${i + 1} generation started successfully:`, JSON.stringify(result));
+        }
+      } catch (error) {
+        console.error(`Exception calling generate-video for video ${i + 1}:`, error);
       }
       
       // Add a small delay between starting multiple generations to avoid rate limits
       if (i < numVideos - 1) {
+        console.log(`Waiting 1 second before starting video ${i + 2}...`);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
+
+    console.log(`Finished processing queue for job ${job.id}`);
 
     return new Response(JSON.stringify({ 
       message: "Queue processed",
