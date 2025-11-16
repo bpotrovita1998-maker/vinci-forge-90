@@ -275,6 +275,16 @@ export default function Gallery() {
     }
   };
 
+  // Ensure 3D/CAD thumbnails remount (and show loaders) after closing the viewer
+  const handleCloseViewer = () => {
+    const type = selectedJob?.options.type;
+    setSelectedJob(null);
+    if (type === '3d' || type === 'cad') {
+      // Delay to let modal unmount and free WebGL context
+      setTimeout(() => setThumbnailRefreshKey((k) => k + 1), 0);
+    }
+  };
+
   const handleDelete = async () => {
     if (!jobToDelete) return;
     try {
@@ -738,7 +748,7 @@ export default function Gallery() {
         </div>
       </div>
 
-      {selectedJob && <OutputViewer job={selectedJob} onClose={() => setSelectedJob(null)} />}
+      {selectedJob && <OutputViewer job={selectedJob} onClose={handleCloseViewer} />}
 
       {selectedScene && (
         <Dialog open={!!selectedScene} onOpenChange={() => setSelectedScene(null)}>
