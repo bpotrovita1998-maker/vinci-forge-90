@@ -12,11 +12,11 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-TOKEN-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Token package price IDs (to be created in Stripe)
+// Token package price IDs
 const TOKEN_PACKAGES: Record<number, string> = {
-  20: "price_token_2000",  // $20 for 2000 tokens
-  30: "price_token_3000",  // $30 for 3000 tokens
-  50: "price_token_5000",  // $50 for 5000 tokens
+  20: "price_1SU46PE6ku5aODnpnGe9AknB",  // $20 for 2000 tokens
+  30: "price_1SU46mE6ku5aODnpHSSdAF2X",  // $30 for 3000 tokens
+  50: "price_1SU478E6ku5aODnpxYms7AR3",  // $50 for 5000 tokens
 };
 
 serve(async (req) => {

@@ -81,6 +81,13 @@ export const useSubscription = () => {
         return;
       }
 
+      // Check subscription status with Stripe
+      try {
+        await supabase.functions.invoke('check-subscription');
+      } catch (err) {
+        console.error('Failed to check Stripe subscription:', err);
+      }
+
       await Promise.all([
         fetchUserRole(user.id),
         fetchSubscription(user.id),
@@ -109,8 +116,14 @@ export const useSubscription = () => {
       )
       .subscribe();
 
+    // Periodically check subscription status (every 60 seconds)
+    const interval = setInterval(() => {
+      refreshData();
+    }, 60000);
+
     return () => {
       subscription.unsubscribe();
+      clearInterval(interval);
     };
   }, []);
 
