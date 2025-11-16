@@ -257,6 +257,8 @@ export type Database = {
         Row: {
           balance: number
           created_at: string
+          free_tokens_granted: number | null
+          free_tokens_used: number | null
           id: string
           total_purchased: number
           total_spent: number
@@ -266,6 +268,8 @@ export type Database = {
         Insert: {
           balance?: number
           created_at?: string
+          free_tokens_granted?: number | null
+          free_tokens_used?: number | null
           id?: string
           total_purchased?: number
           total_spent?: number
@@ -275,6 +279,8 @@ export type Database = {
         Update: {
           balance?: number
           created_at?: string
+          free_tokens_granted?: number | null
+          free_tokens_used?: number | null
           id?: string
           total_purchased?: number
           total_spent?: number
