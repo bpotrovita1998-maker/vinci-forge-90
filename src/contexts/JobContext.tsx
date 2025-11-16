@@ -355,10 +355,25 @@ export function JobProvider({ children }: { children: ReactNode }) {
         console.error('Token deduction failed:', tokenError);
         const errorMessage = tokenError.message || 'Failed to deduct tokens';
         
+        // Check if this is a PRO-only feature (CAD, Video, 3D)
+        if (options.type === 'cad' || options.type === 'video' || options.type === '3d') {
+          if (errorMessage.includes('PRO') || errorMessage.includes('subscription') || errorMessage.includes('free')) {
+            toast.error('Upgrade to PRO subscription to enable this feature');
+            throw new Error('PRO subscription required');
+          }
+        }
+        
+        // Check if user is out of free images
+        if (options.type === 'image' && errorMessage.includes('5 images')) {
+          toast.error("You've used all 5 free images. Upgrade to PRO to continue.");
+          throw new Error('Free image limit reached');
+        }
+        
+        // Handle other token-related errors
         if (errorMessage.includes('Insufficient token balance')) {
           toast.error('Insufficient tokens. Please purchase more tokens to continue.');
-        } else if (errorMessage.includes('No active subscription')) {
-          toast.error('No active subscription. Please subscribe to continue.');
+        } else if (errorMessage.includes('subscription')) {
+          toast.error('Upgrade to PRO subscription to enable this feature');
         } else {
           toast.error(errorMessage);
         }
