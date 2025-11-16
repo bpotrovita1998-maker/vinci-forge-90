@@ -1,5 +1,8 @@
 project_id = "igqtsjpbkjhvlliuhpcw"
 
+[functions.check-and-deduct-tokens]
+verify_jwt = false
+
 [functions.generate-image]
 verify_jwt = false
 
