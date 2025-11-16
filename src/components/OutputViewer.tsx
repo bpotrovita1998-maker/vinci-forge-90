@@ -60,6 +60,33 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownload = async () => {
+    try {
+      const url = job.outputs[currentImageIndex];
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const extension = job.options.type === 'video' ? 'mp4' : (job.options.type === '3d' || job.options.type === 'cad') ? 'glb' : 'png';
+      link.download = `${job.options.type}-${job.id.slice(0, 8)}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast({
+        title: "Download started",
+        description: "Your file is being downloaded",
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download file",
+        variant: "destructive",
+      });
+    }
+  };
+
   const downloadForUnity = async () => {
     try {
       const url = job.outputs[0];
@@ -394,12 +421,10 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               <Button
                 variant="outline"
                 className="glass border-primary/30 hover:bg-primary/10"
-                asChild
+                onClick={handleDownload}
               >
-                <a href={job.outputs[currentImageIndex]} download target="_blank" rel="noopener noreferrer">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download {job.options.type === 'image' && job.outputs.length > 1 && `(${currentImageIndex + 1}/${job.outputs.length})`}
-                </a>
+                <Download className="w-4 h-4 mr-2" />
+                Download {job.options.type === 'image' && job.outputs.length > 1 && `(${currentImageIndex + 1}/${job.outputs.length})`}
               </Button>
 
               <Button

@@ -7,6 +7,7 @@ import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon,
 import { formatDistanceToNow } from 'date-fns';
 import { useJobs } from '@/contexts/JobContext';
 import { useState, memo } from 'react';
+import { toast } from 'sonner';
 
 interface JobStatusCardProps {
   job: Job;
@@ -18,6 +19,26 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
   
   const isLongPrompt = job.options.prompt.length > 100;
+
+  const handleDownload = async () => {
+    try {
+      const url = job.outputs[0];
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const extension = job.options.type === 'video' ? 'mp4' : (job.options.type === '3d' || job.options.type === 'cad') ? 'glb' : 'png';
+      link.download = `${job.options.type}-${job.id.slice(0, 8)}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      toast.success('Download started');
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast.error('Failed to download file');
+    }
+  };
 
   const getStatusIcon = () => {
     switch (job.status) {
@@ -226,11 +247,9 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
             size="sm"
             variant="outline"
             className="glass border-border/30"
-            asChild
+            onClick={handleDownload}
           >
-            <a href={job.outputs[0]} download target="_blank" rel="noopener noreferrer">
-              <Download className="w-4 h-4" />
-            </a>
+            <Download className="w-4 h-4" />
           </Button>
         </div>
       )}
