@@ -82,135 +82,33 @@ class LovableAIService {
       return;
     }
 
-    console.log('LovableAI: Starting async video generation for', jobId);
+    console.log('LovableAI: Queueing video generation for', jobId);
 
     try {
-      // Start async video generation (returns prediction ID)
-      this.updateJobStage(jobId, 'running', 'Starting video generation...');
+      // Update job status to queued instead of immediately calling generate-video
+      this.updateJobStage(jobId, 'queued', 'Waiting in queue...');
       
-      const { data: videoData, error: videoError } = await supabase.functions.invoke('generate-video', {
-        body: {
-          prompt: job.options.prompt,
-          jobId: jobId,
-        }
-      });
+      const { error: updateError } = await supabase
+        .from('jobs')
+        .update({
+          status: 'queued',
+          progress_stage: 'Waiting in queue',
+          progress_message: 'Your video will be generated shortly...',
+        })
+        .eq('id', jobId);
 
-      console.log('LovableAI: Video generation started:', { videoData, videoError });
-
-      if (videoError) {
-        console.error('LovableAI: Failed to start video generation:', videoError);
-        throw new Error('Failed to start video generation');
+      if (updateError) {
+        console.error('LovableAI: Error updating job to queued:', updateError);
+        throw updateError;
       }
 
-      if (!videoData?.predictionId) {
-        console.error('LovableAI: No prediction ID in response:', videoData);
-        throw new Error('Failed to start video generation');
-      }
-
-      const predictionId = videoData.predictionId;
-      console.log('LovableAI: Video prediction started with ID:', predictionId);
+      console.log('LovableAI: Video generation queued successfully');
       
-      // Store prediction ID for cancellation
-      this.predictionIds.set(jobId, predictionId);
-      
-      // Poll for completion
-      this.updateJobStage(jobId, 'encoding', 'Video generation in progress...');
-      
-      let attempts = 0;
-      const maxAttempts = 120; // 10 minutes max (5s intervals)
-      
-      while (attempts < maxAttempts) {
-        // Check if job was cancelled
-        if (this.cancelledJobs.has(jobId)) {
-          console.log('LovableAI: Job cancelled, breaking polling loop');
-          this.cancelledJobs.delete(jobId);
-          return;
-        }
-        
-        // Check job status from local state
-        const currentJob = this.jobs.get(jobId);
-        if (currentJob && (currentJob.status === 'failed' || currentJob.status === 'completed')) {
-          console.log('LovableAI: Job status changed externally, stopping polling');
-          return;
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-        attempts++;
-        
-        console.log(`LovableAI: Polling video status (attempt ${attempts}/${maxAttempts})`);
-        
-        const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
-          body: {
-            predictionId: predictionId,
-            jobId: jobId,
-          }
-        });
-        
-        if (statusError) {
-          console.error('LovableAI: Status check error:', statusError);
-          continue;
-        }
-        
-        console.log('LovableAI: Prediction status:', statusData?.status);
-        
-        if (statusData?.status === 'succeeded') {
-          console.log('LovableAI: Video generation completed successfully');
-          this.updateJobStage(jobId, 'completed', 'Video generated successfully');
-          
-          // Fetch the updated job from database to get the final URL
-          const { data: updatedJob, error: fetchError } = await supabase
-            .from('jobs')
-            .select('outputs')
-            .eq('id', jobId)
-            .maybeSingle();
-          
-          if (fetchError) {
-            console.error('LovableAI: Failed to fetch job outputs:', fetchError);
-            throw new Error('Failed to fetch completed job data');
-          }
-          
-          if (updatedJob?.outputs && Array.isArray(updatedJob.outputs) && updatedJob.outputs.length > 0) {
-            this.completeJob(jobId, updatedJob.outputs as string[]);
-          } else {
-            // Fallback: extract URL from prediction
-            const videoUrl = statusData?.output || (Array.isArray(statusData?.output) ? statusData.output[0] : null);
-            if (videoUrl) {
-              this.completeJob(jobId, [videoUrl]);
-            } else {
-              // Grace period
-              await new Promise(r => setTimeout(r, 1500));
-              const { data: updatedJob2 } = await supabase
-                .from('jobs')
-                .select('outputs')
-                .eq('id', jobId)
-                .maybeSingle();
-              if (updatedJob2?.outputs && Array.isArray(updatedJob2.outputs) && updatedJob2.outputs.length > 0) {
-                this.completeJob(jobId, updatedJob2.outputs as string[]);
-              } else {
-                console.warn('LovableAI: No video URL found after completion; keeping job completed');
-                this.updateJobStage(jobId, 'completed', 'Video generated, finalizing...');
-              }
-            }
-          }
-          return;
-        } else if (statusData?.status === 'failed') {
-          console.error('LovableAI: Video generation failed');
-          throw new Error('Video generation failed');
-        }
-        
-        // Update progress if available
-        if (statusData?.logs) {
-          this.updateJobStage(jobId, 'encoding', 'Processing video...');
-        }
-      }
-      
-      // Timeout
-      console.error('LovableAI: Video generation timed out');
-      throw new Error('Video generation timed out');
-
+      // The queue processor will pick this up and start generation
+      // No need to poll here - the queue processor handles everything
     } catch (error) {
-      console.error('LovableAI: Video generation error for', jobId, ':', error);
-      throw error;
+      console.error('LovableAI: Failed to queue video generation:', error);
+      this.failJob(jobId, error instanceof Error ? error.message : 'Failed to queue video generation');
     }
   }
 
