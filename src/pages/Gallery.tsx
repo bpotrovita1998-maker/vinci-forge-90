@@ -738,10 +738,7 @@ export default function Gallery() {
         </div>
       </div>
 
-      {selectedJob && <OutputViewer job={selectedJob} onClose={() => {
-        setSelectedJob(null);
-        setThumbnailRefreshKey(prev => prev + 1);
-      }} />}
+      {selectedJob && <OutputViewer job={selectedJob} onClose={() => setSelectedJob(null)} />}
 
       {selectedScene && (
         <Dialog open={!!selectedScene} onOpenChange={() => setSelectedScene(null)}>
