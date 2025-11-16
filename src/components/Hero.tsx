@@ -123,6 +123,10 @@ export default function Hero() {
         numImages: options.numImages || 1,
         duration: options.duration,
         fps: options.fps,
+        numVideos: options.numVideos,
+        upscaleVideo: options.upscaleVideo,
+        videoMode: options.videoMode,
+        upscaleQuality: options.upscaleQuality,
       };
 
       const jobId = await submitJob(fullOptions);
