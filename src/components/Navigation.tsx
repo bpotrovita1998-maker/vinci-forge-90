@@ -96,7 +96,14 @@ export default function Navigation() {
                         Unlimited
                       </Badge>
                     ) : (
-                      tokenBalance?.balance.toLocaleString() || '0'
+                      <>
+                        {tokenBalance?.balance.toLocaleString() || '0'}
+                        {tokenBalance && (tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used) > 0 && (
+                          <span className="ml-1 text-xs text-primary">
+                            (+{tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used} free)
+                          </span>
+                        )}
+                      </>
                     )}
                   </span>
                 </div>
