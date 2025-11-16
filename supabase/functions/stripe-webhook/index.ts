@@ -43,9 +43,10 @@ serve(async (req) => {
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
       logStep("Webhook signature verified", { type: event.type });
-    } catch (err) {
-      logStep("Webhook signature verification failed", { error: err.message });
-      return new Response(JSON.stringify({ error: `Webhook Error: ${err.message}` }), {
+    } catch (err: any) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logStep("Webhook signature verification failed", { error: errorMsg });
+      return new Response(JSON.stringify({ error: `Webhook Error: ${errorMsg}` }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -203,13 +204,16 @@ serve(async (req) => {
           default:
             logStep("Unhandled event type", { type: event.type });
         }
-      } catch (error) {
-        logStep("ERROR processing event", { type: event.type, error: error.message });
+      } catch (error: any) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logStep("ERROR processing event", { type: event.type, error: errorMsg });
       }
     };
 
-    // Process event in background
-    EdgeRuntime.waitUntil(processEvent());
+    // Process event asynchronously without blocking response
+    processEvent().catch((error) => {
+      logStep("ERROR in background processing", { error: String(error) });
+    });
 
     // Return success immediately to Stripe
     return new Response(JSON.stringify({ received: true }), {
