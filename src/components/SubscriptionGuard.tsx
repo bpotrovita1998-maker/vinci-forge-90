@@ -36,7 +36,7 @@ export const SubscriptionGuard = ({ children, requireTokens = false }: Subscript
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Subscription or Free Tokens Required</AlertTitle>
           <AlertDescription>
-            You've used all your free tokens. Subscribe now for just $5/month to continue creating!
+            You've used all your free tokens. Subscribe now for just $3/month to continue creating!
           </AlertDescription>
         </Alert>
         <Button onClick={() => navigate('/pricing')} className="w-full" size="lg">
