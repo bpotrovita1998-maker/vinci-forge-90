@@ -77,7 +77,7 @@ serve(async (req) => {
       limit: 1,
     });
     
-    const hasActiveSub = subscriptions.data.length > 0;
+    let hasActiveSub = subscriptions.data.length > 0;
     let subscriptionEnd = null;
     let stripeSubscriptionId = null;
 
@@ -86,26 +86,39 @@ serve(async (req) => {
       
       // Validate subscription has valid period dates
       if (!subscription.current_period_end || !subscription.current_period_start) {
-        logStep("Subscription missing period dates", { subscriptionId: subscription.id });
-        throw new Error("Subscription has invalid period dates");
+        logStep("Subscription missing period dates, treating as inactive", { subscriptionId: subscription.id });
+        hasActiveSub = false;
+        
+        // Update subscription status to inactive
+        await supabaseClient
+          .from('subscriptions')
+          .update({ 
+            status: 'inactive',
+            stripe_customer_id: customerId,
+            stripe_subscription_id: null,
+            current_period_start: null,
+            current_period_end: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+      } else {
+        subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        stripeSubscriptionId = subscription.id;
+        logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
+        
+        // Update subscription in database
+        await supabaseClient
+          .from('subscriptions')
+          .update({ 
+            status: 'active',
+            stripe_customer_id: customerId,
+            stripe_subscription_id: stripeSubscriptionId,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: subscriptionEnd,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
       }
-      
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      stripeSubscriptionId = subscription.id;
-      logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
-      
-      // Update subscription in database
-      await supabaseClient
-        .from('subscriptions')
-        .update({ 
-          status: 'active',
-          stripe_customer_id: customerId,
-          stripe_subscription_id: stripeSubscriptionId,
-          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-          current_period_end: subscriptionEnd,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
     } else {
       logStep("No active subscription found");
       
