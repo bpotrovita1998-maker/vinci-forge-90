@@ -157,14 +157,58 @@ serve(async (req) => {
       );
     }
 
-    console.log("Generating video with prompt:", body.prompt);
+    console.log("Generating video with Pixverse V5");
+    console.log("Prompt:", body.prompt);
     
-    // Start prediction without waiting (async)
+    // Build enhanced prompt with character/scene consistency
+    let enhancedPrompt = body.prompt;
+    
+    // Add character description if provided for consistency
+    if (body.characterDescription) {
+      enhancedPrompt = `Character: ${body.characterDescription}. Scene: ${body.prompt}`;
+      console.log("Added character description for consistency");
+    }
+    
+    // Add style/brand context if provided
+    if (body.styleDescription) {
+      enhancedPrompt = `${enhancedPrompt}. Style: ${body.styleDescription}`;
+      console.log("Added style description");
+    }
+    
+    // Build Pixverse input parameters
+    const pixverseInput: any = {
+      prompt: enhancedPrompt,
+      duration: 5, // 5 seconds is cheaper ($0.30 vs $0.40 for 8 seconds)
+      quality: "540p", // Good balance of quality and cost
+      aspect_ratio: body.aspectRatio || "16:9",
+    };
+    
+    // Add reference image for character consistency if provided
+    if (body.referenceImage) {
+      pixverseInput.image = body.referenceImage;
+      console.log("Using reference image for consistency:", body.referenceImage);
+    }
+    
+    // Add negative prompt to avoid deformations and physics issues
+    const negativePrompt = "deformed characters, distorted bodies, broken physics, unnatural movements, morphing faces, impossible poses, anatomical errors, glitchy motion";
+    if (body.negativePrompt) {
+      pixverseInput.negative_prompt = `${body.negativePrompt}, ${negativePrompt}`;
+    } else {
+      pixverseInput.negative_prompt = negativePrompt;
+    }
+    
+    // Use seed for consistency across scenes if provided
+    if (body.seed) {
+      pixverseInput.seed = body.seed;
+      console.log("Using seed for consistency:", body.seed);
+    }
+    
+    console.log("Pixverse input:", JSON.stringify(pixverseInput, null, 2));
+    
+    // Start prediction with Pixverse V5 (async)
     const prediction = await replicate.predictions.create({
-      version: "minimax/video-01-director",
-      input: {
-        prompt: body.prompt
-      }
+      model: "pixverse/pixverse-v5",
+      input: pixverseInput
     });
 
     console.log("Video prediction started:", prediction.id);

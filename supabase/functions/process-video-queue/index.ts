@@ -52,13 +52,64 @@ serve(async (req) => {
       })
       .eq('id', job.id);
 
-    // Call the generate-video function
+    // Extract storyboard settings for consistency
+    let characterDescription = '';
+    let styleDescription = '';
+    let referenceImage = '';
+    let seed: number | undefined;
+
+    const manifest = job.manifest as any;
+    if (manifest?.storyboard_id) {
+      console.log(`Loading storyboard settings: ${manifest.storyboard_id}`);
+      const { data: storyboard } = await supabase
+        .from('storyboards')
+        .select('settings')
+        .eq('id', manifest.storyboard_id)
+        .single();
+
+      if (storyboard?.settings) {
+        const settings = storyboard.settings as any;
+        characterDescription = [
+          settings.character,
+          settings.brand
+        ].filter(Boolean).join(', ');
+        
+        styleDescription = settings.style || '';
+        
+        // Use a consistent seed based on storyboard ID for cross-scene consistency
+        seed = parseInt(manifest.storyboard_id.replace(/-/g, '').slice(0, 8), 16);
+        console.log(`Using seed ${seed} for consistency across storyboard`);
+      }
+    }
+
+    // Try to find a reference image from a previous completed scene in the same storyboard
+    if (manifest?.storyboard_id) {
+      const { data: previousScenes } = await supabase
+        .from('storyboard_scenes')
+        .select('image_url, order_index')
+        .eq('storyboard_id', manifest.storyboard_id)
+        .eq('status', 'ready')
+        .not('image_url', 'is', null)
+        .order('order_index', { ascending: true })
+        .limit(1);
+
+      if (previousScenes && previousScenes.length > 0) {
+        referenceImage = previousScenes[0].image_url!;
+        console.log(`Using reference image for character consistency: ${referenceImage}`);
+      }
+    }
+
+    // Call the generate-video function with consistency parameters
     const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
       body: {
         jobId: job.id,
         prompt: job.prompt,
         duration: job.duration,
-        aspectRatio: `${job.width}:${job.height}`
+        aspectRatio: `${job.width}:${job.height}`,
+        characterDescription,
+        styleDescription,
+        referenceImage,
+        seed
       }
     });
 
