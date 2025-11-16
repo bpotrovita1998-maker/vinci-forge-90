@@ -260,6 +260,8 @@ export type Database = {
           free_tokens_granted: number | null
           free_tokens_used: number | null
           id: string
+          storage_bytes_used: number | null
+          storage_limit_bytes: number | null
           total_purchased: number
           total_spent: number
           updated_at: string
@@ -271,6 +273,8 @@ export type Database = {
           free_tokens_granted?: number | null
           free_tokens_used?: number | null
           id?: string
+          storage_bytes_used?: number | null
+          storage_limit_bytes?: number | null
           total_purchased?: number
           total_spent?: number
           updated_at?: string
@@ -282,6 +286,8 @@ export type Database = {
           free_tokens_granted?: number | null
           free_tokens_used?: number | null
           id?: string
+          storage_bytes_used?: number | null
+          storage_limit_bytes?: number | null
           total_purchased?: number
           total_spent?: number
           updated_at?: string
@@ -327,6 +333,47 @@ export type Database = {
           },
         ]
       }
+      user_files: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          file_size_bytes: number
+          file_type: string
+          file_url: string
+          id: string
+          job_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          file_size_bytes: number
+          file_type: string
+          file_url: string
+          id?: string
+          job_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          file_size_bytes?: number
+          file_type?: string
+          file_url?: string
+          id?: string
+          job_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -354,6 +401,10 @@ export type Database = {
     }
     Functions: {
       can_use_service: { Args: { _user_id: string }; Returns: boolean }
+      check_storage_quota: {
+        Args: { _file_size_bytes: number; _user_id: string }
+        Returns: boolean
+      }
       deduct_tokens: {
         Args: {
           _action_type: string
