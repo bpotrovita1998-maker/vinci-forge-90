@@ -13,6 +13,7 @@ const generateImageSchema = z.object({
   width: z.number().min(256).max(2048).optional().default(1024),
   height: z.number().min(256).max(2048).optional().default(1024),
   numImages: z.number().min(1).max(8).optional().default(1),
+  upscaleQuality: z.number().min(2).max(8).optional().default(4),
   jobId: z.string().uuid().optional(),
 });
 
@@ -64,7 +65,7 @@ serve(async (req) => {
       );
     }
 
-    const { prompt, width, height, numImages, jobId } = validationResult.data;
+    const { prompt, width, height, numImages, upscaleQuality, jobId } = validationResult.data;
     const userId = user.id; // Derive from authenticated user
     
     // Initialize Supabase client with service role for database operations
@@ -349,18 +350,18 @@ serve(async (req) => {
 
       // Upscale images if dimensions are larger than 1024x1024
       if (width > 1024 || height > 1024) {
-        console.log(`Upscaling ${images.length} image(s) to higher resolution`);
+        console.log(`Upscaling ${images.length} image(s) to higher resolution with ${upscaleQuality}x quality`);
         const upscaledImages: string[] = [];
         
         for (let i = 0; i < images.length; i++) {
           try {
-            console.log(`Upscaling image ${i + 1}/${images.length}`);
+            console.log(`Upscaling image ${i + 1}/${images.length} with ${upscaleQuality}x quality`);
             
-            // Call the upscale edge function
+            // Call the upscale edge function with user-selected quality
             const upscaleResponse = await supabase.functions.invoke('upscale-image', {
               body: { 
                 imageUrl: images[i],
-                scale: Math.ceil(Math.max(width, height) / 1024)
+                scale: upscaleQuality
               }
             });
 
