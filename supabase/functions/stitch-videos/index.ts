@@ -47,15 +47,17 @@ serve(async (req) => {
       })
       .eq('id', jobId);
 
-    // Use Replicate's video concatenation model
-    console.log("Starting video concatenation with Replicate...");
+    // Use FFmpeg via Replicate to concatenate videos
+    console.log("Starting video concatenation with FFmpeg...");
+    
+    // Create a concat demuxer file list
+    const fileList = videoUrls.map((url, i) => `file '${url}'`).join('\n');
+    
     const output = await replicate.run(
-      "victor-upmeet/video-concat:972e96af321e8d5c3bb304b1654edee4f2d3b31875c64013c5bb1bcfb995e7ed",
+      "chenxwh/ffmpeg:83cabdc5bdc3e5c36ef48780f2716add6d3b0e8f0307f878bbe6e0eb49df1b27",
       {
         input: {
-          videos: videoUrls,
-          transition: "fade", // smooth transition between clips
-          transition_duration: 0.2 // 200ms fade
+          cmd: `-f concat -safe 0 -protocol_whitelist file,http,https,tcp,tls -i <(echo "${fileList.replace(/\n/g, '\\n')}") -c copy -movflags +faststart output.mp4`
         }
       }
     );
