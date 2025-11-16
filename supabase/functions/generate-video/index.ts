@@ -13,7 +13,7 @@ const generateVideoSchema = z.object({
   prompt: z.string().min(1).max(2000).optional(),
   predictionId: z.string().optional(),
   jobId: z.string().uuid().optional(),
-  duration: z.number().min(1).max(10).optional(),
+  duration: z.number().min(1).max(5).optional(),
   aspectRatio: z.string().optional(),
   characterReference: z.string().url().optional(),
   styleReference: z.string().url().optional(),
