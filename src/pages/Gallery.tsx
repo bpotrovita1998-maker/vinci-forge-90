@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OutputViewer from '@/components/OutputViewer';
 import ThreeDThumbnail from '@/components/ThreeDThumbnail';
-import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film } from 'lucide-react';
+import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Job } from '@/types/job';
@@ -47,7 +47,7 @@ interface SceneItem {
 }
 
 export default function Gallery() {
-  const { jobs, deleteJob } = useJobs();
+  const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore } = useJobs();
   const { user } = useAuth();
   const [galleryMode, setGalleryMode] = useState<'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes'>('all');
   const [selectedType, setSelectedType] = useState<JobType | 'all'>('all');
@@ -591,6 +591,32 @@ export default function Gallery() {
                   ))}
                 </motion.div>
               )}
+
+              {/* Pagination Controls */}
+              {sortedJobs.length > 0 && hasMoreJobs && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-center mt-8"
+                >
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={loadMoreJobs}
+                    disabled={isLoadingMore}
+                    className="glass border-border/30 hover:border-primary/50 gap-2"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      `Load More (${sortedJobs.length} shown)`
+                    )}
+                  </Button>
+                </motion.div>
+              )}
             </TabsContent>
 
             {['image', 'video', '3d', 'cad'].map((jobType) => {
@@ -739,6 +765,32 @@ export default function Gallery() {
                           </Card>
                         </motion.div>
                       ))}
+                    </motion.div>
+                  )}
+
+                  {/* Pagination Controls for type-specific tabs */}
+                  {filteredTypeJobs.length > 0 && hasMoreJobs && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex justify-center mt-8"
+                    >
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={loadMoreJobs}
+                        disabled={isLoadingMore}
+                        className="glass border-border/30 hover:border-primary/50 gap-2"
+                      >
+                        {isLoadingMore ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          `Load More (${filteredTypeJobs.length} shown)`
+                        )}
+                      </Button>
                     </motion.div>
                   )}
                 </TabsContent>

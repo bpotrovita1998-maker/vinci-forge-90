@@ -24,6 +24,9 @@ interface JobContextType {
   clearCompletedJobs: () => void;
   getJob: (jobId: string) => Job | undefined;
   moderateContent: (prompt: string) => Promise<ModerationResult>;
+  loadMoreJobs: () => Promise<void>;
+  hasMoreJobs: boolean;
+  isLoadingMore: boolean;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -34,6 +37,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [pollInterval, setPollInterval] = useState(2000); // Start with 2 seconds
   const pollStartTimes = useRef<Map<string, number>>(new Map());
   const { user } = useAuth();
+  const [hasMoreJobs, setHasMoreJobs] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const JOBS_PER_PAGE = 100;
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -212,14 +219,15 @@ export function JobProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const loadJobs = async () => {
-      // Load only the most recent 100 jobs to prevent timeouts
-      // User can implement pagination if they need to see older jobs
-      const { data, error } = await supabase
+    const loadJobs = async (reset = false) => {
+      const offset = reset ? 0 : currentPage * JOBS_PER_PAGE;
+      
+      // Load jobs with pagination
+      const { data, error, count } = await supabase
         .from('jobs')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(100);
+        .range(offset, offset + JOBS_PER_PAGE - 1);
 
       if (error) {
         console.error('Failed to load jobs:', error);
@@ -261,14 +269,25 @@ export function JobProvider({ children }: { children: ReactNode }) {
           completedAt: dbJob.completed_at ? new Date(dbJob.completed_at) : undefined,
           error: dbJob.error,
         }));
-        setJobs(jobsWithDates);
+        
+        if (reset) {
+          setJobs(jobsWithDates);
+          setCurrentPage(1);
+        } else {
+          setJobs(prev => [...prev, ...jobsWithDates]);
+        }
+        
+        // Check if there are more jobs to load
+        const totalJobs = count || 0;
+        const loadedJobs = reset ? jobsWithDates.length : jobs.length + jobsWithDates.length;
+        setHasMoreJobs(loadedJobs < totalJobs);
 
         // Check for timed out jobs immediately after loading
         await checkAndTimeoutJobs(jobsWithDates);
       }
     };
 
-    loadJobs();
+    loadJobs(true);
 
     // Set up interval to check for timeouts every 30 seconds
     const timeoutCheckInterval = setInterval(async () => {
@@ -550,6 +569,72 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return jobs.find(j => j.id === jobId);
   }, [jobs]);
 
+  const loadMoreJobs = useCallback(async () => {
+    if (isLoadingMore || !hasMoreJobs) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const offset = currentPage * JOBS_PER_PAGE;
+      
+      const { data, error, count } = await supabase
+        .from('jobs')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + JOBS_PER_PAGE - 1);
+
+      if (error) {
+        console.error('Failed to load more jobs:', error);
+        toast.error('Failed to load more jobs');
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const jobsWithDates: Job[] = data.map((dbJob: any) => ({
+          id: dbJob.id,
+          options: {
+            prompt: dbJob.prompt,
+            negativePrompt: dbJob.negative_prompt,
+            type: dbJob.type,
+            width: dbJob.width,
+            height: dbJob.height,
+            duration: dbJob.duration,
+            fps: dbJob.fps,
+            videoMode: dbJob.video_mode,
+            threeDMode: dbJob.three_d_mode,
+            seed: dbJob.seed,
+            steps: dbJob.steps,
+            cfgScale: dbJob.cfg_scale,
+            numImages: dbJob.num_images,
+          },
+          status: dbJob.status,
+          progress: {
+            stage: dbJob.progress_stage,
+            progress: dbJob.progress_percent,
+            currentStep: dbJob.current_step,
+            totalSteps: dbJob.total_steps,
+            eta: dbJob.eta,
+            message: dbJob.progress_message,
+          },
+          outputs: dbJob.outputs || [],
+          manifest: dbJob.manifest,
+          createdAt: new Date(dbJob.created_at),
+          startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
+          completedAt: dbJob.completed_at ? new Date(dbJob.completed_at) : undefined,
+          error: dbJob.error,
+        }));
+        
+        setJobs(prev => [...prev, ...jobsWithDates]);
+        setCurrentPage(prev => prev + 1);
+        
+        const totalJobs = count || 0;
+        const loadedJobs = jobs.length + jobsWithDates.length;
+        setHasMoreJobs(loadedJobs < totalJobs);
+      }
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [currentPage, isLoadingMore, hasMoreJobs, jobs.length, JOBS_PER_PAGE]);
+
   const moderateContent = useCallback(async (prompt: string): Promise<ModerationResult> => {
     return await moderationService.moderatePrompt(prompt);
   }, []);
@@ -564,6 +649,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
       clearCompletedJobs,
       getJob,
       moderateContent,
+      loadMoreJobs,
+      hasMoreJobs,
+      isLoadingMore,
     }}>
       {children}
     </JobContext.Provider>
