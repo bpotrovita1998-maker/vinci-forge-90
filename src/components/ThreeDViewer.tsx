@@ -64,39 +64,27 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
   const [activeUrl, setActiveUrl] = useState<string>('');
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
   
-  // Try to construct Supabase storage URL for models
+  // Set the active URL - use directly if it's already a Supabase storage URL
   useEffect(() => {
-    const checkAndSetUrl = async () => {
-      setLoadError(false); // Reset error state when checking URL
-      
-      // If it's a Replicate URL and we have a jobId, try Supabase storage first
-      if (normalizedUrl?.includes('replicate.delivery') && jobId) {
-        const patterns = userId 
-          ? [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${userId}/${jobId}/model.glb`]
-          : [`https://igqtsjpbkjhvlliuhpcw.supabase.co/storage/v1/object/public/generated-models/${jobId}/model.glb`];
-        
-        for (const supabaseUrl of patterns) {
-          try {
-            const response = await fetch(supabaseUrl, { method: 'HEAD' });
-            if (response.ok) {
-              console.log('Found model in Supabase storage (permanent URL)');
-              setActiveUrl(supabaseUrl);
-              return;
-            }
-          } catch (error) {
-            console.log(`Model not found at ${supabaseUrl}`);
-          }
-        }
-      }
-      
-      // Use the original URL
-      setActiveUrl(normalizedUrl);
-    };
+    setLoadError(false);
     
-    if (normalizedUrl) {
-      checkAndSetUrl();
+    // If URL is already a Supabase storage URL, use it directly
+    if (normalizedUrl?.includes('igqtsjpbkjhvlliuhpcw.supabase.co/storage')) {
+      console.log('Using permanent Supabase storage URL:', normalizedUrl);
+      setActiveUrl(normalizedUrl);
+      return;
     }
-  }, [normalizedUrl, jobId, userId]);
+    
+    // For expired Replicate URLs, show error message
+    if (normalizedUrl?.includes('replicate.delivery')) {
+      console.warn('Replicate URL detected - may be expired:', normalizedUrl);
+      setLoadError(true);
+      return;
+    }
+    
+    // Use the URL as-is for other cases
+    setActiveUrl(normalizedUrl);
+  }, [normalizedUrl]);
   
   // Show loading spinner while URL is being resolved
   if (!activeUrl) {
