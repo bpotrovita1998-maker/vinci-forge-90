@@ -17,6 +17,8 @@ const generateVideoSchema = z.object({
   aspectRatio: z.string().optional(),
   characterReference: z.string().url().optional(),
   styleReference: z.string().url().optional(),
+  scenePrompts: z.array(z.string().min(1).max(2000)).optional(),
+  sceneIndex: z.number().optional(),
 });
 
 serve(async (req) => {
@@ -93,7 +95,7 @@ serve(async (req) => {
         // Get job details to find user_id and upscaling preferences
         const { data: jobData, error: jobError } = await supabase
           .from('jobs')
-          .select('user_id, id, fps, upscale_video, num_videos, outputs')
+          .select('user_id, id, fps, upscale_video, num_videos, outputs, manifest')
           .eq('id', body.jobId)
           .maybeSingle();
 
@@ -154,13 +156,14 @@ serve(async (req) => {
           const videoBuffer = await videoBlob.arrayBuffer();
           console.log("Video downloaded, size:", videoBuffer.byteLength);
 
-          // Get existing outputs array
+          // Get existing outputs array and manifest
           const existingOutputs = (jobData.outputs || []) as string[];
-          const videoIndex = existingOutputs.length;
+          const manifest = jobData.manifest as any || {};
+          const sceneIndex = manifest.currentSceneIndex || 0;
           
-          // Upload to Supabase storage with index
-          const fileName = `${jobData.user_id}/${body.jobId}/video_${videoIndex}.mp4`;
-          console.log("Uploading to storage:", fileName);
+          // Upload to Supabase storage with scene index
+          const fileName = `${jobData.user_id}/${body.jobId}/scene_${sceneIndex}.mp4`;
+          console.log("Uploading scene video to storage:", fileName);
           
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from('generated-models')
@@ -186,23 +189,30 @@ serve(async (req) => {
 
           // Add to outputs array
           const updatedOutputs = [...existingOutputs, publicUrl];
-          const numVideos = jobData.num_videos || 1;
+          const scenePrompts = manifest.scenePrompts as string[] | undefined;
+          const totalScenes = scenePrompts ? scenePrompts.length : (jobData.num_videos || 1);
           
-          // Check if all videos are complete
-          const allVideosComplete = updatedOutputs.length >= numVideos;
+          // Check if all scenes are complete
+          const allScenesComplete = updatedOutputs.length >= totalScenes;
+          
+          // Update manifest with completed scene
+          const updatedManifest = {
+            ...manifest,
+            currentSceneIndex: sceneIndex + 1,
+          };
           
           // Update job with new output URL
           const { error: updateError } = await supabase
             .from('jobs')
             .update({
               outputs: updatedOutputs,
-              status: allVideosComplete ? 'completed' : 'running',
-              progress_stage: allVideosComplete ? 'completed' : 'running',
-              progress_percent: allVideosComplete ? 100 : Math.round((updatedOutputs.length / numVideos) * 100),
-              progress_message: allVideosComplete 
-                ? 'All videos generated successfully!' 
-                : `Generated ${updatedOutputs.length} of ${numVideos} videos...`,
-              completed_at: allVideosComplete ? new Date().toISOString() : null
+              manifest: updatedManifest,
+              status: allScenesComplete ? 'encoding' : 'running',
+              progress_stage: allScenesComplete ? 'encoding' : 'running',
+              progress_percent: allScenesComplete ? 80 : Math.round((updatedOutputs.length / totalScenes) * 70),
+              progress_message: allScenesComplete 
+                ? 'All scenes generated! Stitching video parts...' 
+                : `Generated scene ${updatedOutputs.length} of ${totalScenes}...`,
             })
             .eq('id', body.jobId);
 
@@ -210,13 +220,45 @@ serve(async (req) => {
             console.error("Failed to update job:", updateError);
           }
 
+          // If all scenes are complete and we have multiple parts, stitch them together
+          if (allScenesComplete && scenePrompts && scenePrompts.length > 1) {
+            console.log("All scenes complete, initiating stitching...");
+            
+            // Call stitch-videos function
+            const { error: stitchError } = await supabase.functions.invoke(
+              'stitch-videos',
+              {
+                body: {
+                  videoUrls: updatedOutputs,
+                  jobId: body.jobId
+                }
+              }
+            );
+            
+            if (stitchError) {
+              console.error("Failed to stitch videos:", stitchError);
+            }
+          } else if (allScenesComplete) {
+            // Single scene video, mark as completed
+            await supabase
+              .from('jobs')
+              .update({
+                status: 'completed',
+                progress_stage: 'completed',
+                progress_percent: 100,
+                progress_message: 'Video generated successfully!',
+                completed_at: new Date().toISOString()
+              })
+              .eq('id', body.jobId);
+          }
+
           // Return prediction with permanent URL
           return new Response(JSON.stringify({
             ...prediction,
             output: publicUrl,
-            allVideosComplete,
-            videoIndex: updatedOutputs.length,
-            totalVideos: numVideos
+            allScenesComplete,
+            sceneIndex: updatedOutputs.length,
+            totalScenes
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
@@ -247,23 +289,68 @@ serve(async (req) => {
       );
     }
 
-    // Validate required fields for single scene generation
-    if (!body.prompt) {
-      return new Response(
-        JSON.stringify({ 
-          error: "Missing required field: prompt is required for video generation" 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        }
-      );
-    }
+    // Check if this is multi-scene generation
+    const { data: jobData } = await supabase
+      .from('jobs')
+      .select('manifest, num_videos')
+      .eq('id', body.jobId)
+      .single();
 
-    console.log("Generating video with Pixverse V5");
-    console.log("Prompt:", body.prompt);
+    const manifest = jobData?.manifest as any || {};
+    const scenePrompts = body.scenePrompts || manifest.scenePrompts;
+    const currentSceneIndex = manifest.currentSceneIndex || 0;
+    
+    // Determine which prompt to use
+    let promptToUse = body.prompt;
+    
+    if (scenePrompts && scenePrompts.length > 0) {
+      // Multi-scene generation
+      if (currentSceneIndex >= scenePrompts.length) {
+        return new Response(
+          JSON.stringify({ 
+            error: "All scenes have been generated" 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        );
+      }
+      
+      promptToUse = scenePrompts[currentSceneIndex];
+      console.log(`Generating scene ${currentSceneIndex + 1} of ${scenePrompts.length}`);
+      console.log("Scene prompt:", promptToUse);
+      
+      // Save scene prompts to manifest on first scene
+      if (currentSceneIndex === 0) {
+        await supabase
+          .from('jobs')
+          .update({
+            manifest: {
+              ...manifest,
+              scenePrompts,
+              currentSceneIndex: 0
+            }
+          })
+          .eq('id', body.jobId);
+      }
+    } else {
+      // Single video generation
+      if (!promptToUse) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Missing required field: prompt is required for video generation" 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        );
+      }
+      console.log("Generating single video with Pixverse V5");
+      console.log("Prompt:", promptToUse);
+    }
     
     // Build enhanced prompt with character/scene consistency
-    let enhancedPrompt = body.prompt;
+    let enhancedPrompt = promptToUse;
     
     // Add character description if provided for consistency
     if (body.characterDescription) {
@@ -315,26 +402,18 @@ serve(async (req) => {
 
     console.log("Video prediction started:", prediction.id);
     
-    // Get existing manifest and save predictionId
-    const { data: jobData } = await supabase
-      .from('jobs')
-      .select('manifest')
-      .eq('id', body.jobId)
-      .single();
-
-    const existingManifest = jobData?.manifest || {};
-    
     // Update job with prediction ID and mark as running
     const { error: updateError } = await supabase
       .from('jobs')
       .update({
         manifest: {
-          ...existingManifest,
+          ...manifest,
           predictionId: prediction.id,
+          currentSceneIndex: currentSceneIndex,
         },
         status: 'running',
-        progress_stage: 'Generating video',
-        started_at: new Date().toISOString(),
+        progress_stage: scenePrompts ? `Generating scene ${currentSceneIndex + 1}` : 'Generating video',
+        started_at: currentSceneIndex === 0 ? new Date().toISOString() : undefined,
       })
       .eq('id', body.jobId);
 

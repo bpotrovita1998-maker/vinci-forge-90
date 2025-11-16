@@ -18,6 +18,7 @@ export interface GenerationOptions {
   videoMode?: VideoMode;
   numVideos?: number; // for video generation
   upscaleVideo?: boolean; // upscale to 4K with 60fps
+  scenePrompts?: string[]; // for multi-part video generation
   
   // 3D options
   threeDMode: ThreeDMode;
