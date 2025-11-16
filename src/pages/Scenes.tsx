@@ -112,6 +112,8 @@ export default function Scenes() {
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [viewingScene, setViewingScene] = useState<Scene | null>(null);
+  const [showConsistencyPreview, setShowConsistencyPreview] = useState(false);
+  const [comparisonSceneIndex, setComparisonSceneIndex] = useState(0);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveQueuedRef = useRef<boolean>(false);
   const saveQueuedToastRef = useRef<boolean>(false);
@@ -1658,6 +1660,17 @@ export default function Scenes() {
                       {readyScenes} Ready Scene{readyScenes !== 1 ? 's' : ''}
                     </Badge>
                   </div>
+                  {readyScenes >= 2 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowConsistencyPreview(true)}
+                      className="gap-2"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Check Consistency
+                    </Button>
+                  )}
                 </div>
 
                 {/* Ready Scenes Grid */}
@@ -2140,6 +2153,165 @@ export default function Scenes() {
                   Apply Edits
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Consistency Preview Dialog */}
+      <Dialog open={showConsistencyPreview} onOpenChange={setShowConsistencyPreview}>
+        <DialogContent className="sm:max-w-[1200px] max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Scene Consistency Preview
+            </DialogTitle>
+            <DialogDescription>
+              Compare consecutive scenes to verify character and style consistency before generating videos
+            </DialogDescription>
+          </DialogHeader>
+          
+          {(() => {
+            const readyScenesArray = scenes.filter(s => s.status === 'ready');
+            if (readyScenesArray.length < 2) {
+              return (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">Need at least 2 ready scenes to compare</p>
+                </div>
+              );
+            }
+
+            const currentScene = readyScenesArray[comparisonSceneIndex];
+            const nextScene = readyScenesArray[comparisonSceneIndex + 1];
+
+            return (
+              <div className="space-y-4">
+                {/* Navigation */}
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setComparisonSceneIndex(Math.max(0, comparisonSceneIndex - 1))}
+                    disabled={comparisonSceneIndex === 0}
+                  >
+                    Previous Pair
+                  </Button>
+                  <Badge variant="secondary" className="text-sm">
+                    Comparing Scenes {comparisonSceneIndex + 1} & {comparisonSceneIndex + 2} of {readyScenesArray.length}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setComparisonSceneIndex(Math.min(readyScenesArray.length - 2, comparisonSceneIndex + 1))}
+                    disabled={comparisonSceneIndex >= readyScenesArray.length - 2}
+                  >
+                    Next Pair
+                  </Button>
+                </div>
+
+                {/* Side-by-side comparison */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* First Scene */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm">Scene {comparisonSceneIndex + 1}</h4>
+                      <Badge variant={currentScene.type === 'video' ? 'default' : 'secondary'}>
+                        {currentScene.type === 'video' ? 'Video' : 'Image'}
+                      </Badge>
+                    </div>
+                    <Card className="overflow-hidden">
+                      <div className="aspect-video bg-muted flex items-center justify-center">
+                        {currentScene.videoUrl ? (
+                          <video 
+                            src={currentScene.videoUrl} 
+                            controls
+                            className="w-full h-full object-cover"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        ) : currentScene.imageUrl ? (
+                          <img 
+                            src={currentScene.imageUrl} 
+                            alt={currentScene.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <p className="text-muted-foreground text-sm">No media</p>
+                        )}
+                      </div>
+                      <div className="p-3 space-y-1">
+                        <p className="font-medium text-sm">{currentScene.title}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {currentScene.description}
+                        </p>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Second Scene */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm">Scene {comparisonSceneIndex + 2}</h4>
+                      <Badge variant={nextScene.type === 'video' ? 'default' : 'secondary'}>
+                        {nextScene.type === 'video' ? 'Video' : 'Image'}
+                      </Badge>
+                    </div>
+                    <Card className="overflow-hidden">
+                      <div className="aspect-video bg-muted flex items-center justify-center">
+                        {nextScene.videoUrl ? (
+                          <video 
+                            src={nextScene.videoUrl} 
+                            controls
+                            className="w-full h-full object-cover"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        ) : nextScene.imageUrl ? (
+                          <img 
+                            src={nextScene.imageUrl} 
+                            alt={nextScene.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <p className="text-muted-foreground text-sm">No media</p>
+                        )}
+                      </div>
+                      <div className="p-3 space-y-1">
+                        <p className="font-medium text-sm">{nextScene.title}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {nextScene.description}
+                        </p>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+
+                {/* Consistency Notes */}
+                <Card className="bg-muted/30 border-primary/20">
+                  <CardContent className="pt-4 space-y-2">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      What to Check
+                    </h4>
+                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                      <li>Character appearance (face, clothing, colors)</li>
+                      <li>Art style consistency (lighting, camera angle, mood)</li>
+                      <li>Background and environment continuity</li>
+                      <li>Object and prop consistency</li>
+                      <li>Overall visual quality and coherence</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button onClick={() => {
+              setShowConsistencyPreview(false);
+              setComparisonSceneIndex(0);
+            }}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
