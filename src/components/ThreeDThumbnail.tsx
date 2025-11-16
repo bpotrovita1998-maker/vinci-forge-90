@@ -2,6 +2,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
 import { Suspense, Component, ReactNode, useState, useEffect, useRef } from 'react';
 import { Package, Loader2 } from 'lucide-react';
+import { posterCache, getPosterCacheKey } from '@/lib/posterCache';
 
 interface ThreeDThumbnailProps {
   modelUrl: string;
@@ -71,44 +72,6 @@ function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) 
   return null;
 }
 
-// Cache key generator for poster storage
-const getPosterCacheKey = (jobId?: string, url?: string) => {
-  if (jobId) return `3d-poster-${jobId}`;
-  if (url) return `3d-poster-${btoa(url).slice(0, 32)}`; // hash-like key
-  return null;
-};
-
-// Load poster from localStorage
-const loadCachedPoster = (cacheKey: string | null): string | null => {
-  if (!cacheKey) return null;
-  try {
-    return localStorage.getItem(cacheKey);
-  } catch (error) {
-    console.warn('Failed to load cached poster:', error);
-    return null;
-  }
-};
-
-// Save poster to localStorage
-const savePosterToCache = (cacheKey: string | null, dataUrl: string) => {
-  if (!cacheKey) return;
-  try {
-    localStorage.setItem(cacheKey, dataUrl);
-  } catch (error) {
-    // If quota exceeded, clear old posters
-    console.warn('localStorage quota exceeded, clearing old posters');
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('3d-poster-'))
-        .slice(0, 10) // Clear oldest 10
-        .forEach(k => localStorage.removeItem(k));
-      localStorage.setItem(cacheKey, dataUrl);
-    } catch (e) {
-      console.error('Failed to save poster even after cleanup:', e);
-    }
-  }
-};
-
 export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
@@ -123,14 +86,24 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
   const retryCount = useRef(0);
   const maxRetries = 2;
 
-  // Load cached poster immediately on mount
+  // Load cached poster from IndexedDB on mount
   useEffect(() => {
-    const cached = loadCachedPoster(cacheKey);
-    if (cached) {
-      console.log('Loaded cached poster for', jobId || normalizedUrl);
-      setCachedPosterUrl(cached);
-      setIsLoading(false); // Show cached poster without loading indicator
-    }
+    const loadCachedPoster = async () => {
+      if (!cacheKey) return;
+      
+      try {
+        const cached = await posterCache.get(cacheKey);
+        if (cached) {
+          console.log('Loaded cached poster from IndexedDB for', jobId || normalizedUrl);
+          setCachedPosterUrl(cached);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Failed to load cached poster:', error);
+      }
+    };
+
+    loadCachedPoster();
   }, [cacheKey, jobId, normalizedUrl]);
 
   const handleModelError = () => {
@@ -151,14 +124,25 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
     }, 300);
   };
 
-  const handlePosterCapture = (dataUrl: string) => {
+  const handlePosterCapture = async (dataUrl: string) => {
     console.log('Poster captured for', jobId || normalizedUrl);
     setPosterUrl(dataUrl);
     setIsLoading(false);
     
-    // Save to cache for instant future loads
-    savePosterToCache(cacheKey, dataUrl);
-    setCachedPosterUrl(dataUrl);
+    // Save to IndexedDB cache for instant future loads
+    if (cacheKey) {
+      try {
+        await posterCache.set(cacheKey, dataUrl, normalizedUrl);
+        setCachedPosterUrl(dataUrl);
+        
+        // Trigger cleanup to maintain reasonable cache size
+        posterCache.cleanup(50).catch(err => 
+          console.warn('Cache cleanup failed:', err)
+        );
+      } catch (error) {
+        console.error('Failed to cache poster:', error);
+      }
+    }
   };
 
   // Try to construct Supabase storage URL for models
