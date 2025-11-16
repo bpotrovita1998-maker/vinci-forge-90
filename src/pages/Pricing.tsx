@@ -1,12 +1,134 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Check, Loader2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
 
 export default function Pricing() {
   const navigate = useNavigate();
-  const { subscription, tokenBalance, isAdmin } = useSubscription();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
+  const { subscription, tokenBalance, isAdmin, refreshData } = useSubscription();
+  const [loading, setLoading] = useState<string | null>(null);
+
+  // Handle successful subscription payment
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id');
+    if (sessionId) {
+      handleSubscriptionSuccess();
+    }
+  }, [searchParams]);
+
+  // Handle successful token purchase
+  useEffect(() => {
+    const tokenSessionId = searchParams.get('token_session_id');
+    if (tokenSessionId) {
+      handleTokenPurchaseSuccess(tokenSessionId);
+    }
+  }, [searchParams]);
+
+  const handleSubscriptionSuccess = async () => {
+    try {
+      // Check subscription status
+      const { error } = await supabase.functions.invoke('check-subscription');
+      if (error) throw error;
+      
+      await refreshData();
+      
+      toast({
+        title: "Welcome to PRO!",
+        description: "Your subscription is now active. You can now purchase tokens and use all features.",
+      });
+      
+      // Clear the session_id from URL
+      navigate('/pricing', { replace: true });
+    } catch (error: any) {
+      console.error('Error verifying subscription:', error);
+      toast({
+        title: "Subscription Error",
+        description: error.message || "Failed to verify subscription. Please contact support.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleTokenPurchaseSuccess = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-token-payment', {
+        body: { session_id: sessionId }
+      });
+      
+      if (error) throw error;
+      
+      await refreshData();
+      
+      toast({
+        title: "Tokens Added!",
+        description: `Successfully added ${data.tokens_added} tokens to your account.`,
+      });
+      
+      // Clear the token_session_id from URL
+      navigate('/pricing', { replace: true });
+    } catch (error: any) {
+      console.error('Error verifying token payment:', error);
+      toast({
+        title: "Payment Error",
+        description: error.message || "Failed to verify payment. Please contact support.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubscribe = async () => {
+    try {
+      setLoading('subscription');
+      
+      const { data, error } = await supabase.functions.invoke('create-subscription-checkout');
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (error: any) {
+      console.error('Error creating checkout:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create checkout session",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleBuyTokens = async (amount: number, tokens: number) => {
+    try {
+      setLoading(`token-${amount}`);
+      
+      const { data, error } = await supabase.functions.invoke('create-token-checkout', {
+        body: { amount, tokens }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.open(data.url, '_blank');
+      }
+    } catch (error: any) {
+      console.error('Error creating token checkout:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create checkout session",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
 
   // Token costs match exact AI costs (no markup - profit from $1 subscription only)
   // Image AI cost: $0.01 → charge 1 token ($0.01)
@@ -87,8 +209,19 @@ export default function Pricing() {
             {subscription?.status === 'active' ? (
               <Button disabled className="w-full">Current Plan</Button>
             ) : (
-              <Button className="w-full" onClick={() => navigate('/')}>
-                Subscribe Now
+              <Button 
+                className="w-full" 
+                onClick={handleSubscribe}
+                disabled={loading === 'subscription'}
+              >
+                {loading === 'subscription' ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Subscribe Now'
+                )}
               </Button>
             )}
           </CardFooter>
@@ -142,13 +275,17 @@ export default function Pricing() {
                 <CardFooter>
                   <Button 
                     className="w-full" 
-                    disabled={!subscription || subscription.status !== 'active'}
-                    onClick={() => {
-                      // TODO: Integrate Stripe checkout
-                      alert('Stripe integration coming soon!');
-                    }}
+                    disabled={!subscription || subscription.status !== 'active' || loading === `token-${pkg.amount}`}
+                    onClick={() => handleBuyTokens(pkg.amount, pkg.tokens)}
                   >
-                    Buy Tokens
+                    {loading === `token-${pkg.amount}` ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Buy Tokens'
+                    )}
                   </Button>
                 </CardFooter>
               </Card>
