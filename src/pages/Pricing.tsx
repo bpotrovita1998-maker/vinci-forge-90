@@ -210,12 +210,12 @@ export default function Pricing() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-bold">$5</span>
+              <span className="text-5xl font-bold">$3</span>
               <span className="text-muted-foreground">/month</span>
             </div>
             <ul className="space-y-2">
               {[
-                "8GB storage included",
+                "32GB storage included",
                 "90-day file retention",
                 "Unlimited AI image generation",
                 "Unlimited AI video generation",

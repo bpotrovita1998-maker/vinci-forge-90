@@ -51,7 +51,7 @@ serve(async (req) => {
       logStep("No existing customer found");
     }
 
-    // Create checkout session for PRO subscription ($5/month)
+    // Create checkout session for PRO subscription ($3/month)
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,

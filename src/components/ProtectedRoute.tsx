@@ -64,7 +64,7 @@ export default function ProtectedRoute({
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Welcome to VinciAI!</AlertTitle>
             <AlertDescription>
-              You've used all your free tokens. Subscribe now for just $5/month to unlock unlimited AI generation with 8GB storage!
+              You've used all your free tokens. Subscribe now for just $3/month to unlock unlimited AI generation with 32GB storage!
             </AlertDescription>
           </Alert>
           <Button onClick={() => navigate('/pricing')} className="w-full" size="lg">
