@@ -112,7 +112,7 @@ export default function Hero() {
       // Clear prompt after successful submission
       setPrompt('');
       
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
           title: "Invalid Input",
@@ -120,11 +120,14 @@ export default function Hero() {
           variant: "destructive",
         });
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to submit job. Please try again.",
-          variant: "destructive",
-        });
+        const msg = typeof error?.message === 'string' ? error.message : '';
+        if (msg.includes('PRO subscription')) {
+          toast({ title: 'Upgrade required', description: 'Upgrade to PRO subscription to enable this feature.', variant: 'destructive' });
+        } else if (msg.includes('Free image limit') || msg.includes('5 free images') || msg.includes('5 images')) {
+          toast({ title: 'Free limit reached', description: "You've used all 5 free images. Upgrade to PRO to continue.", variant: 'destructive' });
+        } else {
+          toast({ title: 'Error', description: 'Failed to submit job. Please try again.', variant: 'destructive' });
+        }
       }
     } finally {
       setIsGenerating(false);
