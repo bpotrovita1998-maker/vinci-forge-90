@@ -10,6 +10,7 @@ import AdvancedOptions from './AdvancedOptions';
 import CADTemplates from './CADTemplates';
 import PromptEnhancer from './PromptEnhancer';
 import { z } from 'zod';
+import { useSubscription } from '@/hooks/useSubscription';
 import {
   Collapsible,
   CollapsibleContent,
@@ -64,6 +65,7 @@ const promptSchema = z.string()
 
 export default function Hero() {
   const { submitJob } = useJobs();
+  const { isAdmin, subscription, tokenBalance } = useSubscription();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showEnhancer, setShowEnhancer] = useState(false);
@@ -84,6 +86,24 @@ export default function Hero() {
     try {
       // Validate prompt
       promptSchema.parse(prompt);
+      
+      // PRO gating and free image guard before hitting backend
+      const isPro = isAdmin || subscription?.status === 'active';
+      const requestedType = options.type || 'image';
+      if (!isPro && requestedType !== 'image') {
+        toast({ title: 'Upgrade required', description: 'Upgrade to PRO subscription to enable this feature.', variant: 'destructive' });
+        return;
+      }
+      if (!isPro && requestedType === 'image') {
+        const freeGranted = tokenBalance?.free_tokens_granted ?? 5;
+        const freeUsed = tokenBalance?.free_tokens_used ?? 0;
+        const remaining = Math.max(0, freeGranted - freeUsed);
+        const requested = options.numImages || 1;
+        if (remaining <= 0 || requested > remaining) {
+          toast({ title: 'Free limit reached', description: "You've used all 5 free images. Upgrade to PRO to continue.", variant: 'destructive' });
+          return;
+        }
+      }
       
       setIsGenerating(true);
       
