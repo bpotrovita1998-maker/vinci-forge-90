@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import ParticleBackground from '@/components/ParticleBackground';
+import { StorageUsage } from '@/components/StorageUsage';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -327,6 +328,10 @@ export default function Gallery() {
             <h1 className="text-4xl font-bold text-foreground mb-2">Gallery</h1>
             <p className="text-muted-foreground">Browse all your generated creations</p>
           </motion.div>
+
+          <div className="mb-6">
+            <StorageUsage />
+          </div>
 
           <Tabs value={galleryMode} onValueChange={(v) => setGalleryMode(v as 'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes')} className="space-y-6">
             <TabsList className="glass border-border/30">

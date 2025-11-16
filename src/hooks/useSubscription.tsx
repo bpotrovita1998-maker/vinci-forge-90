@@ -6,6 +6,8 @@ interface TokenBalance {
   balance: number;
   total_purchased: number;
   total_spent: number;
+  storage_bytes_used: number;
+  storage_limit_bytes: number;
 }
 
 interface Subscription {
@@ -59,7 +61,7 @@ export const useSubscription = () => {
     try {
       const { data, error } = await supabase
         .from('token_balances' as any)
-        .select('balance, total_purchased, total_spent')
+        .select('balance, total_purchased, total_spent, storage_bytes_used, storage_limit_bytes')
         .eq('user_id', userId)
         .maybeSingle();
       
