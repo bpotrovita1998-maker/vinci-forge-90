@@ -96,52 +96,86 @@ serve(async (req) => {
     let lastError: string = '';
     let successfulModel: string = '';
 
+    // Generate multiple images by making separate requests
+    const allGeneratedImages: string[] = [];
+    
     // Try each Lovable AI model in sequence
     for (const model of imageModels) {
-      console.log(`Attempting generation with model: ${model}`);
+      console.log(`Attempting to generate ${numImages} image(s) with model: ${model}`);
       
-      try {
-        response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              {
-                role: 'user',
-                content: imagePrompt
-              }
-            ],
-            modalities: ['image', 'text']
-          }),
-        });
+      let modelSuccess = true;
+      const modelImages: string[] = [];
+      
+      // Generate each image separately
+      for (let imgIndex = 0; imgIndex < numImages; imgIndex++) {
+        try {
+          console.log(`Generating image ${imgIndex + 1}/${numImages} with ${model}`);
+          
+          response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                {
+                  role: 'user',
+                  content: imagePrompt
+                }
+              ],
+              modalities: ['image', 'text']
+            }),
+          });
 
-        if (response.ok) {
-          console.log(`Successfully generated with model: ${model}`);
-          successfulModel = model;
-          break; // Success! Exit the loop
+          if (response.ok) {
+            const data = await response.json();
+            const generatedImages = data.choices?.[0]?.message?.images || [];
+            const imageUrl = generatedImages[0]?.image_url?.url;
+            
+            if (imageUrl) {
+              modelImages.push(imageUrl);
+              console.log(`Successfully generated image ${imgIndex + 1}/${numImages} with ${model}`);
+            } else {
+              console.error(`No image in response for image ${imgIndex + 1}`);
+              modelSuccess = false;
+              break;
+            }
+          } else {
+            const errorText = await response.text();
+            lastError = errorText;
+            console.error(`Model ${model} failed for image ${imgIndex + 1}:`, response.status, errorText);
+            modelSuccess = false;
+            
+            // If credits exhausted or rate-limited, try next model
+            if (response.status === 402 || response.status === 429) {
+              console.log(`Model ${model} unavailable (${response.status}), trying next model...`);
+              break;
+            }
+            
+            // For other errors, also try next model
+            console.log(`Model ${model} returned error ${response.status}, trying next model...`);
+            break;
+          }
+        } catch (error) {
+          console.error(`Exception with model ${model} for image ${imgIndex + 1}:`, error);
+          lastError = error instanceof Error ? error.message : String(error);
+          modelSuccess = false;
+          break;
         }
-
-        const errorText = await response.text();
-        lastError = errorText;
-        console.error(`Model ${model} failed:`, response.status, errorText);
-
-        // If credits exhausted or rate-limited, try next model
-        if (response.status === 402 || response.status === 429) {
-          console.log(`Model ${model} unavailable (${response.status}), trying next model...`);
-          continue;
-        }
-
-        // For other errors (400, 500, etc.), also try next model
-        console.log(`Model ${model} returned error ${response.status}, trying next model...`);
-      } catch (error) {
-        console.error(`Exception with model ${model}:`, error);
-        lastError = error instanceof Error ? error.message : String(error);
-        continue;
       }
+      
+      // If all images generated successfully with this model, use them
+      if (modelSuccess && modelImages.length === numImages) {
+        allGeneratedImages.push(...modelImages);
+        successfulModel = model;
+        response = { ok: true } as Response; // Mark as successful
+        break; // Success! Exit the model loop
+      }
+      
+      // Otherwise, try next model
+      console.log(`Model ${model} failed to generate all images, trying next model...`);
     }
 
     // If all Lovable AI models failed, fallback to Replicate
@@ -300,50 +334,18 @@ serve(async (req) => {
       );
     }
 
-    const data = await response.json();
-    console.log('Lovable AI response received');
-
-    // Check for safety/content blocks first
-    const finishReason = data.choices?.[0]?.finish_reason;
-    const nativeFinishReason = data.choices?.[0]?.native_finish_reason;
+    // Use the collected images from successful generation
+    const images = allGeneratedImages;
     
-    if (nativeFinishReason === 'IMAGE_SAFETY' || finishReason === 'content_filter') {
-      console.error('Content blocked by safety filters:', { finishReason, nativeFinishReason });
-      return new Response(
-        JSON.stringify({ 
-          error: 'Content blocked by safety filters. Please avoid prompts with violence, weapons, gore, adult content, or other sensitive topics. Try describing peaceful or creative scenes instead.',
-          reason: 'SAFETY_FILTER'
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Extract base64 images from response
-    const generatedImages = data.choices?.[0]?.message?.images || [];
-    const images = generatedImages.map((img: any) => img.image_url?.url).filter(Boolean);
-
     if (images.length === 0) {
-      console.error('No images in response:', data);
-      
-      // Check if there's a text response instead
-      const textContent = data.choices?.[0]?.message?.content;
-      if (textContent) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Unable to generate image. The model returned text instead of an image. This may be due to content restrictions or prompt interpretation issues. Try rephrasing your prompt to be more visual and descriptive.',
-            details: textContent
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
+      console.error('No images were generated');
       return new Response(
         JSON.stringify({ error: 'No images generated. Please ensure your prompt describes a visual scene without sensitive content.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Successfully generated', images.length, 'image(s)');
+    console.log('Successfully generated', images.length, 'image(s) with', successfulModel);
 
     // Store base64 images permanently if jobId and userId provided
     let finalUrls = images;
