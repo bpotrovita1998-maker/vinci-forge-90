@@ -251,15 +251,33 @@ serve(async (req) => {
     console.error("Error in generate-video function:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to generate video";
     
-    // Check for specific Replicate errors
+    // Check for specific Replicate errors and provide user-friendly messages
     let userFriendlyMessage = errorMessage;
     let statusCode = 500;
-    if (errorMessage.includes('402') || errorMessage.includes('Insufficient credit')) {
-      userFriendlyMessage = "Insufficient Replicate credits. Please add credits at replicate.com/account/billing";
+    
+    // Check for insufficient credits/balance
+    if (errorMessage.includes('402') || errorMessage.includes('Insufficient credit') || errorMessage.includes('payment required')) {
+      userFriendlyMessage = "⚠️ Insufficient Replicate balance. Please add credits to your Replicate account to continue generating videos.";
       statusCode = 402;
-    } else if (errorMessage.includes('429') || errorMessage.includes('throttled') || errorMessage.includes('rate limit')) {
-      userFriendlyMessage = "Rate limit exceeded. Please add a payment method at replicate.com/account/billing to increase limits";
+    } 
+    // Check for rate limits
+    else if (errorMessage.includes('429') || errorMessage.includes('throttled') || errorMessage.includes('rate limit') || errorMessage.includes('Rate limit exceeded')) {
+      userFriendlyMessage = "⏱️ Rate limit reached. Please add payment method to your Replicate account or wait a few minutes before trying again.";
       statusCode = 429;
+    }
+    // Check for validation errors (aspect ratio, etc.)
+    else if (errorMessage.includes('422') || errorMessage.includes('Unprocessable Entity')) {
+      // Try to parse aspect ratio errors specifically
+      if (errorMessage.includes('aspect_ratio')) {
+        userFriendlyMessage = "❌ Invalid video dimensions. The aspect ratio must be 16:9, 9:16, or 1:1. Please adjust your video settings.";
+      } else {
+        userFriendlyMessage = "❌ Invalid video parameters. Please check your video settings and try again.";
+      }
+      statusCode = 422;
+    }
+    // Check for model-specific errors
+    else if (errorMessage.includes('Model') || errorMessage.includes('prediction')) {
+      userFriendlyMessage = "🔧 Video generation service error. Please try again in a few moments.";
     }
 
     // Update job status to failed if we have a jobId (body was parsed before the error)

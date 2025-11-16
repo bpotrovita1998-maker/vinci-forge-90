@@ -3,7 +3,7 @@ import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp, Cuboid } from 'lucide-react';
+import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp, Cuboid, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useJobs } from '@/contexts/JobContext';
 import { useState, memo } from 'react';
@@ -185,8 +185,29 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
 
       {/* Error */}
       {job.status === 'failed' && job.error && (
-        <div className="text-xs text-destructive bg-destructive/10 rounded p-2">
-          {job.error}
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 space-y-2">
+          <div className="flex items-start gap-2">
+            <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-1">
+              <p className="text-sm font-medium text-destructive">Generation Failed</p>
+              <p className="text-xs text-destructive/90 leading-relaxed">{job.error}</p>
+            </div>
+          </div>
+          {(job.error.includes('balance') || job.error.includes('credits') || job.error.includes('rate limit')) && (
+            <div className="pt-2 border-t border-destructive/20">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full border-destructive/30 text-destructive hover:bg-destructive/20"
+                asChild
+              >
+                <a href="https://replicate.com/account/billing" target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-3 h-3 mr-2" />
+                  Manage Replicate Account
+                </a>
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
