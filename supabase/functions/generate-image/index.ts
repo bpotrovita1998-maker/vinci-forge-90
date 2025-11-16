@@ -41,7 +41,7 @@ serve(async (req) => {
     // Enhance prompt to ensure image generation (not text response)
     const imagePrompt = `Generate a high-quality image of: ${prompt}`;
 
-    // Generate images using Lovable AI Gateway (Google Imagen 4)
+    // Generate images using Lovable AI Gateway (Gemini Nano banana model)
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -49,7 +49,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/imagen-4',
+        model: 'google/gemini-2.5-flash-image',
         messages: [
           {
             role: 'user',
