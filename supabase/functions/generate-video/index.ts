@@ -159,7 +159,8 @@ serve(async (req) => {
           // Get existing outputs array and manifest
           const existingOutputs = (jobData.outputs || []) as string[];
           const manifest = jobData.manifest as any || {};
-          const sceneIndex = manifest.currentSceneIndex || 0;
+          const regeneratingIndex = manifest.regeneratingSceneIndex;
+          const sceneIndex = regeneratingIndex !== undefined ? regeneratingIndex : (manifest.currentSceneIndex || 0);
           
           // Upload to Supabase storage with scene index
           const fileName = `${jobData.user_id}/${body.jobId}/scene_${sceneIndex}.mp4`;
@@ -187,19 +188,33 @@ serve(async (req) => {
           
           console.log("Video stored at:", publicUrl);
 
-          // Add to outputs array
-          const updatedOutputs = [...existingOutputs, publicUrl];
+          // Add to outputs array or replace if regenerating
+          let updatedOutputs: string[];
+          if (regeneratingIndex !== undefined) {
+            // Replace the specific scene
+            updatedOutputs = [...existingOutputs];
+            updatedOutputs[regeneratingIndex] = publicUrl;
+            console.log(`Replaced scene ${regeneratingIndex} in outputs`);
+          } else {
+            // Add new scene
+            updatedOutputs = [...existingOutputs, publicUrl];
+          }
+          
           const scenePrompts = manifest.scenePrompts as string[] | undefined;
           const totalScenes = scenePrompts ? scenePrompts.length : (jobData.num_videos || 1);
           
           // Check if all scenes are complete
           const allScenesComplete = updatedOutputs.length >= totalScenes;
           
-          // Update manifest with completed scene
+          // Update manifest
           const updatedManifest = {
             ...manifest,
-            currentSceneIndex: sceneIndex + 1,
+            currentSceneIndex: regeneratingIndex !== undefined ? regeneratingIndex : (sceneIndex + 1),
+            regeneratingSceneIndex: undefined, // Clear regenerating flag
           };
+          
+          // If regenerating, we need to re-stitch
+          const needsRestitching = regeneratingIndex !== undefined && scenePrompts && scenePrompts.length > 1;
           
           // Update job with new output URL
           const { error: updateError } = await supabase
@@ -207,12 +222,14 @@ serve(async (req) => {
             .update({
               outputs: updatedOutputs,
               manifest: updatedManifest,
-              status: allScenesComplete ? 'encoding' : 'running',
-              progress_stage: allScenesComplete ? 'encoding' : 'running',
+              status: (allScenesComplete && !needsRestitching) ? 'encoding' : (needsRestitching ? 'encoding' : 'running'),
+              progress_stage: needsRestitching ? 'encoding' : (allScenesComplete ? 'encoding' : 'running'),
               progress_percent: allScenesComplete ? 80 : Math.round((updatedOutputs.length / totalScenes) * 70),
-              progress_message: allScenesComplete 
-                ? 'All scenes generated! Stitching video parts...' 
-                : `Generated scene ${updatedOutputs.length} of ${totalScenes}...`,
+              progress_message: needsRestitching 
+                ? 'Re-stitching video with regenerated scene...'
+                : (allScenesComplete 
+                  ? 'All scenes generated! Stitching video parts...' 
+                  : `Generated scene ${updatedOutputs.length} of ${totalScenes}...`),
             })
             .eq('id', body.jobId);
 
@@ -221,8 +238,8 @@ serve(async (req) => {
           }
 
           // If all scenes are complete and we have multiple parts, stitch them together
-          if (allScenesComplete && scenePrompts && scenePrompts.length > 1) {
-            console.log("All scenes complete, initiating stitching...");
+          if ((allScenesComplete || needsRestitching) && scenePrompts && scenePrompts.length > 1) {
+            console.log(needsRestitching ? "Re-stitching with regenerated scene..." : "All scenes complete, initiating stitching...");
             
             // Call stitch-videos function
             const { error: stitchError } = await supabase.functions.invoke(
@@ -257,8 +274,9 @@ serve(async (req) => {
             ...prediction,
             output: publicUrl,
             allScenesComplete,
-            sceneIndex: updatedOutputs.length,
-            totalScenes
+            sceneIndex: regeneratingIndex !== undefined ? regeneratingIndex : updatedOutputs.length,
+            totalScenes,
+            regenerated: regeneratingIndex !== undefined
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
