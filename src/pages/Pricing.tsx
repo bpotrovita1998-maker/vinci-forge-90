@@ -205,20 +205,22 @@ export default function Pricing() {
         {/* Subscription Plan */}
         <Card className="border-primary/20 shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl">Monthly Subscription</CardTitle>
-            <CardDescription>Access to all features with token-based usage</CardDescription>
+            <CardTitle className="text-2xl">VinciAI PRO</CardTitle>
+            <CardDescription>Complete access to all AI creation tools</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-bold">$1</span>
+              <span className="text-5xl font-bold">$5</span>
               <span className="text-muted-foreground">/month</span>
             </div>
             <ul className="space-y-2">
               {[
-                "Access to AI image generation",
-                "Access to AI video generation",
+                "8GB storage included",
+                "90-day file retention",
+                "Unlimited AI image generation",
+                "Unlimited AI video generation",
+                "Unlimited 3D model generation",
                 "Image vectorization (1920x1080)",
-                "Gallery storage",
                 "Priority support"
               ].map((feature, i) => (
                 <li key={i} className="flex items-center gap-2">
@@ -227,6 +229,9 @@ export default function Pricing() {
                 </li>
               ))}
             </ul>
+            <div className="pt-2 text-sm text-muted-foreground border-t">
+              🎁 New users get 5 free image generations to start!
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
             {subscription?.status === 'active' ? (
@@ -272,9 +277,9 @@ export default function Pricing() {
 
         {/* Token Packages */}
         <div>
-          <h2 className="text-2xl font-bold mb-6 text-center">Buy Tokens</h2>
+          <h2 className="text-2xl font-bold mb-6 text-center">Token Packages</h2>
           <p className="text-center text-muted-foreground mb-4">
-            Purchase tokens to power your AI generations. Each generation costs tokens based on complexity.
+            Purchase additional tokens to power your AI generations. Requires an active PRO subscription.
           </p>
           <div className="bg-muted/30 rounded-lg p-4 mb-8 text-center text-sm">
             <span className="font-semibold">Token Costs:</span> Image = 1 token ($0.01) • Video = 30 tokens ($0.30) • 3D/CAD = 10 tokens ($0.10)

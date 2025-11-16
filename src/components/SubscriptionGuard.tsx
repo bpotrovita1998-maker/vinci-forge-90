@@ -25,14 +25,18 @@ export const SubscriptionGuard = ({ children, requireTokens = false }: Subscript
     return <>{children}</>;
   }
 
-  if (!canUseService) {
+  // Allow users with free tokens to access features without subscription
+  const freeTokensAvailable = (tokenBalance?.free_tokens_granted || 0) - (tokenBalance?.free_tokens_used || 0);
+  const hasFreeTokens = freeTokensAvailable > 0;
+
+  if (!canUseService && !hasFreeTokens) {
     return (
       <div className="max-w-2xl mx-auto p-8 space-y-6">
         <Alert>
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Subscription Required</AlertTitle>
+          <AlertTitle>Subscription or Free Tokens Required</AlertTitle>
           <AlertDescription>
-            You need an active subscription to use VinciAI features. Subscribe now for just $1/month!
+            You've used all your free tokens. Subscribe now for just $5/month to continue creating!
           </AlertDescription>
         </Alert>
         <Button onClick={() => navigate('/pricing')} className="w-full" size="lg">

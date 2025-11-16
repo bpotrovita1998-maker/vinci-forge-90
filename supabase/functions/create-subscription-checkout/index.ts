@@ -51,13 +51,13 @@ serve(async (req) => {
       logStep("No existing customer found");
     }
 
-    // Create checkout session for PRO subscription ($1/month)
+    // Create checkout session for PRO subscription ($5/month)
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
-          price: "price_1SU3yVE6ku5aODnp1ILrstOk", // VinciAI PRO Subscription $1/month
+          price: "price_1SU60VE6ku5aODnpWWzis3N0", // VinciAI PRO Subscription $5/month
           quantity: 1,
         },
       ],
