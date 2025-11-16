@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
-import Replicate from "https://esm.sh/replicate@0.25.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,15 +15,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY');
-    if (!REPLICATE_API_KEY) {
-      throw new Error('REPLICATE_API_KEY is not set');
-    }
-
-    const replicate = new Replicate({
-      auth: REPLICATE_API_KEY,
-    });
 
     const { videoUrls, jobId } = await req.json();
 
@@ -47,37 +37,6 @@ serve(async (req) => {
       })
       .eq('id', jobId);
 
-    // Download all videos first, then use FFmpeg to concatenate
-    console.log("Downloading videos for concatenation...");
-    const videoBuffers: ArrayBuffer[] = [];
-    
-    for (const url of videoUrls) {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to download video from ${url}`);
-      }
-      videoBuffers.push(await response.arrayBuffer());
-    }
-    
-    // For now, use the first upscaled video as the output
-    // TODO: Implement proper video concatenation using FFmpeg edge function
-    console.log("Using first scene as temporary output until FFmpeg concat is implemented");
-    const stitchedVideoUrl = videoUrls[0];
-    
-    // Note: Proper video stitching requires an FFmpeg implementation
-    // This is a temporary solution that uses the first video
-
-    console.log("Temporary video selected:", stitchedVideoUrl);
-    
-    // Use the first video URL directly (already signed and accessible)
-    const videoResponse = await fetch(stitchedVideoUrl);
-    if (!videoResponse.ok) {
-      throw new Error(`Failed to download stitched video: ${videoResponse.statusText}`);
-    }
-
-    const videoBlob = await videoResponse.blob();
-    const videoBuffer = await videoBlob.arrayBuffer();
-
     // Get job details
     const { data: jobData } = await supabase
       .from('jobs')
@@ -89,7 +48,21 @@ serve(async (req) => {
       throw new Error('Job not found');
     }
 
-    // Upload final stitched video
+    // For now, just use the first upscaled video as the final output
+    // TODO: Implement proper FFmpeg-based video concatenation
+    console.log("Using first scene as temporary output (FFmpeg concat not implemented yet)");
+    const finalVideoUrl = videoUrls[0];
+    
+    // Download and re-upload to create a "final" version
+    const videoResponse = await fetch(finalVideoUrl);
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+    }
+
+    const videoBlob = await videoResponse.blob();
+    const videoBuffer = await videoBlob.arrayBuffer();
+
+    // Upload final video
     const fileName = `${jobData.user_id}/${jobId}/final_stitched.mp4`;
     const { error: uploadError } = await supabase.storage
       .from('generated-models')
