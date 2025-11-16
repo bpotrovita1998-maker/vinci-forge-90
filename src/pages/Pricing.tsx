@@ -9,34 +9,31 @@ export default function Pricing() {
   const { subscription, tokenBalance, isAdmin } = useSubscription();
 
   // Token costs match exact AI costs (no markup - profit from $1 subscription only)
-  // Image AI cost: $0.02 → charge 2 tokens ($0.02)
+  // Image AI cost: $0.01 → charge 1 token ($0.01)
   // Video AI cost: $0.30 → charge 30 tokens ($0.30)
-  // 3D AI cost: ~$0.10 → charge 10 tokens ($0.10)
+  // 3D/CAD AI cost: $0.10 → charge 10 tokens ($0.10)
   // Token value: 1 token = $0.01
   const tokenPackages = [
     { 
       amount: 20, 
-      tokens: 2000, 
-      bonus: 0,
-      images: 1000,
+      tokens: 2000,
+      images: 2000,
       videos: 66,
       threeD: 200
     },
     { 
       amount: 30, 
-      tokens: 3500, 
-      bonus: 500,
-      images: 1750,
-      videos: 116,
-      threeD: 350
+      tokens: 3000,
+      images: 3000,
+      videos: 100,
+      threeD: 300
     },
     { 
       amount: 50, 
-      tokens: 6500, 
-      bonus: 1500,
-      images: 3250,
-      videos: 216,
-      threeD: 650
+      tokens: 5000,
+      images: 5000,
+      videos: 166,
+      threeD: 500
     }
   ];
 
@@ -104,17 +101,12 @@ export default function Pricing() {
             Purchase tokens to power your AI generations. Each generation costs tokens based on complexity.
           </p>
           <div className="bg-muted/30 rounded-lg p-4 mb-8 text-center text-sm">
-            <span className="font-semibold">Token Costs:</span> Image = 2 tokens • Video = 30 tokens • 3D Model = 10 tokens
+            <span className="font-semibold">Token Costs:</span> Image = 1 token ($0.01) • Video = 30 tokens ($0.30) • 3D/CAD = 10 tokens ($0.10)
           </div>
           
           <div className="grid md:grid-cols-3 gap-6">
             {tokenPackages.map((pkg) => (
               <Card key={pkg.amount} className="relative hover:border-primary/40 transition-colors">
-                {pkg.bonus > 0 && (
-                  <div className="absolute -top-3 right-4 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-semibold">
-                    +{pkg.bonus} Bonus
-                  </div>
-                )}
                 <CardHeader>
                   <CardTitle className="text-3xl">${pkg.amount}</CardTitle>
                   <CardDescription>
@@ -144,7 +136,7 @@ export default function Pricing() {
                     </li>
                   </ul>
                   <div className="pt-2 text-xs text-muted-foreground border-t">
-                    Cost per generation: Images $0.02 • Videos $0.30 • 3D $0.10
+                    No markup - you pay exactly what we pay: Images $0.01 • Videos $0.30 • 3D/CAD $0.10
                   </div>
                 </CardContent>
                 <CardFooter>
