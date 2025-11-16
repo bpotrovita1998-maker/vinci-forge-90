@@ -2,6 +2,7 @@ import ParticleBackground from "@/components/ParticleBackground";
 import Hero from "@/components/Hero";
 import JobQueue from "@/components/JobQueue";
 import FreeTokenCounter from "@/components/FreeTokenCounter";
+import FirstGenerationCelebration from "@/components/FirstGenerationCelebration";
 
 const Index = () => {
   return (
@@ -19,6 +20,9 @@ const Index = () => {
           <JobQueue />
         </div>
       </div>
+      
+      {/* First Generation Celebration */}
+      <FirstGenerationCelebration />
     </div>
   );
 };
