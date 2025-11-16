@@ -347,6 +347,40 @@ serve(async (req) => {
 
       console.log('Successfully generated', images.length, 'image(s) with', successfulModel);
 
+      // Upscale images if dimensions are larger than 1024x1024
+      if (width > 1024 || height > 1024) {
+        console.log(`Upscaling ${images.length} image(s) to higher resolution`);
+        const upscaledImages: string[] = [];
+        
+        for (let i = 0; i < images.length; i++) {
+          try {
+            console.log(`Upscaling image ${i + 1}/${images.length}`);
+            
+            // Call the upscale edge function
+            const upscaleResponse = await supabase.functions.invoke('upscale-image', {
+              body: { 
+                imageUrl: images[i],
+                scale: Math.ceil(Math.max(width, height) / 1024)
+              }
+            });
+
+            if (upscaleResponse.data?.upscaledImageUrl) {
+              upscaledImages.push(upscaleResponse.data.upscaledImageUrl);
+              console.log(`Successfully upscaled image ${i + 1}/${images.length}`);
+            } else {
+              console.warn(`Failed to upscale image ${i + 1}, using original`);
+              upscaledImages.push(images[i]);
+            }
+          } catch (error) {
+            console.error(`Error upscaling image ${i + 1}:`, error);
+            upscaledImages.push(images[i]);
+          }
+        }
+        
+        images = upscaledImages;
+        console.log('Upscaling complete');
+      }
+
     // Store base64 images permanently if jobId and userId provided
     let finalUrls = images;
     if (jobId && userId) {
