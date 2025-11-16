@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -22,6 +22,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import VideoThumbnailGrid from './VideoThumbnailGrid';
 import VideoComparisonSlider from './VideoComparisonSlider';
+import SceneRegenerator from './SceneRegenerator';
 
 interface OutputViewerProps {
   job: Job;
@@ -33,8 +34,13 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [unityScale, setUnityScale] = useState<string>('1');
-  const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare'>('single');
+  const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare' | 'scenes'>('single');
   const [isDownloadingBatch, setIsDownloadingBatch] = useState(false);
+
+  // Check if this is a multi-scene video
+  const manifest = job.manifest as any;
+  const scenePrompts = manifest?.scenePrompts as string[] | undefined;
+  const hasScenes = scenePrompts && scenePrompts.length > 1;
 
   const copyManifest = async () => {
     if (!job.manifest) return;
@@ -328,15 +334,64 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               <div className="space-y-4">
                 {job.outputs.length > 1 && (
                   <Tabs value={videoViewMode} onValueChange={(v) => setVideoViewMode(v as any)}>
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className={`grid w-full ${hasScenes ? 'grid-cols-4' : 'grid-cols-3'}`}>
                       <TabsTrigger value="single">Single View</TabsTrigger>
                       <TabsTrigger value="grid">All Videos</TabsTrigger>
                       <TabsTrigger value="compare">Compare</TabsTrigger>
+                      {hasScenes && (
+                        <TabsTrigger value="scenes">
+                          <Film className="w-4 h-4 mr-1" />
+                          Scenes
+                        </TabsTrigger>
+                      )}
                     </TabsList>
                   </Tabs>
                 )}
 
-                {videoViewMode === 'grid' && job.outputs.length > 1 ? (
+                {videoViewMode === 'scenes' && hasScenes ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground mb-4">
+                      <p>Your video was generated from {scenePrompts.length} scenes. Regenerate individual scenes below:</p>
+                    </div>
+                    {scenePrompts.map((prompt, index) => (
+                      <div 
+                        key={index}
+                        className="border border-border/50 rounded-lg overflow-hidden bg-card/50"
+                      >
+                        <div className="p-4 border-b border-border/50 bg-muted/30">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline" className="font-mono">
+                                  Scene {index + 1}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {job.options.duration || 5}s
+                                </span>
+                              </div>
+                              <p className="text-sm text-foreground/90">{prompt}</p>
+                            </div>
+                            <SceneRegenerator
+                              jobId={job.id}
+                              sceneIndex={index}
+                              scenePrompt={prompt}
+                              videoUrl={job.outputs[index] || ''}
+                              onRegenerateStart={onClose}
+                            />
+                          </div>
+                        </div>
+                        {job.outputs[index] && (
+                          <video
+                            src={job.outputs[index]}
+                            controls
+                            className="w-full h-auto"
+                            playsInline
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : videoViewMode === 'grid' && job.outputs.length > 1 ? (
                   <VideoThumbnailGrid
                     videos={job.outputs}
                     selectedIndex={currentVideoIndex}
