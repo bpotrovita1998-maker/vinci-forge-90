@@ -111,7 +111,7 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
                 <Input
                   type="number"
                   min="1"
-                  max="60"
+                  max="5"
                   value={options.duration || 5}
                   onChange={(e) => onChange({ ...options, duration: parseInt(e.target.value) })}
                   className="bg-background/50"
