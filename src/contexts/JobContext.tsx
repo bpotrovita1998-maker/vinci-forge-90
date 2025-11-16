@@ -213,10 +213,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
     };
 
     const loadJobs = async () => {
+      // Load only the most recent 100 jobs to prevent timeouts
+      // User can implement pagination if they need to see older jobs
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) {
         console.error('Failed to load jobs:', error);
