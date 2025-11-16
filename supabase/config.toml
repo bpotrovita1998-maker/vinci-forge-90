@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.enhance-prompt]
 verify_jwt = false
+
+[functions.analyze-scene-consistency]
+verify_jwt = false

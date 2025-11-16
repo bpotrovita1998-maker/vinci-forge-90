@@ -114,6 +114,8 @@ export default function Scenes() {
   const [viewingScene, setViewingScene] = useState<Scene | null>(null);
   const [showConsistencyPreview, setShowConsistencyPreview] = useState(false);
   const [comparisonSceneIndex, setComparisonSceneIndex] = useState(0);
+  const [consistencyAnalysis, setConsistencyAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveQueuedRef = useRef<boolean>(false);
   const saveQueuedToastRef = useRef<boolean>(false);
@@ -264,6 +266,11 @@ export default function Scenes() {
       if (savedStatusTimeoutRef.current) window.clearTimeout(savedStatusTimeoutRef.current);
     };
   }, []);
+
+  // Clear consistency analysis when changing scene comparison
+  useEffect(() => {
+    setConsistencyAnalysis(null);
+  }, [comparisonSceneIndex]);
 
   const loadStoryboards = async () => {
     try {
@@ -536,6 +543,61 @@ export default function Scenes() {
         description: "Failed to delete storyboard",
         variant: "destructive"
       });
+    }
+  };
+
+  const analyzeConsistency = async (scene1: Scene, scene2: Scene, index: number) => {
+    if (!scene1.imageUrl || !scene2.imageUrl) {
+      toast({
+        title: "Cannot Analyze",
+        description: "Both scenes need images to analyze consistency",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setConsistencyAnalysis(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-scene-consistency', {
+        body: {
+          image1Url: scene1.imageUrl,
+          image2Url: scene2.imageUrl,
+          sceneIndex: index + 1
+        }
+      });
+
+      if (error) throw error;
+
+      setConsistencyAnalysis(data);
+
+      if (data.consistencyScore < 70) {
+        toast({
+          title: "Consistency Issues Detected",
+          description: `Score: ${data.consistencyScore}/100. Review the analysis for details.`,
+          variant: "destructive"
+        });
+      } else if (data.consistencyScore >= 85) {
+        toast({
+          title: "Excellent Consistency!",
+          description: `Score: ${data.consistencyScore}/100. Scenes are well-matched.`,
+        });
+      } else {
+        toast({
+          title: "Analysis Complete",
+          description: `Consistency score: ${data.consistencyScore}/100`,
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing consistency:', error);
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Failed to analyze scene consistency",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -2286,20 +2348,136 @@ export default function Scenes() {
                   </div>
                 </div>
 
-                {/* Consistency Notes */}
+                {/* AI Consistency Analysis */}
                 <Card className="bg-muted/30 border-primary/20">
-                  <CardContent className="pt-4 space-y-2">
-                    <h4 className="font-semibold text-sm flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      What to Check
-                    </h4>
-                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Character appearance (face, clothing, colors)</li>
-                      <li>Art style consistency (lighting, camera angle, mood)</li>
-                      <li>Background and environment continuity</li>
-                      <li>Object and prop consistency</li>
-                      <li>Overall visual quality and coherence</li>
-                    </ul>
+                  <CardContent className="pt-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        AI Consistency Analysis
+                      </h4>
+                      <Button
+                        size="sm"
+                        onClick={() => analyzeConsistency(currentScene, nextScene, comparisonSceneIndex)}
+                        disabled={isAnalyzing || !currentScene.imageUrl || !nextScene.imageUrl}
+                        className="gap-2"
+                      >
+                        {isAnalyzing ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="w-4 h-4" />
+                            Analyze with AI
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {!consistencyAnalysis && !isAnalyzing && (
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p className="font-medium">Manual Checklist:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Character appearance (face, clothing, colors)</li>
+                          <li>Art style consistency (lighting, camera angle, mood)</li>
+                          <li>Background and environment continuity</li>
+                          <li>Object and prop consistency</li>
+                          <li>Overall visual quality and coherence</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {consistencyAnalysis && (
+                      <div className="space-y-3">
+                        {/* Consistency Score */}
+                        <div className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                          <span className="text-sm font-medium">Consistency Score</span>
+                          <div className="flex items-center gap-2">
+                            <Progress 
+                              value={consistencyAnalysis.consistencyScore} 
+                              className="w-24 h-2"
+                            />
+                            <Badge 
+                              variant={
+                                consistencyAnalysis.consistencyScore >= 85 ? 'default' : 
+                                consistencyAnalysis.consistencyScore >= 70 ? 'secondary' : 
+                                'destructive'
+                              }
+                              className="min-w-[60px] justify-center"
+                            >
+                              {consistencyAnalysis.consistencyScore}/100
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Summary */}
+                        <div className="p-3 bg-background rounded-lg border">
+                          <p className="text-xs font-medium mb-1">Summary</p>
+                          <p className="text-xs text-muted-foreground">
+                            {consistencyAnalysis.summary}
+                          </p>
+                        </div>
+
+                        {/* Issues */}
+                        {consistencyAnalysis.issues && consistencyAnalysis.issues.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">Issues Detected</p>
+                            {consistencyAnalysis.issues.map((issue: any, idx: number) => (
+                              <div 
+                                key={idx}
+                                className="p-2 bg-background rounded border-l-2 border-destructive"
+                              >
+                                <div className="flex items-start gap-2">
+                                  <Badge 
+                                    variant={
+                                      issue.severity === 'High' ? 'destructive' :
+                                      issue.severity === 'Medium' ? 'secondary' :
+                                      'outline'
+                                    }
+                                    className="text-[10px] mt-0.5"
+                                  >
+                                    {issue.severity}
+                                  </Badge>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium">{issue.category}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                      {issue.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Strengths */}
+                        {consistencyAnalysis.strengths && consistencyAnalysis.strengths.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-primary">Strong Points</p>
+                            <ul className="space-y-1">
+                              {consistencyAnalysis.strengths.map((strength: string, idx: number) => (
+                                <li key={idx} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+                                  <span className="text-primary mt-0.5">✓</span>
+                                  <span>{strength}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Recommendation */}
+                        {consistencyAnalysis.recommendation && (
+                          <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+                            <p className="text-xs font-medium mb-1 text-primary">Recommendation</p>
+                            <p className="text-xs text-muted-foreground">
+                              {consistencyAnalysis.recommendation}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -2310,6 +2488,7 @@ export default function Scenes() {
             <Button onClick={() => {
               setShowConsistencyPreview(false);
               setComparisonSceneIndex(0);
+              setConsistencyAnalysis(null);
             }}>
               Close
             </Button>
