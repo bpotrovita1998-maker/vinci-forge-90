@@ -29,6 +29,7 @@ export type Database = {
           manifest: Json | null
           negative_prompt: string | null
           num_images: number | null
+          num_videos: number | null
           outputs: Json | null
           progress_message: string | null
           progress_percent: number
@@ -42,6 +43,7 @@ export type Database = {
           total_steps: number | null
           type: string
           updated_at: string
+          upscale_video: boolean | null
           user_id: string
           video_mode: string | null
           width: number
@@ -60,6 +62,7 @@ export type Database = {
           manifest?: Json | null
           negative_prompt?: string | null
           num_images?: number | null
+          num_videos?: number | null
           outputs?: Json | null
           progress_message?: string | null
           progress_percent?: number
@@ -73,6 +76,7 @@ export type Database = {
           total_steps?: number | null
           type: string
           updated_at?: string
+          upscale_video?: boolean | null
           user_id: string
           video_mode?: string | null
           width: number
@@ -91,6 +95,7 @@ export type Database = {
           manifest?: Json | null
           negative_prompt?: string | null
           num_images?: number | null
+          num_videos?: number | null
           outputs?: Json | null
           progress_message?: string | null
           progress_percent?: number
@@ -104,6 +109,7 @@ export type Database = {
           total_steps?: number | null
           type?: string
           updated_at?: string
+          upscale_video?: boolean | null
           user_id?: string
           video_mode?: string | null
           width?: number

@@ -100,32 +100,46 @@ serve(async (req) => {
     }
 
     // Call the generate-video function with consistency parameters
-    const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
-      body: {
-        jobId: job.id,
-        prompt: job.prompt,
-        duration: job.duration,
-        aspectRatio: `${job.width}:${job.height}`,
-        characterDescription,
-        styleDescription,
-        referenceImage,
-        seed
-      }
-    });
+    // Handle multiple videos by calling generate-video multiple times
+    const numVideos = job.num_videos || 1;
+    console.log(`Generating ${numVideos} video(s) for job ${job.id}`);
+    
+    // Generate all videos with the same prompt but different seeds for variation
+    for (let i = 0; i < numVideos; i++) {
+      const videoSeed = seed ? seed + i : undefined; // Vary seed for each video
+      console.log(`Starting generation ${i + 1} of ${numVideos}...`);
+      
+      const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
+        body: {
+          jobId: job.id,
+          prompt: job.prompt,
+          duration: job.duration,
+          aspectRatio: `${job.width}:${job.height}`,
+          characterDescription,
+          styleDescription,
+          referenceImage,
+          seed: videoSeed
+        }
+      });
 
-    if (invokeError) {
-      console.error("Error invoking generate-video:", invokeError);
-      console.log("Job error will be handled by generate-video function");
-      // The generate-video function handles marking jobs as failed
-      // We just log the error and continue to the next job in the queue
-    } else {
-      console.log(`Job ${job.id} started successfully, prediction ID: ${result?.predictionId}`);
+      if (invokeError) {
+        console.error(`Error invoking generate-video for video ${i + 1}:`, invokeError);
+        // Continue with other videos even if one fails
+      } else {
+        console.log(`Video ${i + 1} generation started:`, result);
+      }
+      
+      // Add a small delay between starting multiple generations to avoid rate limits
+      if (i < numVideos - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
 
     return new Response(JSON.stringify({ 
       message: "Queue processed",
       processedJob: job.id,
-      success: !invokeError
+      numVideos: numVideos,
+      success: true
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

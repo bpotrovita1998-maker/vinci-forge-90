@@ -328,7 +328,8 @@ export function JobProvider({ children }: { children: ReactNode }) {
       estimatedTokens = (options.numImages || 1) * 1; // 1 token per image ($0.01)
       actionType = 'image_generation';
     } else if (options.type === 'video') {
-      estimatedTokens = 30; // 30 tokens per video ($0.30)
+      const numVideos = options.numVideos || 1;
+      estimatedTokens = 30 * numVideos; // 30 tokens per video ($0.30)
       actionType = 'video_generation';
     } else if (options.type === '3d') {
       estimatedTokens = 10; // 10 tokens per 3D model ($0.10)
@@ -418,6 +419,8 @@ export function JobProvider({ children }: { children: ReactNode }) {
       steps: options.steps,
       cfg_scale: options.cfgScale,
       num_images: options.numImages,
+      num_videos: options.numVideos,
+      upscale_video: options.upscaleVideo,
       progress_stage: 'queued',
       progress_percent: 0,
       progress_message: 'Job queued...',

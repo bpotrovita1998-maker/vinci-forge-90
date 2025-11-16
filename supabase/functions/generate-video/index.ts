@@ -97,10 +97,10 @@ serve(async (req) => {
         const videoUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output;
         console.log("Video URL from Replicate:", videoUrl);
         
-        // Get job details to find user_id
+        // Get job details to find user_id and upscaling preferences
         const { data: jobData, error: jobError } = await supabase
           .from('jobs')
-          .select('user_id, id')
+          .select('user_id, id, fps, upscale_video, num_videos, outputs')
           .eq('id', body.jobId)
           .maybeSingle();
 
@@ -112,9 +112,47 @@ serve(async (req) => {
         }
 
         try {
-          // Download video from Replicate
-          console.log("Downloading video from Replicate...");
-          const videoResponse = await fetch(videoUrl);
+          let finalVideoUrl = videoUrl;
+          
+          // Check if we need to upscale the video
+          const needsUpscaling = jobData.fps === 60 || jobData.upscale_video;
+          
+          if (needsUpscaling) {
+            console.log("Upscaling video to 60fps or 4K...");
+            
+            // Update job status to show upscaling progress
+            await supabase
+              .from('jobs')
+              .update({
+                progress_stage: 'upscaling',
+                progress_message: 'Upscaling video quality...',
+                progress_percent: 70
+              })
+              .eq('id', body.jobId);
+            
+            // Call upscale-video function
+            const { data: upscaleData, error: upscaleError } = await supabase.functions.invoke(
+              'upscale-video',
+              {
+                body: {
+                  videoUrl: videoUrl,
+                  targetFps: jobData.fps || 60,
+                  upscaleTo4K: jobData.upscale_video || false
+                }
+              }
+            );
+            
+            if (!upscaleError && upscaleData?.upscaledVideoUrl) {
+              finalVideoUrl = upscaleData.upscaledVideoUrl;
+              console.log("Video upscaled successfully:", finalVideoUrl);
+            } else {
+              console.error("Failed to upscale video, using original:", upscaleError);
+            }
+          }
+          
+          // Download video from Replicate or upscale service
+          console.log("Downloading video...");
+          const videoResponse = await fetch(finalVideoUrl);
           if (!videoResponse.ok) {
             throw new Error(`Failed to download video: ${videoResponse.statusText}`);
           }
@@ -123,8 +161,12 @@ serve(async (req) => {
           const videoBuffer = await videoBlob.arrayBuffer();
           console.log("Video downloaded, size:", videoBuffer.byteLength);
 
-          // Upload to Supabase storage
-          const fileName = `${jobData.user_id}/${body.jobId}/video.mp4`;
+          // Get existing outputs array
+          const existingOutputs = (jobData.outputs || []) as string[];
+          const videoIndex = existingOutputs.length;
+          
+          // Upload to Supabase storage with index
+          const fileName = `${jobData.user_id}/${body.jobId}/video_${videoIndex}.mp4`;
           console.log("Uploading to storage:", fileName);
           
           const { data: uploadData, error: uploadError } = await supabase.storage
@@ -149,16 +191,25 @@ serve(async (req) => {
           
           console.log("Video stored at:", publicUrl);
 
-          // Update job with permanent URL
+          // Add to outputs array
+          const updatedOutputs = [...existingOutputs, publicUrl];
+          const numVideos = jobData.num_videos || 1;
+          
+          // Check if all videos are complete
+          const allVideosComplete = updatedOutputs.length >= numVideos;
+          
+          // Update job with new output URL
           const { error: updateError } = await supabase
             .from('jobs')
             .update({
-              outputs: [publicUrl],
-              status: 'completed',
-              progress_stage: 'completed',
-              progress_percent: 100,
-              progress_message: 'Video generation complete!',
-              completed_at: new Date().toISOString()
+              outputs: updatedOutputs,
+              status: allVideosComplete ? 'completed' : 'running',
+              progress_stage: allVideosComplete ? 'completed' : 'running',
+              progress_percent: allVideosComplete ? 100 : Math.round((updatedOutputs.length / numVideos) * 100),
+              progress_message: allVideosComplete 
+                ? 'All videos generated successfully!' 
+                : `Generated ${updatedOutputs.length} of ${numVideos} videos...`,
+              completed_at: allVideosComplete ? new Date().toISOString() : null
             })
             .eq('id', body.jobId);
 
@@ -169,7 +220,10 @@ serve(async (req) => {
           // Return prediction with permanent URL
           return new Response(JSON.stringify({
             ...prediction,
-            output: publicUrl
+            output: publicUrl,
+            allVideosComplete,
+            videoIndex: updatedOutputs.length,
+            totalVideos: numVideos
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });

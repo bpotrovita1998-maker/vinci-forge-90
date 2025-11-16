@@ -121,19 +121,52 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
               <div className="space-y-2">
                 <Label>FPS</Label>
                 <Select
-                  value={options.fps?.toString() || '24'}
+                  value={options.fps?.toString() || '60'}
                   onValueChange={(v) => onChange({ ...options, fps: parseInt(v) })}
                 >
                   <SelectTrigger className="bg-background/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="24">24 fps</SelectItem>
+                    <SelectItem value="24">24 fps (Original)</SelectItem>
                     <SelectItem value="30">30 fps</SelectItem>
-                    <SelectItem value="60">60 fps</SelectItem>
+                    <SelectItem value="60">60 fps (Upscaled)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Number of Videos</Label>
+              <Select
+                value={options.numVideos?.toString() || '1'}
+                onValueChange={(v) => onChange({ ...options, numVideos: parseInt(v) })}
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 video</SelectItem>
+                  <SelectItem value="2">2 videos</SelectItem>
+                  <SelectItem value="3">3 videos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Video Quality</Label>
+              <Select
+                value={options.upscaleVideo ? 'true' : 'false'}
+                onValueChange={(v) => onChange({ ...options, upscaleVideo: v === 'true' })}
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">Standard (1024p)</SelectItem>
+                  <SelectItem value="true">4K Upscaled (ESRGAN)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </>
         )}
