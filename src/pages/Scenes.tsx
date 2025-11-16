@@ -1023,18 +1023,9 @@ export default function Scenes() {
         generationStartTime: Date.now()
       });
 
-      // Call generation endpoint
-      const { error: genError } = await supabase.functions.invoke('generate-video', {
-        body: {
-          jobId: jobId,
-          prompt: finalPrompt,
-          image: scene.imageUrl || undefined,
-          duration: scene.duration,
-          aspectRatio: '16:9'
-        }
-      });
+      // Queue processor will pick this up; no direct edge call to avoid rate limits
+      // (generate-video is invoked by the queue processor)
 
-      if (genError) throw genError;
 
       // Monitor the job status via polling
       const checkJobStatus = async () => {
@@ -1049,41 +1040,9 @@ export default function Scenes() {
           return false;
         }
 
-        // If job is running and has a predictionId, poll the edge function to check Replicate status
-        if ((jobData.status === 'running' || jobData.status === 'queued') && jobData.manifest) {
-          const manifest = jobData.manifest as any;
-          if (manifest.predictionId) {
-            console.log('Polling video generation status with predictionId:', manifest.predictionId);
-            try {
-              const { error: pollError } = await supabase.functions.invoke('generate-video', {
-                body: {
-                  jobId: jobId,
-                  predictionId: manifest.predictionId
-                }
-              });
+        // No direct polling via edge function here; status is updated by backend poller
+
               
-              if (pollError) {
-                console.error('Error polling video status:', pollError);
-              }
-              
-              // After polling, re-fetch the job to get updated status
-              const { data: updatedJob } = await supabase
-                .from('jobs')
-                .select('status, outputs, error, progress_percent')
-                .eq('id', jobId)
-                .single();
-              
-              if (updatedJob) {
-                jobData.status = updatedJob.status;
-                jobData.outputs = updatedJob.outputs;
-                jobData.error = updatedJob.error;
-                jobData.progress_percent = updatedJob.progress_percent;
-              }
-            } catch (pollError) {
-              console.error('Error during polling:', pollError);
-            }
-          }
-        }
 
         // Update scene progress
         if (jobData.progress_percent) {
