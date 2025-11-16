@@ -202,6 +202,24 @@ serve(async (req) => {
       userFriendlyMessage = "Rate limit exceeded. Please add a payment method at replicate.com/account/billing to increase limits";
       statusCode = 429;
     }
+
+    // Update job status to failed if we have a jobId
+    const body = await req.json().catch(() => ({}));
+    if (body.jobId) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'failed',
+          progress_stage: 'failed',
+          error: userFriendlyMessage,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', body.jobId);
+    }
     
     return new Response(JSON.stringify({ 
       error: userFriendlyMessage
