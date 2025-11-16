@@ -79,7 +79,9 @@ export default function Hero() {
     cfgScale: 7.5,
     numImages: 1,
     duration: 5,
-    fps: 24,
+    fps: 60, // Default to 60 fps for videos
+    numVideos: 1,
+    upscaleVideo: false,
     upscaleQuality: 4, // Default to 4x balanced quality
   });
 
