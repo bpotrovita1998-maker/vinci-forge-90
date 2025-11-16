@@ -1,7 +1,7 @@
 import { useJobs } from '@/contexts/JobContext';
 import JobStatusCard from './JobStatusCard';
 import { Button } from './ui/button';
-import { Trash2, RefreshCw } from 'lucide-react';
+import { Trash2, RefreshCw, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import OutputViewer from './OutputViewer';
@@ -48,6 +48,14 @@ export default function JobQueue() {
                 <div className="w-2 h-2 bg-accent rounded-full animate-pulse" />
                 Active Jobs ({activeJobs.length})
               </h3>
+              {activeJobs.filter(j => j.options.type === 'video' && j.status === 'queued').length > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30">
+                  <Video className="w-4 h-4 text-accent-foreground" />
+                  <span className="text-sm font-medium text-accent-foreground">
+                    {activeJobs.filter(j => j.options.type === 'video' && j.status === 'queued').length} video{activeJobs.filter(j => j.options.type === 'video' && j.status === 'queued').length !== 1 ? 's' : ''} in queue
+                  </span>
+                </div>
+              )}
             </div>
             
             <AnimatePresence mode="popLayout">

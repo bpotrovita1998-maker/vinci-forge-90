@@ -3,11 +3,12 @@ import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp, Cuboid, ExternalLink } from 'lucide-react';
+import { Download, X, Clock, Loader2, CheckCircle2, XCircle, Image as ImageIcon, Video, Box, ChevronDown, ChevronUp, Cuboid, ExternalLink, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useJobs } from '@/contexts/JobContext';
 import { useState, memo } from 'react';
 import { toast } from 'sonner';
+import { useQueuePosition } from '@/hooks/useQueuePosition';
 
 interface JobStatusCardProps {
   job: Job;
@@ -17,6 +18,7 @@ interface JobStatusCardProps {
 function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
   const { cancelJob, deleteJob } = useJobs();
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+  const queuePosition = useQueuePosition(job.id, job.options.type, job.status, job.createdAt);
   
   const isLongPrompt = job.options.prompt.length > 100;
 
@@ -156,9 +158,26 @@ function JobStatusCard({ job, onViewOutput }: JobStatusCardProps) {
             )}
           </div>
           
-          <p className="text-xs text-muted-foreground">
-            {formatDistanceToNow(job.createdAt, { addSuffix: true })}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">
+              {formatDistanceToNow(job.createdAt, { addSuffix: true })}
+            </p>
+            
+            {/* Queue Position Indicator */}
+            {queuePosition && job.status === 'queued' && job.options.type === 'video' && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-accent/30 border border-accent/50">
+                <Users className="w-3 h-3 text-accent-foreground" />
+                <span className="text-xs font-medium text-accent-foreground">
+                  Position #{queuePosition.position}
+                </span>
+                <span className="text-xs text-muted-foreground">•</span>
+                <Clock className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  ~{queuePosition.estimatedWaitMinutes}m
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         {canCancel && (
