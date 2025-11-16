@@ -64,6 +64,41 @@ serve(async (req) => {
         }
 
         console.log(`Job ${job.id} status: ${statusData?.status}`);
+        
+        // If video completed and there are more scenes to generate, trigger next scene
+        if (statusData?.status === 'succeeded' && statusData?.allScenesComplete === false) {
+          console.log(`Scene completed for job ${job.id}, triggering next scene...`);
+          
+          // Get updated job data to get the scenePrompts
+          const { data: updatedJob } = await supabase
+            .from('jobs')
+            .select('manifest, prompt, negative_prompt, duration, width, height')
+            .eq('id', job.id)
+            .single();
+            
+          if (!updatedJob) {
+            console.error(`Could not fetch job data for ${job.id}`);
+            continue;
+          }
+            
+          const updatedManifest = updatedJob.manifest as any;
+          const scenePrompts = updatedManifest?.scenePrompts;
+          
+          if (scenePrompts && scenePrompts.length > 0) {
+            // Trigger next scene generation
+            await supabase.functions.invoke('generate-video', {
+              body: {
+                jobId: job.id,
+                scenePrompts: scenePrompts,
+                duration: updatedJob.duration || 5,
+                aspectRatio: `${updatedJob.width}:${updatedJob.height}`,
+                negativePrompt: updatedJob.negative_prompt
+              }
+            });
+            
+            console.log(`Next scene generation triggered for job ${job.id}`);
+          }
+        }
       } catch (error) {
         console.error(`Error processing job ${job.id}:`, error);
         // Continue to next job even if one fails
