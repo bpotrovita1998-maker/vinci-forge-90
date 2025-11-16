@@ -71,17 +71,67 @@ function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) 
   return null;
 }
 
+// Cache key generator for poster storage
+const getPosterCacheKey = (jobId?: string, url?: string) => {
+  if (jobId) return `3d-poster-${jobId}`;
+  if (url) return `3d-poster-${btoa(url).slice(0, 32)}`; // hash-like key
+  return null;
+};
+
+// Load poster from localStorage
+const loadCachedPoster = (cacheKey: string | null): string | null => {
+  if (!cacheKey) return null;
+  try {
+    return localStorage.getItem(cacheKey);
+  } catch (error) {
+    console.warn('Failed to load cached poster:', error);
+    return null;
+  }
+};
+
+// Save poster to localStorage
+const savePosterToCache = (cacheKey: string | null, dataUrl: string) => {
+  if (!cacheKey) return;
+  try {
+    localStorage.setItem(cacheKey, dataUrl);
+  } catch (error) {
+    // If quota exceeded, clear old posters
+    console.warn('localStorage quota exceeded, clearing old posters');
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('3d-poster-'))
+        .slice(0, 10) // Clear oldest 10
+        .forEach(k => localStorage.removeItem(k));
+      localStorage.setItem(cacheKey, dataUrl);
+    } catch (e) {
+      console.error('Failed to save poster even after cleanup:', e);
+    }
+  }
+};
+
 export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
   const [canvasKey, setCanvasKey] = useState(0);
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [cachedPosterUrl, setCachedPosterUrl] = useState<string | null>(null);
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
   const canvasRef = useRef<HTMLDivElement>(null);
+  const cacheKey = getPosterCacheKey(jobId, normalizedUrl);
 
   const retryCount = useRef(0);
   const maxRetries = 2;
+
+  // Load cached poster immediately on mount
+  useEffect(() => {
+    const cached = loadCachedPoster(cacheKey);
+    if (cached) {
+      console.log('Loaded cached poster for', jobId || normalizedUrl);
+      setCachedPosterUrl(cached);
+      setIsLoading(false); // Show cached poster without loading indicator
+    }
+  }, [cacheKey, jobId, normalizedUrl]);
 
   const handleModelError = () => {
     retryCount.current += 1;
@@ -102,8 +152,13 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
   };
 
   const handlePosterCapture = (dataUrl: string) => {
+    console.log('Poster captured for', jobId || normalizedUrl);
     setPosterUrl(dataUrl);
     setIsLoading(false);
+    
+    // Save to cache for instant future loads
+    savePosterToCache(cacheKey, dataUrl);
+    setCachedPosterUrl(dataUrl);
   };
 
   // Try to construct Supabase storage URL for models
@@ -111,7 +166,11 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
     const checkAndSetUrl = async () => {
       retryCount.current = 0; // Reset retry count for new URL
       setLoadError(false);
-      setIsLoading(true);
+      
+      // If we have a cached poster, don't show loading indicator
+      if (!cachedPosterUrl) {
+        setIsLoading(true);
+      }
       
       // If it's a Replicate URL and we have a jobId, try Supabase storage first
       if (normalizedUrl?.includes('replicate.delivery') && jobId) {
@@ -143,7 +202,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
     if (normalizedUrl) {
       checkAndSetUrl();
     }
-  }, [normalizedUrl, jobId, userId]);
+  }, [normalizedUrl, jobId, userId, cachedPosterUrl]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -168,16 +227,25 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
 
   return (
     <div className="w-full h-full bg-muted/20 relative" ref={canvasRef}>
-      {posterUrl && isLoading && (
+      {/* Show cached poster immediately, then fade to live canvas */}
+      {(cachedPosterUrl || posterUrl) && (
         <img 
-          src={posterUrl} 
+          src={cachedPosterUrl || posterUrl || ''} 
           alt="Model preview" 
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+          style={{ opacity: (!isLoading || cachedPosterUrl) ? 0.95 : 1 }}
         />
       )}
-      {isLoading && (
+      {/* Only show loader if no cached poster exists */}
+      {isLoading && !cachedPosterUrl && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+      )}
+      {/* Subtle hydration indicator when canvas is loading with cached poster */}
+      {cachedPosterUrl && isLoading && (
+        <div className="absolute top-2 right-2 z-10">
+          <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse" />
         </div>
       )}
       <Canvas
