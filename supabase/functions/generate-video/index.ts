@@ -13,6 +13,8 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let body: any = {};
+  
   try {
     const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY');
     if (!REPLICATE_API_KEY) {
@@ -24,7 +26,7 @@ serve(async (req) => {
       auth: REPLICATE_API_KEY,
     });
 
-    const body = await req.json();
+    body = await req.json();
     console.log("Request body:", JSON.stringify(body, null, 2));
 
     // Initialize Supabase client
@@ -198,27 +200,34 @@ serve(async (req) => {
     if (errorMessage.includes('402') || errorMessage.includes('Insufficient credit')) {
       userFriendlyMessage = "Insufficient Replicate credits. Please add credits at replicate.com/account/billing";
       statusCode = 402;
-    } else if (errorMessage.includes('429') || errorMessage.includes('throttled')) {
+    } else if (errorMessage.includes('429') || errorMessage.includes('throttled') || errorMessage.includes('rate limit')) {
       userFriendlyMessage = "Rate limit exceeded. Please add a payment method at replicate.com/account/billing to increase limits";
       statusCode = 429;
     }
 
-    // Update job status to failed if we have a jobId
-    const body = await req.json().catch(() => ({}));
-    if (body.jobId) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+    // Update job status to failed if we have a jobId (body was parsed before the error)
+    if (body?.jobId) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-      await supabase
-        .from('jobs')
-        .update({
-          status: 'failed',
-          progress_stage: 'failed',
-          error: userFriendlyMessage,
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', body.jobId);
+        console.log(`Marking job ${body.jobId} as failed due to: ${userFriendlyMessage}`);
+        
+        await supabase
+          .from('jobs')
+          .update({
+            status: 'failed',
+            progress_stage: 'failed',
+            error: userFriendlyMessage,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', body.jobId);
+          
+        console.log(`Job ${body.jobId} marked as failed`);
+      } catch (updateError) {
+        console.error("Failed to update job status:", updateError);
+      }
     }
     
     return new Response(JSON.stringify({ 
