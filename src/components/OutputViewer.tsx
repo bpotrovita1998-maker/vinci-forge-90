@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -23,6 +23,11 @@ import { saveAs } from 'file-saver';
 import VideoThumbnailGrid from './VideoThumbnailGrid';
 import VideoComparisonSlider from './VideoComparisonSlider';
 import SceneRegenerator from './SceneRegenerator';
+import SceneEditor from './SceneEditor';
+import { SceneConfig } from '@/types/sceneConfig';
+import { stitchVideosWithScenes } from '@/services/videoStitchingService';
+import { supabase } from '@/integrations/supabase/client';
+import { Progress } from './ui/progress';
 
 interface OutputViewerProps {
   job: Job;
@@ -34,8 +39,10 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [unityScale, setUnityScale] = useState<string>('1');
-  const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare' | 'scenes'>('single');
+  const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare' | 'scenes' | 'editor'>('single');
   const [isDownloadingBatch, setIsDownloadingBatch] = useState(false);
+  const [isStitching, setIsStitching] = useState(false);
+  const [stitchProgress, setStitchProgress] = useState(0);
 
   // Check if this is a multi-scene video
   const manifest = job.manifest as any;
@@ -47,6 +54,55 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const hasStitchedVideo = hasScenes && job.outputs.length > (scenePrompts?.length || 0);
   const stitchedVideoIndex = hasStitchedVideo ? job.outputs.length - 1 : -1;
   const sceneVideos = hasStitchedVideo ? job.outputs.slice(0, -1) : job.outputs;
+
+  const handleCustomStitch = async (scenes: SceneConfig[]) => {
+    if (!job.userId) return;
+    
+    setIsStitching(true);
+    setVideoViewMode('single');
+    
+    try {
+      toast({
+        title: "Stitching Started",
+        description: "Creating your custom video...",
+      });
+
+      const stitchedUrl = await stitchVideosWithScenes(
+        scenes,
+        job.id,
+        job.userId,
+        setStitchProgress
+      );
+
+      // Update job with stitched video
+      const updatedOutputs = [...job.outputs.slice(0, scenePrompts?.length || 0), stitchedUrl];
+      
+      await supabase
+        .from('jobs')
+        .update({
+          outputs: updatedOutputs,
+        })
+        .eq('id', job.id);
+
+      // Force refresh
+      window.location.reload();
+
+      toast({
+        title: "Video Ready!",
+        description: "Your custom video has been created successfully.",
+      });
+    } catch (error) {
+      console.error('Stitching error:', error);
+      toast({
+        title: "Stitching Failed",
+        description: "Failed to create custom video. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStitching(false);
+      setStitchProgress(0);
+    }
+  };
 
   const copyManifest = async () => {
     if (!job.manifest) return;
@@ -351,21 +407,53 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 
                 {job.outputs.length > 1 && (
                   <Tabs value={videoViewMode} onValueChange={(v) => setVideoViewMode(v as any)}>
-                    <TabsList className={`grid w-full ${hasScenes ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                    <TabsList className={`grid w-full ${hasScenes ? 'grid-cols-5' : 'grid-cols-3'}`}>
                       <TabsTrigger value="single">{hasStitchedVideo ? 'Full Video' : 'Single View'}</TabsTrigger>
                       <TabsTrigger value="grid">All Videos</TabsTrigger>
                       <TabsTrigger value="compare">Compare</TabsTrigger>
                       {hasScenes && (
-                        <TabsTrigger value="scenes">
-                          <Film className="w-4 h-4 mr-1" />
-                          Scenes
-                        </TabsTrigger>
+                        <>
+                          <TabsTrigger value="scenes">
+                            <Film className="w-4 h-4 mr-1" />
+                            Scenes
+                          </TabsTrigger>
+                          <TabsTrigger value="editor">
+                            <Sparkles className="w-4 h-4 mr-1" />
+                            Custom Edit
+                          </TabsTrigger>
+                        </>
                       )}
                     </TabsList>
                   </Tabs>
                 )}
 
-                {videoViewMode === 'scenes' && hasScenes ? (
+                {isStitching && (
+                  <div className="space-y-2 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-foreground font-medium">Creating your custom video...</span>
+                      <span className="text-muted-foreground">{stitchProgress}%</span>
+                    </div>
+                    <Progress value={stitchProgress} className="w-full" />
+                  </div>
+                )}
+
+                {videoViewMode === 'editor' && hasScenes ? (
+                  <SceneEditor
+                    initialScenes={sceneVideos.map((url, index) => ({
+                      id: `scene-${index}`,
+                      videoUrl: url,
+                      prompt: scenePrompts[index] || `Scene ${index + 1}`,
+                      duration: job.options.duration || 5,
+                      trimStart: 0,
+                      trimEnd: job.options.duration || 5,
+                      transitionType: 'none',
+                      transitionDuration: 0.5,
+                      order: index,
+                    }))}
+                    onConfirm={handleCustomStitch}
+                    onCancel={() => setVideoViewMode('single')}
+                  />
+                ) : videoViewMode === 'scenes' && hasScenes ? (
                   <div className="space-y-4">
                     <div className="text-sm text-muted-foreground mb-4">
                       <p>Your video was generated from {scenePrompts.length} scenes. {hasStitchedVideo ? 'View or regenerate' : 'Regenerate'} individual scenes below:</p>
