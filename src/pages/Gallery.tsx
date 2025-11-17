@@ -58,6 +58,20 @@ export default function Gallery() {
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [thumbnailRefreshKey, setThumbnailRefreshKey] = useState(0);
   
+  // Helper function to get the display video URL (stitched if available, otherwise first)
+  const getDisplayVideoUrl = (job: Job): string => {
+    const manifest = job.manifest as any;
+    const scenePrompts = manifest?.scenePrompts as string[] | undefined;
+    const hasScenes = scenePrompts && scenePrompts.length > 1;
+    
+    // If multi-scene and we have more outputs than scenes, last output is stitched video
+    if (hasScenes && job.outputs.length > (scenePrompts?.length || 0)) {
+      return job.outputs[job.outputs.length - 1]; // Return stitched video
+    }
+    
+    return job.outputs[0]; // Return first video or single video
+  };
+  
   // Scenes state
   const [scenes, setScenes] = useState<SceneItem[]>([]);
   const [selectedStoryboard, setSelectedStoryboard] = useState<string>('all');
@@ -511,7 +525,7 @@ export default function Gallery() {
                             job.outputs.length > 1 ? (
                               <div className="relative w-full h-full">
                                 <video
-                                  src={job.outputs[0]}
+                                  src={getDisplayVideoUrl(job)}
                                   className="w-full h-full object-cover"
                                   muted
                                   loop
@@ -527,7 +541,7 @@ export default function Gallery() {
                               </div>
                             ) : (
                               <video
-                                src={job.outputs[0]}
+                                src={getDisplayVideoUrl(job)}
                                 className="w-full h-full object-cover"
                                 muted
                                 loop
@@ -711,7 +725,7 @@ export default function Gallery() {
                                 job.outputs.length > 1 ? (
                                   <div className="relative w-full h-full">
                                     <video
-                                      src={job.outputs[0]}
+                                      src={getDisplayVideoUrl(job)}
                                       className="w-full h-full object-cover"
                                       muted
                                       loop
@@ -727,7 +741,7 @@ export default function Gallery() {
                                   </div>
                                 ) : (
                                   <video
-                                    src={job.outputs[0]}
+                                    src={getDisplayVideoUrl(job)}
                                     className="w-full h-full object-cover"
                                     muted
                                     loop
