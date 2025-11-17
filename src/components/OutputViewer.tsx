@@ -141,7 +141,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const handleDownload = async () => {
     try {
       const index = job.options.type === 'video' ? currentVideoIndex : currentImageIndex;
-      const url = job.outputs[index];
+      const url = localOutputs[index];
       const response = await fetch(url);
       const blob = await response.blob();
       const link = document.createElement('a');
@@ -166,8 +166,38 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     }
   };
 
+  const downloadStitchedVideo = async () => {
+    if (!hasStitchedVideo) return;
+    
+    try {
+      const url = localOutputs[stitchedVideoIndex];
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `stitched-video-${job.id.slice(0, 8)}.mp4`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      
+      toast({
+        title: "Download started",
+        description: "Your stitched video is being downloaded",
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download stitched video",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleBatchDownload = async () => {
-    if (job.outputs.length <= 1) {
+    if (localOutputs.length <= 1) {
       handleDownload();
       return;
     }
@@ -179,12 +209,12 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       
       toast({
         title: "Preparing download",
-        description: `Downloading ${job.outputs.length} files...`,
+        description: `Downloading ${localOutputs.length} files...`,
       });
 
       // Download all files and add to zip
-      for (let i = 0; i < job.outputs.length; i++) {
-        const response = await fetch(job.outputs[i]);
+      for (let i = 0; i < localOutputs.length; i++) {
+        const response = await fetch(localOutputs[i]);
         const blob = await response.blob();
         zip.file(`${job.options.type}-${i + 1}.${extension}`, blob);
       }
@@ -195,7 +225,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
       toast({
         title: "Download complete",
-        description: `${job.outputs.length} files downloaded as ZIP`,
+        description: `${localOutputs.length} files downloaded as ZIP`,
       });
     } catch (error) {
       console.error('Batch download failed:', error);
@@ -398,11 +428,21 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               <div className="space-y-4">
                 {/* Show stitched video badge if available */}
                 {hasStitchedVideo && videoViewMode === 'single' && (
-                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Film className="w-4 h-4 text-primary" />
-                      <span className="text-foreground font-medium">Final Stitched Video</span>
-                      <Badge variant="secondary" className="ml-auto">All {scenePrompts?.length || 0} Scenes</Badge>
+                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Film className="w-4 h-4 text-primary" />
+                        <span className="text-foreground font-medium">Final Stitched Video</span>
+                        <Badge variant="secondary">All {scenePrompts?.length || 0} Scenes</Badge>
+                      </div>
+                      <Button
+                        onClick={downloadStitchedVideo}
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Final
+                      </Button>
                     </div>
                   </div>
                 )}
