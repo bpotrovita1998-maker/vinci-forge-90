@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HardDrive, AlertCircle } from "lucide-react";
@@ -13,8 +14,14 @@ interface StorageData {
 
 export const StorageUsage = () => {
   const { user } = useAuth();
+  const { isAdmin } = useSubscription();
   const [storageData, setStorageData] = useState<StorageData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Don't show storage usage for admins (they have unlimited storage)
+  if (isAdmin) {
+    return null;
+  }
 
   useEffect(() => {
     if (!user) return;
