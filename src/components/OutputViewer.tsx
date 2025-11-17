@@ -41,6 +41,12 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const manifest = job.manifest as any;
   const scenePrompts = manifest?.scenePrompts as string[] | undefined;
   const hasScenes = scenePrompts && scenePrompts.length > 1;
+  
+  // Check if we have a stitched video (final concatenated output)
+  // Stitched video is the last output if we have more outputs than scenes
+  const hasStitchedVideo = hasScenes && job.outputs.length > (scenePrompts?.length || 0);
+  const stitchedVideoIndex = hasStitchedVideo ? job.outputs.length - 1 : -1;
+  const sceneVideos = hasStitchedVideo ? job.outputs.slice(0, -1) : job.outputs;
 
   const copyManifest = async () => {
     if (!job.manifest) return;
@@ -332,10 +338,21 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               </div>
             ) : job.options.type === 'video' ? (
               <div className="space-y-4">
+                {/* Show stitched video badge if available */}
+                {hasStitchedVideo && videoViewMode === 'single' && (
+                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Film className="w-4 h-4 text-primary" />
+                      <span className="text-foreground font-medium">Final Stitched Video</span>
+                      <Badge variant="secondary" className="ml-auto">All {scenePrompts?.length || 0} Scenes</Badge>
+                    </div>
+                  </div>
+                )}
+                
                 {job.outputs.length > 1 && (
                   <Tabs value={videoViewMode} onValueChange={(v) => setVideoViewMode(v as any)}>
                     <TabsList className={`grid w-full ${hasScenes ? 'grid-cols-4' : 'grid-cols-3'}`}>
-                      <TabsTrigger value="single">Single View</TabsTrigger>
+                      <TabsTrigger value="single">{hasStitchedVideo ? 'Full Video' : 'Single View'}</TabsTrigger>
                       <TabsTrigger value="grid">All Videos</TabsTrigger>
                       <TabsTrigger value="compare">Compare</TabsTrigger>
                       {hasScenes && (
@@ -351,7 +368,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 {videoViewMode === 'scenes' && hasScenes ? (
                   <div className="space-y-4">
                     <div className="text-sm text-muted-foreground mb-4">
-                      <p>Your video was generated from {scenePrompts.length} scenes. Regenerate individual scenes below:</p>
+                      <p>Your video was generated from {scenePrompts.length} scenes. {hasStitchedVideo ? 'View or regenerate' : 'Regenerate'} individual scenes below:</p>
                     </div>
                     {scenePrompts.map((prompt, index) => (
                       <div 
@@ -393,7 +410,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                   </div>
                 ) : videoViewMode === 'grid' && job.outputs.length > 1 ? (
                   <VideoThumbnailGrid
-                    videos={job.outputs}
+                    videos={hasStitchedVideo ? [...sceneVideos, job.outputs[stitchedVideoIndex]] : job.outputs}
                     selectedIndex={currentVideoIndex}
                     onVideoClick={setCurrentVideoIndex}
                   />
@@ -407,14 +424,14 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 ) : (
                   <div className="space-y-3">
                     <video
-                      src={job.outputs[currentVideoIndex]}
+                      src={hasStitchedVideo ? job.outputs[stitchedVideoIndex] : job.outputs[currentVideoIndex]}
                       controls
                       className="w-full h-auto max-h-[600px]"
                       autoPlay
                       loop
                       playsInline
                     />
-                    {job.outputs.length > 1 && (
+                    {job.outputs.length > 1 && !hasStitchedVideo && (
                       <VideoThumbnailGrid
                         videos={job.outputs}
                         selectedIndex={currentVideoIndex}

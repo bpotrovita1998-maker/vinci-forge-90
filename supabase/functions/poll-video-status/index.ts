@@ -86,7 +86,46 @@ serve(async (req) => {
           
           // CRITICAL FIX: Check actual outputs count to prevent extra scene generation
           if (existingOutputs.length >= totalScenes) {
-            console.log(`Job ${job.id} has all ${totalScenes} scenes complete, skipping next scene trigger`);
+            console.log(`Job ${job.id} has all ${totalScenes} scenes complete, triggering video stitching...`);
+            
+            // If multi-scene video, trigger stitching
+            if (totalScenes > 1) {
+              try {
+                console.log(`Calling stitch-videos for job ${job.id} with ${existingOutputs.length} videos`);
+                await supabase.functions.invoke('stitch-videos', {
+                  body: {
+                    videoUrls: existingOutputs,
+                    jobId: job.id
+                  }
+                });
+                console.log(`Stitch-videos invoked successfully for job ${job.id}`);
+              } catch (stitchError) {
+                console.error(`Error invoking stitch-videos for job ${job.id}:`, stitchError);
+                // Mark job as completed with individual scenes if stitching fails
+                await supabase
+                  .from('jobs')
+                  .update({
+                    status: 'completed',
+                    progress_stage: 'completed',
+                    progress_percent: 100,
+                    progress_message: `All ${totalScenes} scenes generated successfully (stitching unavailable)`,
+                    completed_at: new Date().toISOString()
+                  })
+                  .eq('id', job.id);
+              }
+            } else {
+              // Single scene, mark as completed
+              await supabase
+                .from('jobs')
+                .update({
+                  status: 'completed',
+                  progress_stage: 'completed',
+                  progress_percent: 100,
+                  progress_message: 'Video generation complete!',
+                  completed_at: new Date().toISOString()
+                })
+                .eq('id', job.id);
+            }
             continue;
           }
           
