@@ -18,11 +18,6 @@ export const StorageUsage = () => {
   const [storageData, setStorageData] = useState<StorageData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Don't show storage usage for admins (they have unlimited storage)
-  if (isAdmin) {
-    return null;
-  }
-
   useEffect(() => {
     if (!user) return;
 
@@ -64,6 +59,11 @@ export const StorageUsage = () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  // Don't show storage usage for admins (they have unlimited storage)
+  if (isAdmin) {
+    return null;
+  }
 
   if (loading || !storageData) {
     return null;
