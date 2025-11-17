@@ -80,7 +80,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     try {
       toast({
         title: "Stitching Started",
-        description: "Creating your custom video...",
+        description: "Creating your custom video with automatic retry on errors...",
       });
 
       console.log('Calling stitchVideosWithScenes...');
@@ -88,10 +88,18 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
         scenes,
         job.id,
         resolvedUserId,
-        setStitchProgress
+        (progress) => {
+          setStitchProgress(progress);
+          // Show retry info if progress resets to 0 after starting
+          if (progress === 0 && stitchProgress > 0) {
+            toast({
+              title: "Retrying...",
+              description: "Network issue detected. Retrying stitching process...",
+              duration: 3000,
+            });
+          }
+        }
       );
-      console.log('Stitching completed, URL:', stitchedUrl);
-
       console.log('Stitching completed, URL:', stitchedUrl);
 
       // Update job with stitched video
