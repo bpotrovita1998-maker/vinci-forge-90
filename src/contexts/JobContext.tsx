@@ -293,6 +293,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       const { data, error, count } = await supabase
         .from('jobs')
         .select('*', { count: 'exact' })
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + JOBS_PER_PAGE - 1);
 
@@ -673,6 +674,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       const { data, error, count } = await supabase
         .from('jobs')
         .select('*', { count: 'exact' })
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + JOBS_PER_PAGE - 1);
 
