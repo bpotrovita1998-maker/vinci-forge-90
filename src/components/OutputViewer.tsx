@@ -43,6 +43,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [isDownloadingBatch, setIsDownloadingBatch] = useState(false);
   const [isStitching, setIsStitching] = useState(false);
   const [stitchProgress, setStitchProgress] = useState(0);
+  const [localOutputs, setLocalOutputs] = useState<string[]>(job.outputs);
 
   // Check if this is a multi-scene video
   const manifest = job.manifest as any;
@@ -51,9 +52,9 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   
   // Check if we have a stitched video (final concatenated output)
   // Stitched video is the last output if we have more outputs than scenes
-  const hasStitchedVideo = hasScenes && job.outputs.length > (scenePrompts?.length || 0);
-  const stitchedVideoIndex = hasStitchedVideo ? job.outputs.length - 1 : -1;
-  const sceneVideos = hasStitchedVideo ? job.outputs.slice(0, -1) : job.outputs;
+  const hasStitchedVideo = hasScenes && localOutputs.length > (scenePrompts?.length || 0);
+  const stitchedVideoIndex = hasStitchedVideo ? localOutputs.length - 1 : -1;
+  const sceneVideos = hasStitchedVideo ? localOutputs.slice(0, -1) : localOutputs;
 
   const handleCustomStitch = async (scenes: SceneConfig[]) => {
     if (!job.userId) return;
@@ -75,7 +76,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       );
 
       // Update job with stitched video
-      const updatedOutputs = [...job.outputs.slice(0, scenePrompts?.length || 0), stitchedUrl];
+      const updatedOutputs = [...localOutputs.slice(0, scenePrompts?.length || 0), stitchedUrl];
       
       await supabase
         .from('jobs')
@@ -84,8 +85,9 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
         })
         .eq('id', job.id);
 
-      // Force refresh
-      window.location.reload();
+      // Update local state to show the stitched video immediately
+      setLocalOutputs(updatedOutputs);
+      setVideoViewMode('single');
 
       toast({
         title: "Video Ready!",
@@ -496,32 +498,32 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                       </div>
                     ))}
                   </div>
-                ) : videoViewMode === 'grid' && job.outputs.length > 1 ? (
+                ) : videoViewMode === 'grid' && localOutputs.length > 1 ? (
                   <VideoThumbnailGrid
-                    videos={hasStitchedVideo ? [...sceneVideos, job.outputs[stitchedVideoIndex]] : job.outputs}
+                    videos={hasStitchedVideo ? [...sceneVideos, localOutputs[stitchedVideoIndex]] : localOutputs}
                     selectedIndex={currentVideoIndex}
                     onVideoClick={setCurrentVideoIndex}
                   />
-                ) : videoViewMode === 'compare' && job.outputs.length >= 2 ? (
+                ) : videoViewMode === 'compare' && localOutputs.length >= 2 ? (
                   <VideoComparisonSlider
-                    originalVideo={job.outputs[0]}
-                    upscaledVideo={job.outputs[1]}
+                    originalVideo={localOutputs[0]}
+                    upscaledVideo={localOutputs[1]}
                     originalLabel={`Video 1 ${job.options.fps === 24 ? '(24 fps)' : ''}`}
                     upscaledLabel={`Video 2 ${job.options.fps === 60 ? '(60 fps)' : ''}`}
                   />
                 ) : (
                   <div className="space-y-3">
                     <video
-                      src={hasStitchedVideo ? job.outputs[stitchedVideoIndex] : job.outputs[currentVideoIndex]}
+                      src={hasStitchedVideo ? localOutputs[stitchedVideoIndex] : localOutputs[currentVideoIndex]}
                       controls
                       className="w-full h-auto max-h-[600px]"
                       autoPlay
                       loop
                       playsInline
                     />
-                    {job.outputs.length > 1 && !hasStitchedVideo && (
+                    {localOutputs.length > 1 && !hasStitchedVideo && (
                       <VideoThumbnailGrid
-                        videos={job.outputs}
+                        videos={localOutputs}
                         selectedIndex={currentVideoIndex}
                         onVideoClick={setCurrentVideoIndex}
                       />
