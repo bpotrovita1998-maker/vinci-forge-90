@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import { websocketService } from '@/services/websocketService';
 import { moderationService, ModerationResult } from '@/services/moderationService';
+import { stitchVideos } from '@/services/videoStitchingService';
 
 // Select which service to use:
 // - lovableAIService: Uses Lovable AI (google/gemini-2.5-flash-image) - ACTIVE
@@ -134,13 +135,79 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
             setJobs(prev => prev.map(j => j.id === job.id ? updatedJob : j));
 
+            // Check if this is a multi-scene video that needs stitching
+            const shouldStitch = data.status === 'completed' && 
+                                 data.type === 'video' && 
+                                 (data.manifest as any)?.scenePrompts?.length > 1 &&
+                                 (data.outputs as string[])?.length === (data.manifest as any)?.scenePrompts?.length;
+
+            if (shouldStitch) {
+              console.log(`Triggering video stitching for job ${job.id}`);
+              
+              // Start stitching in the background
+              stitchVideos(
+                data.outputs as string[],
+                job.id,
+                data.user_id,
+                (progress) => {
+                  setJobs(prev => prev.map(j => 
+                    j.id === job.id 
+                      ? { 
+                          ...j, 
+                          progress: { 
+                            ...j.progress, 
+                            progress, 
+                            message: 'Stitching video scenes...' 
+                          } 
+                        } 
+                      : j
+                  ));
+                }
+              ).then(async (stitchedUrl) => {
+                console.log(`Stitching complete for job ${job.id}:`, stitchedUrl);
+                
+                // Update job with stitched video added to outputs
+                const updatedOutputs = [...(data.outputs as string[]), stitchedUrl];
+                
+                await supabase
+                  .from('jobs')
+                  .update({
+                    outputs: updatedOutputs,
+                    progress_percent: 100,
+                    progress_message: 'Video stitched successfully!'
+                  })
+                  .eq('id', job.id);
+                
+                // Update local state
+                setJobs(prev => prev.map(j => 
+                  j.id === job.id 
+                    ? { ...j, outputs: updatedOutputs } 
+                    : j
+                ));
+                
+                toast.success('Multi-scene video stitched successfully!');
+              }).catch(async (error) => {
+                console.error(`Stitching failed for job ${job.id}:`, error);
+                
+                // Still mark as complete but with a warning
+                await supabase
+                  .from('jobs')
+                  .update({
+                    progress_message: 'Video generated (stitching failed - showing individual scenes)'
+                  })
+                  .eq('id', job.id);
+                
+                toast.error('Video stitching failed, showing individual scenes');
+              });
+            }
+
             // Clean up poll tracking when job completes
             if (data.status === 'completed' || data.status === 'failed') {
               pollStartTimes.current.delete(job.id);
             }
 
-            // Show notifications
-            if (data.status === 'completed' && (data.outputs as any[])?.length > 0) {
+            // Show notifications (only for non-stitching completions)
+            if (data.status === 'completed' && (data.outputs as any[])?.length > 0 && !shouldStitch) {
               toast.success('Generation complete! Click the job to view your result.');
               websocketService.unsubscribeFromJob(job.id);
             } else if (data.status === 'failed') {
