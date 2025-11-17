@@ -46,8 +46,12 @@ const sleep = (ms: number): Promise<void> => {
 };
 
 export const loadFFmpeg = async (): Promise<FFmpeg> => {
-  if (ffmpegInstance) return ffmpegInstance;
+  if (ffmpegInstance) {
+    console.log('[FFmpeg] Using cached instance');
+    return ffmpegInstance;
+  }
 
+  console.log('[FFmpeg] Starting initialization...');
   const ffmpeg = new FFmpeg();
   
   // Add logging for debugging
@@ -61,13 +65,38 @@ export const loadFFmpeg = async (): Promise<FFmpeg> => {
   
   const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
   
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-  });
+  try {
+    console.log('[FFmpeg] Loading WASM files from CDN...');
+    
+    // Create a timeout promise
+    const loadTimeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('FFmpeg load timeout after 30 seconds')), 30000);
+    });
+    
+    // Race between loading and timeout
+    await Promise.race([
+      (async () => {
+        const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+        console.log('[FFmpeg] Core JS loaded');
+        const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+        console.log('[FFmpeg] WASM loaded');
+        
+        console.log('[FFmpeg] Initializing FFmpeg...');
+        await ffmpeg.load({
+          coreURL,
+          wasmURL,
+        });
+        console.log('[FFmpeg] Initialization complete');
+      })(),
+      loadTimeout
+    ]);
 
-  ffmpegInstance = ffmpeg;
-  return ffmpeg;
+    ffmpegInstance = ffmpeg;
+    return ffmpeg;
+  } catch (error) {
+    console.error('[FFmpeg] Load failed:', error);
+    throw new Error(`Failed to load FFmpeg: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };
 
 const getTransitionFilter = (
@@ -93,8 +122,9 @@ const stitchVideosWithScenesInternal = async (
   userId: string,
   onProgress?: (progress: number) => void
 ): Promise<string> => {
+  console.log('[Stitch] Loading FFmpeg...');
   const ffmpeg = await loadFFmpeg();
-  console.log('FFmpeg loaded successfully');
+  console.log('[Stitch] FFmpeg loaded successfully');
 
     // Download and process all videos
     onProgress?.(10);
