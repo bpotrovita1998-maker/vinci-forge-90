@@ -427,6 +427,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_admin_files_permanent: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user"
