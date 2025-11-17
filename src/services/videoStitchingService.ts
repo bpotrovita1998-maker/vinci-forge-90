@@ -60,18 +60,14 @@ export const stitchVideosWithScenes = async (
 
   // Build complex filter for trimming and transitions
   const filterParts: string[] = [];
-  const trimmedInputs: string[] = [];
 
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
     const trimDuration = scene.trimEnd - scene.trimStart;
     
-    // Trim the video
+    // Trim the video only (drop audio to avoid missing-audio errors)
     filterParts.push(
       `[${i}:v]trim=start=${scene.trimStart}:end=${scene.trimEnd},setpts=PTS-STARTPTS[v${i}trim]`
-    );
-    filterParts.push(
-      `[${i}:a]atrim=start=${scene.trimStart}:end=${scene.trimEnd},asetpts=PTS-STARTPTS[a${i}trim]`
     );
 
     // Apply transition if not the last scene
@@ -85,34 +81,27 @@ export const stitchVideosWithScenes = async (
             `[v${i}trim]fade=t=out:st=${trimDuration - transDuration}:d=${transDuration}[v${i}fadeout]`,
             `[v${i + 1}trim]fade=t=in:st=0:d=${transDuration}[v${i + 1}fadein]`
           );
-          trimmedInputs.push(`[v${i}fadeout]`, `[a${i}trim]`);
           break;
         case 'dissolve':
           filterParts.push(
             `[v${i}trim][v${i + 1}trim]blend=all_expr='A*(1-T/${transDuration})+B*(T/${transDuration})':shortest=1[v${i}blend]`
           );
-          trimmedInputs.push(`[v${i}blend]`, `[a${i}trim]`);
           break;
         case 'wipe':
           filterParts.push(
             `[v${i}trim][v${i + 1}trim]xfade=transition=wipeleft:duration=${transDuration}:offset=${trimDuration - transDuration}[v${i}wipe]`
           );
-          trimmedInputs.push(`[v${i}wipe]`, `[a${i}trim]`);
           break;
         default:
-          trimmedInputs.push(`[v${i}trim]`, `[a${i}trim]`);
+          // no-op
       }
-    } else {
-      trimmedInputs.push(`[v${i}trim]`, `[a${i}trim]`);
     }
   }
 
-  // Concatenate all processed streams
+  // Concatenate all processed video streams only (drop audio)
   const videoStreams = scenes.map((_, i) => `[v${i}trim]`).join('');
-  const audioStreams = scenes.map((_, i) => `[a${i}trim]`).join('');
   filterParts.push(
-    `${videoStreams}concat=n=${scenes.length}:v=1:a=0[vout]`,
-    `${audioStreams}concat=n=${scenes.length}:v=0:a=1[aout]`
+    `${videoStreams}concat=n=${scenes.length}:v=1:a=0[vout]`
   );
 
   const filterComplex = filterParts.join(';');
