@@ -58,13 +58,22 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
   const handleCustomStitch = async (scenes: SceneConfig[]) => {
     console.log('handleCustomStitch called with scenes:', scenes.length);
-    
-    if (!job.userId) {
-      console.error('No userId found');
+
+    // Derive a user id: prefer job.userId, else grab from auth
+    const { data: userData } = await supabase.auth.getUser();
+    const resolvedUserId = job.userId || userData.user?.id || null;
+
+    if (!resolvedUserId) {
+      console.error('No user id available for stitching');
+      toast({
+        title: 'Stitching Unavailable',
+        description: 'Cannot determine your account. Please sign in again and retry.',
+        variant: 'destructive',
+      });
       return;
     }
-    
-    console.log('Starting stitch process...');
+
+    console.log('Starting stitch process for user:', resolvedUserId);
     setIsStitching(true);
     setVideoViewMode('single');
     
@@ -78,7 +87,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       const stitchedUrl = await stitchVideosWithScenes(
         scenes,
         job.id,
-        job.userId,
+        resolvedUserId,
         setStitchProgress
       );
       console.log('Stitching completed, URL:', stitchedUrl);
