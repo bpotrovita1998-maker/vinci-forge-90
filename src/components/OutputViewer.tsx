@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -39,7 +39,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [unityScale, setUnityScale] = useState<string>('1');
-  const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare' | 'scenes' | 'editor'>('single');
+  const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare' | 'scenes' | 'editor' | 'fullvideo'>('single');
   const [isDownloadingBatch, setIsDownloadingBatch] = useState(false);
   const [isStitching, setIsStitching] = useState(false);
   const [stitchProgress, setStitchProgress] = useState(0);
@@ -105,7 +105,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
       // Update local state to show the stitched video immediately
       setLocalOutputs(updatedOutputs);
-      setVideoViewMode('single');
+      setVideoViewMode('fullvideo'); // Switch to full video tab to show the result
 
       toast({
         title: "Video Ready!",
@@ -446,13 +446,13 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
             ) : job.options.type === 'video' ? (
               <div className="space-y-4">
                 {/* Show stitched video badge if available */}
-                {hasStitchedVideo && videoViewMode === 'single' && (
-                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
+                {hasStitchedVideo && videoViewMode === 'fullvideo' && (
+                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 mb-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <Film className="w-4 h-4 text-primary" />
                         <span className="text-foreground font-medium">Final Stitched Video</span>
-                        <Badge variant="secondary">All {scenePrompts?.length || 0} Scenes</Badge>
+                        <Badge variant="secondary">All {scenePrompts?.length || 0} Scenes Combined</Badge>
                       </div>
                       <Button
                         onClick={downloadStitchedVideo}
@@ -514,10 +514,60 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                     onConfirm={handleCustomStitch}
                     onCancel={() => setVideoViewMode('single')}
                   />
+                ) : videoViewMode === 'fullvideo' && hasStitchedVideo ? (
+                  <div className="space-y-3">
+                    <video
+                      src={localOutputs[stitchedVideoIndex]}
+                      controls
+                      className="w-full h-auto max-h-[600px] rounded-lg"
+                      autoPlay
+                      loop
+                      playsInline
+                    />
+                    <div className="bg-muted/30 border border-border/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Complete Video</p>
+                          <p className="text-xs text-muted-foreground">
+                            All {scenePrompts?.length || 0} scenes stitched together
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setVideoViewMode('scenes')}
+                          >
+                            View Scenes
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setVideoViewMode('editor')}
+                            className="gap-1"
+                          >
+                            <Scissors className="w-3 h-3" />
+                            Re-edit
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ) : videoViewMode === 'scenes' && hasScenes ? (
                   <div className="space-y-4">
-                    <div className="text-sm text-muted-foreground mb-4">
+                    <div className="text-sm text-muted-foreground mb-4 flex items-center justify-between">
                       <p>Your video was generated from {scenePrompts.length} scenes. {hasStitchedVideo ? 'View or regenerate' : 'Regenerate'} individual scenes below:</p>
+                      {hasStitchedVideo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setVideoViewMode('fullvideo')}
+                          className="gap-1"
+                        >
+                          <Film className="w-3 h-3" />
+                          View Full Video
+                        </Button>
+                      )}
                     </div>
                     {scenePrompts.map((prompt, index) => (
                       <div 
@@ -573,14 +623,14 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 ) : (
                   <div className="space-y-3">
                     <video
-                      src={hasStitchedVideo ? localOutputs[stitchedVideoIndex] : localOutputs[currentVideoIndex]}
+                      src={localOutputs[currentVideoIndex]}
                       controls
                       className="w-full h-auto max-h-[600px]"
                       autoPlay
                       loop
                       playsInline
                     />
-                    {localOutputs.length > 1 && !hasStitchedVideo && (
+                    {localOutputs.length > 1 && (
                       <VideoThumbnailGrid
                         videos={localOutputs}
                         selectedIndex={currentVideoIndex}
