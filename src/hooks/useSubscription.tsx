@@ -131,10 +131,17 @@ export const useSubscription = () => {
           setTimeout(() => reject(new Error('Subscription check timeout')), 5000)
         );
         
-        await Promise.race([
-          supabase.functions.invoke('check-subscription'),
-          timeoutPromise
-        ]);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await Promise.race([
+            supabase.functions.invoke('check-subscription', {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`
+              }
+            }),
+            timeoutPromise
+          ]);
+        }
       } catch (err) {
         console.error('Failed to check Stripe subscription:', err);
         // Continue anyway - we'll use cached data from database
