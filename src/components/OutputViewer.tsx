@@ -743,14 +743,14 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download {job.options.type === 'video' 
-                  ? `Video ${currentVideoIndex + 1}`
-                  : job.options.type === 'image' && job.outputs.length > 1 
-                    ? `(${currentImageIndex + 1}/${job.outputs.length})` 
+                  ? (hasStitchedVideo && videoViewMode === 'single' ? 'Final Video' : `Video ${currentVideoIndex + 1}`)
+                  : job.options.type === 'image' && localOutputs.length > 1 
+                    ? `(${currentImageIndex + 1}/${localOutputs.length})` 
                     : ''}
               </Button>
 
               {/* Batch Download for multiple outputs */}
-              {job.outputs.length > 1 && (
+              {localOutputs.length > 1 && (
                 <Button
                   variant="outline"
                   className="glass border-accent/30 hover:bg-accent/10"
@@ -758,7 +758,18 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                   disabled={isDownloadingBatch}
                 >
                   <Package className="w-4 h-4 mr-2" />
-                  {isDownloadingBatch ? 'Preparing ZIP...' : `Download All (${job.outputs.length})`}
+                  {isDownloadingBatch ? 'Preparing ZIP...' : `Download All (${localOutputs.length})`}
+                </Button>
+              )}
+
+              {hasStitchedVideo && (
+                <Button
+                  variant="default"
+                  className="gap-2"
+                  onClick={downloadStitchedVideo}
+                >
+                  <Download className="w-4 h-4" />
+                  Download Final
                 </Button>
               )}
 
@@ -767,7 +778,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 className="glass border-border/30"
                 asChild
               >
-                <a href={job.outputs[currentImageIndex]} target="_blank" rel="noopener noreferrer">
+                <a href={job.options.type === 'video' ? (hasStitchedVideo ? localOutputs[stitchedVideoIndex] : localOutputs[currentVideoIndex]) : localOutputs[currentImageIndex]} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Open in New Tab
                 </a>
