@@ -113,7 +113,15 @@ export const useSubscription = () => {
   };
 
   useEffect(() => {
-    refreshData();
+    // Safety timeout: never block the UI too long
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false);
+      console.warn('[useSubscription] Safety timeout reached, releasing loading state');
+    }, 6000);
+
+    refreshData().finally(() => {
+      clearTimeout(safetyTimeout);
+    });
 
     // Subscribe to changes
     const subscription = supabase
@@ -136,6 +144,7 @@ export const useSubscription = () => {
     return () => {
       subscription.unsubscribe();
       clearInterval(interval);
+      clearTimeout(safetyTimeout);
     };
   }, []);
 
