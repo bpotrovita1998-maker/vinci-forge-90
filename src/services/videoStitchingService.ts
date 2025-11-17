@@ -5,6 +5,46 @@ import { SceneConfig, TransitionType } from '@/types/sceneConfig';
 
 let ffmpegInstance: FFmpeg | null = null;
 
+interface RetryOptions {
+  maxRetries: number;
+  initialDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+}
+
+const defaultRetryOptions: RetryOptions = {
+  maxRetries: 3,
+  initialDelay: 1000, // 1 second
+  maxDelay: 10000, // 10 seconds
+  backoffMultiplier: 2
+};
+
+const isRetryableError = (error: any): boolean => {
+  const errorMessage = error?.message?.toLowerCase() || '';
+  
+  // Network-related errors
+  if (errorMessage.includes('network') || 
+      errorMessage.includes('fetch') || 
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('cors') ||
+      errorMessage.includes('connection')) {
+    return true;
+  }
+  
+  // Temporary FFmpeg errors
+  if (errorMessage.includes('out of memory') ||
+      errorMessage.includes('resource temporarily unavailable') ||
+      errorMessage.includes('busy')) {
+    return true;
+  }
+  
+  return false;
+};
+
+const sleep = (ms: number): Promise<void> => {
+  return new Promise(resolve => setTimeout(resolve, ms));
+};
+
 export const loadFFmpeg = async (): Promise<FFmpeg> => {
   if (ffmpegInstance) return ffmpegInstance;
 
@@ -47,17 +87,14 @@ const getTransitionFilter = (
   }
 };
 
-export const stitchVideosWithScenes = async (
+const stitchVideosWithScenesInternal = async (
   scenes: SceneConfig[],
   jobId: string,
   userId: string,
   onProgress?: (progress: number) => void
 ): Promise<string> => {
-  console.log(`Starting advanced stitching for ${scenes.length} scenes`);
-  
-  try {
-    const ffmpeg = await loadFFmpeg();
-    console.log('FFmpeg loaded successfully');
+  const ffmpeg = await loadFFmpeg();
+  console.log('FFmpeg loaded successfully');
 
     // Download and process all videos
     onProgress?.(10);
@@ -189,10 +226,54 @@ export const stitchVideosWithScenes = async (
   console.log('Stitching completed successfully!');
 
   return signedUrlData.signedUrl;
-  } catch (error) {
-    console.error('Stitching failed:', error);
-    throw error;
+};
+
+export const stitchVideosWithScenes = async (
+  scenes: SceneConfig[],
+  jobId: string,
+  userId: string,
+  onProgress?: (progress: number) => void,
+  retryOptions: Partial<RetryOptions> = {}
+): Promise<string> => {
+  const options = { ...defaultRetryOptions, ...retryOptions };
+  let lastError: any;
+  
+  console.log(`Starting advanced stitching for ${scenes.length} scenes (with retry support)`);
+  
+  for (let attempt = 0; attempt <= options.maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`Retry attempt ${attempt}/${options.maxRetries}`);
+      }
+      
+      return await stitchVideosWithScenesInternal(scenes, jobId, userId, onProgress);
+    } catch (error) {
+      lastError = error;
+      console.error(`Stitching attempt ${attempt + 1} failed:`, error);
+      
+      // Check if error is retryable
+      if (!isRetryableError(error) || attempt >= options.maxRetries) {
+        console.error('Error is not retryable or max retries reached');
+        throw error;
+      }
+      
+      // Calculate delay with exponential backoff
+      const delay = Math.min(
+        options.initialDelay * Math.pow(options.backoffMultiplier, attempt),
+        options.maxDelay
+      );
+      
+      console.log(`Waiting ${delay}ms before retry...`);
+      
+      // Reset progress to show we're retrying
+      onProgress?.(0);
+      
+      await sleep(delay);
+    }
   }
+  
+  // Should never reach here, but just in case
+  throw lastError || new Error('Stitching failed after maximum retries');
 };
 
 // Legacy function for simple stitching (backward compatibility)
