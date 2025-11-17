@@ -57,8 +57,14 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const sceneVideos = hasStitchedVideo ? localOutputs.slice(0, -1) : localOutputs;
 
   const handleCustomStitch = async (scenes: SceneConfig[]) => {
-    if (!job.userId) return;
+    console.log('handleCustomStitch called with scenes:', scenes.length);
     
+    if (!job.userId) {
+      console.error('No userId found');
+      return;
+    }
+    
+    console.log('Starting stitch process...');
     setIsStitching(true);
     setVideoViewMode('single');
     
@@ -68,22 +74,34 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
         description: "Creating your custom video...",
       });
 
+      console.log('Calling stitchVideosWithScenes...');
       const stitchedUrl = await stitchVideosWithScenes(
         scenes,
         job.id,
         job.userId,
         setStitchProgress
       );
+      console.log('Stitching completed, URL:', stitchedUrl);
+
+      console.log('Stitching completed, URL:', stitchedUrl);
 
       // Update job with stitched video
       const updatedOutputs = [...localOutputs.slice(0, scenePrompts?.length || 0), stitchedUrl];
+      console.log('Updating job outputs:', updatedOutputs);
       
-      await supabase
+      const { error: updateError } = await supabase
         .from('jobs')
         .update({
           outputs: updatedOutputs,
         })
         .eq('id', job.id);
+
+      if (updateError) {
+        console.error('Failed to update job:', updateError);
+        throw updateError;
+      }
+
+      console.log('Job updated successfully');
 
       // Update local state to show the stitched video immediately
       setLocalOutputs(updatedOutputs);
@@ -97,10 +115,11 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       console.error('Stitching error:', error);
       toast({
         title: "Stitching Failed",
-        description: "Failed to create custom video. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create custom video. Please try again.",
         variant: "destructive",
       });
     } finally {
+      console.log('Stitch process completed');
       setIsStitching(false);
       setStitchProgress(0);
     }
