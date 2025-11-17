@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors, Play } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -112,13 +112,35 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
       console.log('Job updated successfully');
 
+      // Calculate total duration
+      const totalDuration = scenes.reduce((sum, scene) => sum + (scene.trimEnd - scene.trimStart), 0);
+
       // Update local state to show the stitched video immediately
       setLocalOutputs(updatedOutputs);
       setVideoViewMode('fullvideo'); // Switch to full video tab to show the result
 
       toast({
-        title: "Video Ready!",
-        description: "Your custom video has been created successfully.",
+        title: "🎬 Video Ready!",
+        description: `Your ${totalDuration.toFixed(1)}s video has been created successfully. Click to play.`,
+        duration: 6000,
+        action: (
+          <Button
+            size="sm"
+            className="gap-1"
+            onClick={() => {
+              setVideoViewMode('fullvideo');
+              // Scroll to video and play
+              setTimeout(() => {
+                const videoElement = document.querySelector('video');
+                videoElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                videoElement?.play();
+              }, 100);
+            }}
+          >
+            <Play className="w-3 h-3" />
+            Play
+          </Button>
+        )
       });
     } catch (error) {
       console.error('Stitching error:', error);
