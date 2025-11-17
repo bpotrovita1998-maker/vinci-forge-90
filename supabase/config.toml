@@ -48,3 +48,7 @@ verify_jwt = false
 [functions.cleanup-old-files]
 verify_jwt = false
 
+[functions.stitch-videos]
+verify_jwt = false
+
+
