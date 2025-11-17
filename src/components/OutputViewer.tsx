@@ -499,8 +499,14 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 
                 {job.outputs.length > 1 && (
                   <Tabs value={videoViewMode} onValueChange={(v) => setVideoViewMode(v as any)}>
-                    <TabsList className={`grid w-full ${hasScenes ? 'grid-cols-5' : 'grid-cols-3'}`}>
-                      <TabsTrigger value="single">{hasStitchedVideo ? 'Full Video' : 'Single View'}</TabsTrigger>
+                    <TabsList className={`grid w-full ${hasScenes && hasStitchedVideo ? 'grid-cols-6' : hasScenes ? 'grid-cols-5' : 'grid-cols-3'}`}>
+                      {hasStitchedVideo && (
+                        <TabsTrigger value="fullvideo">
+                          <Film className="w-4 h-4 mr-1" />
+                          Full Video
+                        </TabsTrigger>
+                      )}
+                      <TabsTrigger value="single">Single View</TabsTrigger>
                       <TabsTrigger value="grid">All Videos</TabsTrigger>
                       <TabsTrigger value="compare">Compare</TabsTrigger>
                       {hasScenes && (
@@ -510,7 +516,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                             Scenes
                           </TabsTrigger>
                           <TabsTrigger value="editor">
-                            <Sparkles className="w-4 h-4 mr-1" />
+                            <Scissors className="w-4 h-4 mr-1" />
                             Custom Edit
                           </TabsTrigger>
                         </>
