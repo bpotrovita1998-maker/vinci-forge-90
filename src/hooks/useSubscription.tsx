@@ -85,11 +85,19 @@ export const useSubscription = () => {
         return;
       }
 
-      // Check subscription status with Stripe
+      // Check subscription status with Stripe (with timeout)
       try {
-        await supabase.functions.invoke('check-subscription');
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Subscription check timeout')), 5000)
+        );
+        
+        await Promise.race([
+          supabase.functions.invoke('check-subscription'),
+          timeoutPromise
+        ]);
       } catch (err) {
         console.error('Failed to check Stripe subscription:', err);
+        // Continue anyway - we'll use cached data from database
       }
 
       await Promise.all([
