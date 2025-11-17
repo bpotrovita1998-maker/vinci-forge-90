@@ -9,6 +9,16 @@ export const loadFFmpeg = async (): Promise<FFmpeg> => {
   if (ffmpegInstance) return ffmpegInstance;
 
   const ffmpeg = new FFmpeg();
+  
+  // Add logging for debugging
+  ffmpeg.on('log', ({ message }) => {
+    console.log('[FFmpeg]', message);
+  });
+  
+  ffmpeg.on('progress', ({ progress, time }) => {
+    console.log(`[FFmpeg Progress] ${Math.round(progress * 100)}% - Time: ${time}ms`);
+  });
+  
   const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
   
   await ffmpeg.load({
@@ -45,18 +55,23 @@ export const stitchVideosWithScenes = async (
 ): Promise<string> => {
   console.log(`Starting advanced stitching for ${scenes.length} scenes`);
   
-  const ffmpeg = await loadFFmpeg();
+  try {
+    const ffmpeg = await loadFFmpeg();
+    console.log('FFmpeg loaded successfully');
 
-  // Download and process all videos
-  onProgress?.(10);
-  for (let i = 0; i < scenes.length; i++) {
-    const scene = scenes[i];
-    const videoData = await fetchFile(scene.videoUrl);
-    await ffmpeg.writeFile(`input${i}.mp4`, videoData);
-    onProgress?.(10 + (i + 1) * (30 / scenes.length));
-  }
+    // Download and process all videos
+    onProgress?.(10);
+    console.log('Downloading scene videos...');
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      console.log(`Downloading scene ${i + 1}/${scenes.length}: ${scene.videoUrl.substring(0, 50)}...`);
+      const videoData = await fetchFile(scene.videoUrl);
+      await ffmpeg.writeFile(`input${i}.mp4`, videoData);
+      onProgress?.(10 + (i + 1) * (30 / scenes.length));
+    }
+    console.log('All scenes downloaded');
 
-  onProgress?.(45);
+    onProgress?.(45);
 
   // Build complex filter for trimming and transitions
   const filterParts: string[] = [];
@@ -108,28 +123,32 @@ export const stitchVideosWithScenes = async (
   console.log('Filter complex:', filterComplex);
 
   onProgress?.(60);
+  console.log('Executing FFmpeg with video-only pipeline...');
 
-  // Execute FFmpeg with complex filter
+  // Execute FFmpeg with complex filter (video-only, no audio)
   const inputs = scenes.flatMap((_, i) => ['-i', `input${i}.mp4`]);
   await ffmpeg.exec([
     ...inputs,
     '-filter_complex', filterComplex,
     '-map', '[vout]',
-    '-map', '[aout]',
     '-c:v', 'libx264',
     '-preset', 'fast',
-    '-c:a', 'aac',
+    '-an', // No audio
     'output.mp4'
   ]);
+  console.log('FFmpeg execution completed');
 
   onProgress?.(80);
+  console.log('Reading output file...');
 
   // Read the output
   const data = await ffmpeg.readFile('output.mp4');
   const uint8Array = data instanceof Uint8Array ? data : new Uint8Array(await (await fetch(data as string)).arrayBuffer());
   const blob = new Blob([uint8Array.buffer as ArrayBuffer], { type: 'video/mp4' });
+  console.log(`Output video created: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
 
   onProgress?.(85);
+  console.log('Uploading to Supabase storage...');
 
   // Upload to Supabase storage
   const fileName = `${userId}/${jobId}/final_stitched.mp4`;
@@ -144,8 +163,10 @@ export const stitchVideosWithScenes = async (
     console.error('Upload error:', uploadError);
     throw uploadError;
   }
+  console.log('Upload successful');
 
   onProgress?.(95);
+  console.log('Creating signed URL...');
 
   // Get signed URL
   const { data: signedUrlData } = await supabase.storage
@@ -155,16 +176,23 @@ export const stitchVideosWithScenes = async (
   if (!signedUrlData?.signedUrl) {
     throw new Error('Failed to create signed URL');
   }
+  console.log('Signed URL created:', signedUrlData.signedUrl.substring(0, 50) + '...');
 
   onProgress?.(100);
+  console.log('Cleaning up temporary files...');
 
   // Clean up FFmpeg files
   for (let i = 0; i < scenes.length; i++) {
     await ffmpeg.deleteFile(`input${i}.mp4`);
   }
   await ffmpeg.deleteFile('output.mp4');
+  console.log('Stitching completed successfully!');
 
   return signedUrlData.signedUrl;
+  } catch (error) {
+    console.error('Stitching failed:', error);
+    throw error;
+  }
 };
 
 // Legacy function for simple stitching (backward compatibility)
