@@ -63,14 +63,15 @@ export const loadFFmpeg = async (): Promise<FFmpeg> => {
     console.log(`[FFmpeg Progress] ${Math.round(progress * 100)}% - Time: ${time}ms`);
   });
   
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+  // Try jsdelivr CDN instead of unpkg - more reliable
+  const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
   
   try {
     console.log('[FFmpeg] Loading WASM files from CDN...');
     
-    // Create a timeout promise
+    // Increase timeout to 60 seconds for slower connections
     const loadTimeout = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('FFmpeg load timeout after 30 seconds')), 30000);
+      setTimeout(() => reject(new Error('FFmpeg load timeout after 60 seconds')), 60000);
     });
     
     // Race between loading and timeout
@@ -95,6 +96,8 @@ export const loadFFmpeg = async (): Promise<FFmpeg> => {
     return ffmpeg;
   } catch (error) {
     console.error('[FFmpeg] Load failed:', error);
+    // Clear the instance so next attempt will try again
+    ffmpegInstance = null;
     throw new Error(`Failed to load FFmpeg: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
@@ -284,25 +287,6 @@ export const stitchVideosWithScenes = async (
       // Check if error is retryable
       if (!isRetryableError(error) || attempt >= options.maxRetries) {
         console.error('Error is not retryable or max retries reached');
-        
-        // Try server-side fallback as last resort
-        if (attempt >= options.maxRetries) {
-          console.log('[Fallback] Attempting server-side video stitching...');
-          try {
-            onProgress?.(5);
-            const result = await stitchVideosServerSide(scenes, jobId, userId, onProgress);
-            console.log('[Fallback] Server-side stitching succeeded!');
-            return result;
-          } catch (serverError) {
-            console.error('[Fallback] Server-side stitching also failed:', serverError);
-            throw new Error(
-              `Both client-side and server-side stitching failed. ` +
-              `Client error: ${error instanceof Error ? error.message : 'Unknown'}. ` +
-              `Server error: ${serverError instanceof Error ? serverError.message : 'Unknown'}`
-            );
-          }
-        }
-        
         throw error;
       }
       
@@ -323,34 +307,6 @@ export const stitchVideosWithScenes = async (
   
   // Should never reach here, but just in case
   throw lastError || new Error('Stitching failed after maximum retries');
-};
-
-// Server-side stitching fallback
-const stitchVideosServerSide = async (
-  scenes: SceneConfig[],
-  jobId: string,
-  userId: string,
-  onProgress?: (progress: number) => void
-): Promise<string> => {
-  console.log('[Server Stitch] Calling server-side stitching edge function');
-  onProgress?.(10);
-
-  const { data, error } = await supabase.functions.invoke('stitch-videos-server', {
-    body: { scenes, jobId, userId }
-  });
-
-  if (error) {
-    console.error('[Server Stitch] Edge function error:', error);
-    throw new Error(`Server-side stitching failed: ${error.message}`);
-  }
-
-  if (!data?.success || !data?.videoUrl) {
-    throw new Error('Server-side stitching did not return a valid video URL');
-  }
-
-  onProgress?.(100);
-  console.log('[Server Stitch] Completed successfully');
-  return data.videoUrl;
 };
 
 // Legacy function for simple stitching (backward compatibility)
