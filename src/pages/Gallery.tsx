@@ -57,6 +57,7 @@ export default function Gallery() {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [thumbnailRefreshKey, setThumbnailRefreshKey] = useState(0);
+  const [isMigrating, setIsMigrating] = useState(false);
   
   // Helper function to get the display video URL (stitched if available, otherwise first)
   const getDisplayVideoUrl = (job: Job): string => {
@@ -333,6 +334,39 @@ export default function Gallery() {
 
   const counts = getTypeCounts();
 
+  const handleMigrateCADModels = async () => {
+    if (!user) return;
+    
+    setIsMigrating(true);
+    toast.info('Starting CAD model migration...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('migrate-cad-models');
+      
+      if (error) {
+        throw error;
+      }
+      
+      const result = data as any;
+      if (result.success) {
+        if (result.migrated === 0) {
+          toast.success('All CAD models already migrated!');
+        } else {
+          toast.success(`Successfully migrated ${result.migrated} CAD model(s) to permanent storage!`);
+          // Refresh the page to show updated URLs
+          window.location.reload();
+        }
+      } else {
+        throw new Error(result.error || 'Migration failed');
+      }
+    } catch (error) {
+      console.error('Migration error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to migrate CAD models');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen relative">
       <ParticleBackground />
@@ -343,8 +377,40 @@ export default function Gallery() {
             <p className="text-muted-foreground">Browse all your generated creations</p>
           </motion.div>
 
-          <div className="mb-6">
+          <div className="mb-6 space-y-4">
             <StorageUsage />
+            
+            {/* Admin Migration Tool */}
+            {user?.id === 'c71c0c60-42a1-4e9e-958b-372cda709edf' && (
+              <Card className="glass border-border/30 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-1">CAD Model Migration</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Migrate old CAD models from Replicate to permanent Supabase storage
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleMigrateCADModels}
+                    disabled={isMigrating}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    {isMigrating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Migrating...
+                      </>
+                    ) : (
+                      <>
+                        <Package className="w-4 h-4" />
+                        Migrate CAD Models
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Card>
+            )}
           </div>
 
           <Tabs value={galleryMode} onValueChange={(v) => setGalleryMode(v as 'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes')} className="space-y-6">

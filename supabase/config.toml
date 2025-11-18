@@ -57,5 +57,8 @@ verify_jwt = false
 [functions.generate-cnc-parameters]
 verify_jwt = false
 
+[functions.migrate-cad-models]
+verify_jwt = false
+
 
 
