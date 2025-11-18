@@ -59,6 +59,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { PlaylistPlayer } from '@/components/PlaylistPlayer';
 
 interface Scene {
   id: string;
@@ -116,6 +117,14 @@ export default function Scenes() {
   const [comparisonSceneIndex, setComparisonSceneIndex] = useState(0);
   const [consistencyAnalysis, setConsistencyAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [stitchedPlaylists, setStitchedPlaylists] = useState<Array<{
+    id: string;
+    manifestUrl: string;
+    sceneCount: number;
+    totalDuration: number;
+    createdAt: string;
+  }>>([]);
+  const [isStitching, setIsStitching] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveQueuedRef = useRef<boolean>(false);
   const saveQueuedToastRef = useRef<boolean>(false);
@@ -1189,6 +1198,64 @@ export default function Scenes() {
     }
   };
 
+  const stitchVideos = async () => {
+    if (!user) return;
+
+    const videoScenes = scenes.filter(s => s.status === 'ready' && s.videoUrl);
+    
+    if (videoScenes.length < 1) {
+      toast({
+        title: "No Videos",
+        description: "Add at least one video scene to create a playlist",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsStitching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('stitch-videos', {
+        body: {
+          scenes: videoScenes.map((scene, index) => ({
+            videoUrl: scene.videoUrl!,
+            duration: scene.duration,
+            order: index
+          })),
+          jobId: currentStoryboard?.id || crypto.randomUUID(),
+          userId: user.id
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.manifestUrl) {
+        const newPlaylist = {
+          id: crypto.randomUUID(),
+          manifestUrl: data.manifestUrl,
+          sceneCount: data.sceneCount,
+          totalDuration: data.totalDuration,
+          createdAt: new Date().toISOString()
+        };
+
+        setStitchedPlaylists(prev => [newPlaylist, ...prev]);
+
+        toast({
+          title: "Playlist Created!",
+          description: `Stitched ${data.sceneCount} scenes (${data.totalDuration}s total)`,
+        });
+      }
+    } catch (error) {
+      console.error('Error stitching videos:', error);
+      toast({
+        title: "Stitching Failed",
+        description: error instanceof Error ? error.message : "Failed to create playlist",
+        variant: "destructive"
+      });
+    } finally {
+      setIsStitching(false);
+    }
+  };
+
   const editSceneImage = async () => {
     if (!editingScene || !editingScene.imageUrl || !editPrompt.trim()) {
       toast({
@@ -1547,7 +1614,7 @@ export default function Scenes() {
           </AlertDialog>
 
           <Tabs defaultValue="storyboard" className="w-full">
-            <TabsList className="grid w-full max-w-3xl mx-auto grid-cols-4 mb-8">
+            <TabsList className="grid w-full max-w-4xl mx-auto grid-cols-5 mb-8">
               <TabsTrigger value="storyboard">
                 <FileText className="w-4 h-4 mr-2" />
                 All Scenes
@@ -1555,6 +1622,10 @@ export default function Scenes() {
               <TabsTrigger value="ready">
                 <Eye className="w-4 h-4 mr-2" />
                 Ready
+              </TabsTrigger>
+              <TabsTrigger value="playlists">
+                <Video className="w-4 h-4 mr-2" />
+                Playlists
               </TabsTrigger>
               <TabsTrigger value="script">
                 <Wand2 className="w-4 h-4 mr-2" />
@@ -1827,6 +1898,110 @@ export default function Scenes() {
                       </motion.div>
                     ))}
                   </AnimatePresence>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Playlists Tab - Shows stitched video playlists */}
+            <TabsContent value="playlists">
+              <div className="space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-base px-4 py-2">
+                      {stitchedPlaylists.length} Playlist{stitchedPlaylists.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                  <Button
+                    onClick={stitchVideos}
+                    disabled={isStitching || scenes.filter(s => s.status === 'ready' && s.videoUrl).length < 1}
+                    className="gap-2"
+                  >
+                    {isStitching ? (
+                      <>
+                        <Sparkles className="w-4 h-4 animate-spin" />
+                        Creating Playlist...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="w-4 h-4" />
+                        Create Playlist
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Playlists Grid */}
+                {stitchedPlaylists.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-16"
+                  >
+                    <Video className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+                    <h3 className="text-xl font-semibold mb-2">No Playlists Yet</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Create a playlist from your ready video scenes to preview them sequentially with smooth transitions
+                    </p>
+                    {scenes.filter(s => s.status === 'ready' && s.videoUrl).length > 0 && (
+                      <Button onClick={stitchVideos} disabled={isStitching} size="lg" className="gap-2">
+                        <Video className="w-4 h-4" />
+                        Create First Playlist
+                      </Button>
+                    )}
+                  </motion.div>
+                ) : (
+                  <div className="space-y-6">
+                    <AnimatePresence mode="popLayout">
+                      {stitchedPlaylists.map((playlist) => (
+                        <motion.div
+                          key={playlist.id}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Card className="glass border-primary/20 overflow-hidden">
+                            <CardHeader>
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2">
+                                  <Play className="w-5 h-5 text-primary" />
+                                  Playlist • {playlist.sceneCount} Scenes
+                                </CardTitle>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary">
+                                    {playlist.totalDuration}s total
+                                  </Badge>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setStitchedPlaylists(prev => prev.filter(p => p.id !== playlist.id));
+                                      toast({
+                                        title: "Playlist Removed",
+                                        description: "Playlist removed from list"
+                                      });
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Created {new Date(playlist.createdAt).toLocaleDateString()}
+                              </p>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                              <PlaylistPlayer
+                                manifestUrl={playlist.manifestUrl}
+                                autoPlay={false}
+                              />
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
                 )}
               </div>
             </TabsContent>
