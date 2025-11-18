@@ -173,6 +173,22 @@ serve(async (req) => {
         
         console.log('Prediction status:', (prediction as any).status);
         
+        // Update progress based on prediction status
+        if (jobId && (prediction as any).status === 'processing') {
+          try {
+            await supabase
+              .from('jobs')
+              .update({
+                status: 'upscaling',
+                progress_stage: 'upscaling',
+                progress_message: 'Generating CAD-quality mesh...'
+              })
+              .eq('id', jobId);
+          } catch (dbErr) {
+            console.error('Non-fatal: failed to update processing status:', dbErr);
+          }
+        }
+        
         // Extract potential output URL
         let modelUrl: string | null = null;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -403,16 +419,16 @@ serve(async (req) => {
 
       console.log('Prediction created:', (prediction as any).id, 'status:', (prediction as any).status);
 
-      // Update DB to reflect long-running stage
+      // Update DB to reflect prediction submitted
       if (jobId) {
         try {
           await supabase
             .from('jobs')
             .update({
-              status: 'upscaling',
-              progress_stage: 'upscaling',
+              status: 'processing',
+              progress_stage: 'processing',
               progress_percent: 0,
-              progress_message: 'Generating CAD-quality mesh...'
+              progress_message: 'CAD prediction submitted, waiting to start...'
             })
             .eq('id', jobId);
         } catch (dbStageErr) {
