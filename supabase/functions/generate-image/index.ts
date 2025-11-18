@@ -9,7 +9,7 @@ const corsHeaders = {
 
 // Input validation schema
 const generateImageSchema = z.object({
-  prompt: z.string().min(1).max(2000),
+  prompt: z.string().min(1).max(8000),
   width: z.number().min(256).max(2048).optional().default(1024),
   height: z.number().min(256).max(2048).optional().default(1024),
   numImages: z.number().min(1).max(8).optional().default(1),
