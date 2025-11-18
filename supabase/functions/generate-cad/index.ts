@@ -85,6 +85,35 @@ serve(async (req) => {
     const replicate = new Replicate({
       auth: REPLICATE_API_KEY,
     });
+
+    // Helper function to retry API calls with exponential backoff
+    async function retryWithBackoff<T>(
+      fn: () => Promise<T>,
+      maxRetries = 3,
+      initialDelay = 1000
+    ): Promise<T> {
+      let lastError: Error | null = null;
+      
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await fn();
+        } catch (error) {
+          lastError = error as Error;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const isTimeout = errorMessage.includes('504') || errorMessage.toLowerCase().includes('timeout');
+          
+          if (i < maxRetries - 1 && isTimeout) {
+            const delay = initialDelay * Math.pow(2, i);
+            console.log(`Attempt ${i + 1} failed with timeout, retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            throw error;
+          }
+        }
+      }
+      
+      throw lastError;
+    }
     
     // Handle cancellation requests
     if (cancel && predictionId) {
@@ -300,20 +329,32 @@ serve(async (req) => {
     try {
       // Using predictions API because this model can take several minutes
       // @ts-ignore - replicate types don't always include predictions
-      const prediction = await (replicate as any).predictions.create({
-        version: "ndreca/hunyuan3d-2.1:895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
-        input: {
-          image: finalImageUrl,
-          seed: seed || 1234,
-          steps: 50,
-          num_chunks: 8000,
-          max_facenum: 20000,
-          guidance_scale: 7.5,
-          generate_texture: true,
-          octree_resolution: 256,
-          remove_background: true
+      let prediction;
+      try {
+        prediction = await retryWithBackoff(async () => {
+          return await (replicate as any).predictions.create({
+            version: "ndreca/hunyuan3d-2.1:895e514f953d39e8b5bfb859df9313481ad3fa3a8631e5c54c7e5c9c85a6aa9f",
+            input: {
+              image: finalImageUrl,
+              seed: seed || 1234,
+              steps: 50,
+              num_chunks: 8000,
+              max_facenum: 20000,
+              guidance_scale: 7.5,
+              generate_texture: true,
+              octree_resolution: 256,
+              remove_background: true
+            }
+          });
+        }, 3, 2000); // 3 retries with 2 second initial delay
+      } catch (retryError) {
+        const errorMessage = retryError instanceof Error ? retryError.message : String(retryError);
+        const isTimeout = errorMessage.includes('504') || errorMessage.toLowerCase().includes('timeout');
+        if (isTimeout) {
+          throw new Error('CAD generation service is currently experiencing high load. Please try again in a few minutes.');
         }
-      });
+        throw retryError;
+      }
 
       console.log('Prediction created:', (prediction as any).id, 'status:', (prediction as any).status);
 
