@@ -25,9 +25,11 @@ serve(async (req) => {
   try {
     console.log('[Stitch] Request received');
     
+    // Use service role for storage operations to bypass RLS
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false } }
     );
 
     const body = await req.json() as StitchRequest;
