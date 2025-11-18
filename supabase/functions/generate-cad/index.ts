@@ -157,6 +157,9 @@ serve(async (req) => {
     }
 
     console.log('Generating CAD model:', { prompt, imageProvided: !!inputImage, seed, jobId, predictionId });
+    
+    // Get webhook URL for this deployment
+    const webhookUrl = `${supabaseUrl}/functions/v1/replicate-webhook`;
 
     // If a predictionId is provided, return its current status (async polling pattern)
     if (predictionId) {
@@ -461,7 +464,9 @@ serve(async (req) => {
               generate_texture: true,
               octree_resolution: 256,
               remove_background: true
-            }
+            },
+            webhook: webhookUrl,
+            webhook_events_filter: ["completed"]
           });
         }, 3, 2000); // 3 retries with 2 second initial delay
       } catch (retryError) {
@@ -475,7 +480,7 @@ serve(async (req) => {
 
       console.log('Prediction created:', (prediction as any).id, 'status:', (prediction as any).status);
 
-      // Update DB to reflect prediction submitted
+      // Update DB to reflect prediction submitted and store predictionId
       if (jobId) {
         try {
           await supabase
@@ -484,7 +489,12 @@ serve(async (req) => {
               status: 'processing',
               progress_stage: 'processing',
               progress_percent: 0,
-              progress_message: 'CAD prediction submitted, waiting to start...'
+              progress_message: 'CAD prediction submitted, waiting to start...',
+              manifest: {
+                prompt: prompt || 'Image-based CAD generation',
+                predictionId: (prediction as any).id,
+                webhookConfigured: true
+              }
             })
             .eq('id', jobId);
         } catch (dbStageErr) {
