@@ -265,48 +265,59 @@ export const stitchVideosWithScenes = async (
   scenes: SceneConfig[],
   jobId: string,
   userId: string,
-  onProgress?: (progress: number) => void,
-  retryOptions: Partial<RetryOptions> = {}
+  onProgress?: (progress: number) => void
 ): Promise<string> => {
-  const options = { ...defaultRetryOptions, ...retryOptions };
-  let lastError: any;
+  console.log('[Stitch] Using server-side stitching via edge function');
+  console.log(`[Stitch] Processing ${scenes.length} scenes`);
   
-  console.log(`Starting advanced stitching for ${scenes.length} scenes (with retry support)`);
-  
-  for (let attempt = 0; attempt <= options.maxRetries; attempt++) {
-    try {
-      if (attempt > 0) {
-        console.log(`Retry attempt ${attempt}/${options.maxRetries}`);
+  onProgress?.(5);
+
+  try {
+    // Prepare scenes data for edge function
+    const scenesData = scenes.map((scene, index) => ({
+      videoUrl: scene.videoUrl,
+      duration: scene.duration || 5,
+      order: index
+    }));
+
+    onProgress?.(10);
+
+    console.log('[Stitch] Calling edge function...');
+    
+    // Call edge function to stitch videos
+    const { data, error } = await supabase.functions.invoke('stitch-videos', {
+      body: {
+        scenes: scenesData,
+        jobId,
+        userId
       }
-      
-      return await stitchVideosWithScenesInternal(scenes, jobId, userId, onProgress);
-    } catch (error) {
-      lastError = error;
-      console.error(`Stitching attempt ${attempt + 1} failed:`, error);
-      
-      // Check if error is retryable
-      if (!isRetryableError(error) || attempt >= options.maxRetries) {
-        console.error('Error is not retryable or max retries reached');
-        throw error;
-      }
-      
-      // Calculate delay with exponential backoff
-      const delay = Math.min(
-        options.initialDelay * Math.pow(options.backoffMultiplier, attempt),
-        options.maxDelay
-      );
-      
-      console.log(`Waiting ${delay}ms before retry...`);
-      
-      // Reset progress to show we're retrying
-      onProgress?.(0);
-      
-      await sleep(delay);
+    });
+
+    if (error) {
+      console.error('[Stitch] Edge function error:', error);
+      throw new Error(`Server-side stitching failed: ${error.message}`);
     }
+
+    if (!data?.success) {
+      throw new Error(data?.error || 'Unknown stitching error');
+    }
+
+    onProgress?.(90);
+
+    console.log('[Stitch] Server-side stitching completed successfully');
+    console.log('[Stitch] Result:', data);
+    console.log('[Stitch] Stitched URL:', data.stitchedUrl);
+    console.log('[Stitch] Scene count:', data.sceneCount);
+    console.log('[Stitch] All scene URLs:', data.allScenes);
+
+    onProgress?.(100);
+
+    // Return the primary stitched URL
+    return data.stitchedUrl;
+  } catch (error) {
+    console.error('[Stitch] Failed:', error);
+    throw new Error(`Video stitching failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-  
-  // Should never reach here, but just in case
-  throw lastError || new Error('Stitching failed after maximum retries');
 };
 
 // Legacy function for simple stitching (backward compatibility)
