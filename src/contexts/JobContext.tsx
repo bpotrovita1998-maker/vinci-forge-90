@@ -299,7 +299,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Failed to load jobs:', error);
-        toast.error('Failed to load job history');
+        
+        // Handle specific timeout errors
+        if (error.code === '57014') {
+          toast.error('Database query timed out. Please refresh the page - we\'ve optimized the query for next time.');
+        } else {
+          toast.error('Failed to load job history');
+        }
         return;
       }
 
