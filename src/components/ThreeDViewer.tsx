@@ -128,7 +128,7 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
               zoom={0.8}
               polar={[-Math.PI / 4, Math.PI / 4]}
             >
-              <Stage environment="city" intensity={0.6} shadows={false}>
+              <Stage environment={null} intensity={0.6} shadows={false}>
                 <Model url={activeUrl} />
               </Stage>
             </PresentationControls>
