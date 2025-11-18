@@ -161,8 +161,18 @@ serve(async (req) => {
     // If a predictionId is provided, return its current status (async polling pattern)
     if (predictionId) {
       try {
+        console.log('Checking CAD prediction status:', predictionId);
+        
+        // Use retry logic to handle network errors when checking prediction status
         // @ts-ignore - types from Replicate
-        const prediction = await replicate.predictions.get(predictionId);
+        const prediction = await retryWithBackoff(
+          () => replicate.predictions.get(predictionId),
+          3,
+          2000 // 2s, 4s, 8s delays
+        );
+        
+        console.log('Prediction status:', (prediction as any).status);
+        
         // Extract potential output URL
         let modelUrl: string | null = null;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
