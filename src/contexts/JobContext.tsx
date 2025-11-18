@@ -608,12 +608,15 @@ export function JobProvider({ children }: { children: ReactNode }) {
           
           // Check if anything actually changed to prevent unnecessary re-renders
           const hasStatusChange = partialJob.status && partialJob.status !== j.status;
-          const hasProgressChange = partialJob.progress != null && JSON.stringify(partialJob.progress) !== JSON.stringify(j.progress);
+          const hasProgressChange = partialJob.progress && (
+            partialJob.progress.progress !== j.progress.progress ||
+            partialJob.progress.stage !== j.progress.stage ||
+            partialJob.progress.message !== j.progress.message
+          );
           const hasOutputsChange = partialJob.outputs && JSON.stringify(partialJob.outputs) !== JSON.stringify(j.outputs);
           const hasErrorChange = partialJob.error && partialJob.error !== j.error;
           
           if (!hasStatusChange && !hasProgressChange && !hasOutputsChange && !hasErrorChange) {
-            console.log('Ignoring WebSocket update - no actual changes detected');
             return j;
           }
           
@@ -621,12 +624,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
           const updated = {
             ...j,
             status: partialJob.status || j.status,
-            progress: partialJob.progress != null ? partialJob.progress : j.progress,
+            progress: partialJob.progress || j.progress,
             outputs: partialJob.outputs || j.outputs,
             error: partialJob.error || j.error,
           };
           
-          console.log('Updated job from WebSocket:', updated);
           return updated;
         }));
 
