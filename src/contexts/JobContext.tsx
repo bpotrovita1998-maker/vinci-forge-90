@@ -62,7 +62,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       // Query active jobs directly from state without depending on the jobs array
       setJobs(prev => {
         const activeJobs = prev.filter(j => 
-          ['queued', 'running', 'upscaling', 'encoding'].includes(j.status)
+          ['queued', 'running', 'upscaling', 'encoding', 'starting', 'processing'].includes(j.status)
         );
 
         if (activeJobs.length === 0) {
@@ -334,9 +334,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
             currentStep: dbJob.current_step,
             totalSteps: dbJob.total_steps,
             eta: dbJob.eta,
-            message: dbJob.progress_message,
+            message: dbJob.progress_message || '',
           },
-          outputs: dbJob.outputs || [],
+          outputs: dbJob.outputs as string[],
           manifest: dbJob.manifest,
           createdAt: new Date(dbJob.created_at),
           startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
@@ -345,7 +345,25 @@ export function JobProvider({ children }: { children: ReactNode }) {
         }));
         
         if (reset) {
-          setJobs(jobsWithDates);
+          // When resetting, preserve any jobs that were just created locally
+          // but might not be in the fetched results yet
+          setJobs(prev => {
+            // Find jobs in prev that are very recent (< 5 seconds old) and not in fetched data
+            const now = Date.now();
+            const recentLocalJobs = prev.filter(job => {
+              const jobAge = now - job.createdAt.getTime();
+              const isVeryRecent = jobAge < 5000; // Less than 5 seconds old
+              const notInFetchedData = !jobsWithDates.some(fetchedJob => fetchedJob.id === job.id);
+              return isVeryRecent && notInFetchedData;
+            });
+            
+            if (recentLocalJobs.length > 0) {
+              console.log('Preserving', recentLocalJobs.length, 'recent local jobs during reload');
+              return [...recentLocalJobs, ...jobsWithDates];
+            }
+            
+            return jobsWithDates;
+          });
           setCurrentPage(1);
         } else {
           setJobs(prev => [...prev, ...jobsWithDates]);
@@ -374,7 +392,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return () => {
       clearInterval(timeoutCheckInterval);
     };
-  }, [user]);
+  }, [user?.id]); // Only re-run when user ID changes, not the entire user object
 
   // Update active job whenever jobs change
   useEffect(() => {
