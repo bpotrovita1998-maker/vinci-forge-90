@@ -351,10 +351,12 @@ class LovableAIService {
 
         // Poll the edge function for status until completion/failure
         const start = Date.now();
-        const timeoutMs = 10 * 60 * 1000; // 10 minutes max
+        const timeoutMs = 15 * 60 * 1000; // 15 minutes max (CAD can take long)
         let delay = 2000; // 2s initial
+        let pollCount = 0;
 
         while (Date.now() - start < timeoutMs) {
+          pollCount++;
           // Check if job was cancelled
           if (this.cancelledJobs.has(jobId)) {
             console.log('LovableAI: CAD job cancelled, breaking polling loop');
@@ -374,7 +376,7 @@ class LovableAIService {
             body: { predictionId, jobId, prompt: job.options.prompt }
           });
 
-          console.log('LovableAI: CAD status response:', { statusData, statusErr });
+          console.log(`LovableAI: CAD status poll #${pollCount}:`, { statusData, statusErr });
 
           if (statusErr) {
             try {
@@ -396,6 +398,7 @@ class LovableAIService {
           const outputUrl: string | undefined = sd?.output;
 
           if (status === 'succeeded') {
+            console.log('LovableAI: CAD prediction succeeded, checking for output...');
             // Prefer direct output from the status payload
             if (outputUrl) {
               console.log('LovableAI: CAD model ready for', jobId, outputUrl);
@@ -403,14 +406,26 @@ class LovableAIService {
               return;
             }
             // Fallback: the edge function may have persisted the file and updated the DB
+            console.log('LovableAI: No direct output, checking database...');
             try {
               const { data: jobRow, error: fetchError } = await supabase
                 .from('jobs')
-                .select('outputs')
+                .select('outputs, status')
                 .eq('id', jobId)
                 .maybeSingle();
               
               if (!fetchError && jobRow) {
+                console.log('LovableAI: Database check result:', jobRow);
+                // If DB shows completed with outputs, use those
+                if (jobRow.status === 'completed') {
+                  const outs = (jobRow.outputs as string[] | null) || [];
+                  if (outs.length > 0) {
+                    console.log('LovableAI: Job already completed in DB with outputs:', outs[0]);
+                    this.completeJob(jobId, outs);
+                    return;
+                  }
+                }
+                // Otherwise check if outputs exist even if status isn't completed yet
                 const outs = (jobRow.outputs as string[] | null) || [];
                 if (outs.length > 0) {
                   console.log('LovableAI: CAD model persisted and found in DB for', jobId, outs[0]);
@@ -418,6 +433,7 @@ class LovableAIService {
                   return;
                 }
               }
+              console.warn('LovableAI: No outputs found in DB yet, will continue polling...');
             } catch (e) {
               console.warn('LovableAI: DB lookup after success failed, will keep polling', e);
             }
