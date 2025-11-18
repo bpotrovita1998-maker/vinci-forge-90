@@ -164,30 +164,57 @@ serve(async (req) => {
           const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : 'glb';
           const filename = `model.${ext}`;
           
-          // Download and persist to storage
-          console.log('Downloading model from Replicate:', urlString);
+          // Download and persist to storage for permanent archiving
+          console.log('Downloading and archiving 3D model to permanent storage...');
           const resp = await fetch(urlString);
-          if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+          if (!resp.ok) {
+            console.error(`Failed to download model: ${resp.status} ${resp.statusText}`);
+            throw new Error(`Download failed: ${resp.status}`);
+          }
           
           const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
           const buffer = await resp.arrayBuffer();
           console.log(`Downloaded ${buffer.byteLength} bytes`);
           
+          // Upload to permanent storage
           const storagePath = `${userId}/${jobId}/${filename}`;
           const { error: uploadError } = await supabase.storage
             .from('generated-models')
             .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
           
-          if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+          if (uploadError) {
+            console.error('Failed to upload 3D model to storage:', uploadError);
+            throw new Error(`Storage upload failed: ${uploadError.message}`);
+          }
           
-          const { data: signedUrlData } = await supabase.storage
+          // Get permanent public URL (bucket is now public)
+          const { data: publicUrlData } = supabase.storage
             .from('generated-models')
-            .createSignedUrl(storagePath, 604800); // 7 days expiry
+            .getPublicUrl(storagePath);
           
-          const finalUrl = signedUrlData?.signedUrl;
-          if (!finalUrl) throw new Error('Failed to create signed URL');
+          const finalUrl = publicUrlData?.publicUrl;
+          if (!finalUrl) {
+            console.error('Failed to get public URL for stored model');
+            throw new Error('Failed to generate public URL for archived model');
+          }
           
-          console.log('Model persisted to:', finalUrl);
+          console.log('Model archived successfully with permanent URL');
+          
+          // Record file in user_files table for tracking
+          const { error: fileRecordError } = await supabase
+            .from('user_files')
+            .insert({
+              user_id: userId,
+              job_id: jobId,
+              file_url: finalUrl,
+              file_type: contentType,
+              file_size_bytes: buffer.byteLength,
+              expires_at: null // Never expires
+            });
+          
+          if (fileRecordError) {
+            console.warn('Failed to record file in user_files:', fileRecordError);
+          }
           
           // Update job as completed
           await supabase
