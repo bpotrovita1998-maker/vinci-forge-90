@@ -163,6 +163,36 @@ serve(async (req) => {
       try {
         console.log('Checking CAD prediction status:', predictionId);
         
+        // First check if job is already completed in DB (avoids stale Replicate data)
+        if (jobId) {
+          const { data: jobCheck } = await supabase
+            .from('jobs')
+            .select('status, outputs')
+            .eq('id', jobId)
+            .maybeSingle();
+          
+          if (jobCheck?.status === 'completed' && jobCheck.outputs) {
+            console.log('Job already completed in DB, returning cached result');
+            const outputs = jobCheck.outputs as string[];
+            return new Response(
+              JSON.stringify({ 
+                status: 'succeeded', 
+                output: outputs[0] || null,
+                format: 'GLB',
+                cached: true,
+                timestamp: Date.now()
+              }),
+              { 
+                headers: { 
+                  ...corsHeaders, 
+                  'Content-Type': 'application/json',
+                  'Cache-Control': 'no-cache, no-store, must-revalidate'
+                } 
+              }
+            );
+          }
+        }
+        
         // Use retry logic to handle network errors when checking prediction status
         // @ts-ignore - types from Replicate
         const prediction = await retryWithBackoff(
@@ -170,6 +200,15 @@ serve(async (req) => {
           3,
           2000 // 2s, 4s, 8s delays
         );
+        
+        // Log the full prediction object to debug stale data
+        console.log('Full prediction response:', JSON.stringify({
+          id: (prediction as any).id,
+          status: (prediction as any).status,
+          output: (prediction as any).output,
+          error: (prediction as any).error,
+          logs: (prediction as any).logs?.slice(-200) // Last 200 chars of logs
+        }));
         
         console.log('Prediction status:', (prediction as any).status);
         
@@ -336,9 +375,26 @@ serve(async (req) => {
           }
         }
 
+        // Add timestamp to prevent client-side caching
+        const response = {
+          status: (prediction as any).status,
+          output: modelUrl,
+          format,
+          timestamp: Date.now(),
+          predictionId
+        };
+        
+        console.log('Returning response:', response);
+        
         return new Response(
-          JSON.stringify({ status: (prediction as any).status, output: modelUrl, format }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify(response),
+          { 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache, no-store, must-revalidate'
+            } 
+          }
         );
       } catch (err) {
         console.error('Prediction status check error:', err);
