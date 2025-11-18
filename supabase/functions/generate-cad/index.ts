@@ -228,31 +228,66 @@ serve(async (req) => {
               const userId = jobRow.user_id || 'anonymous';
 
               if (modelUrl) {
+                console.log('Downloading and archiving CAD model to permanent storage...');
                 const urlObj = new URL(modelUrl);
                 const pathname = urlObj.pathname.toLowerCase();
                 const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : pathname.endsWith('.zip') ? 'zip' : 'glb';
                 const filename = `model.${ext}`;
 
+                // Download the model from Replicate
                 const resp = await fetch(modelUrl);
-                if (!resp.ok) throw new Error(`Failed to download model for persistence: ${resp.status}`);
+                if (!resp.ok) {
+                  console.error(`Failed to download model: ${resp.status} ${resp.statusText}`);
+                  throw new Error(`Failed to download model for archiving: ${resp.status}`);
+                }
                 const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
                 const buffer = await resp.arrayBuffer();
+                console.log(`Downloaded ${buffer.byteLength} bytes`);
 
+                // Upload to permanent storage
                 const storagePath = `${userId}/${jobId}/${filename}`;
                 const { error: uploadError } = await supabase.storage
                   .from('generated-models')
                   .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
+                
                 if (uploadError) {
                   console.error('Failed to upload CAD model to storage:', uploadError);
+                  throw new Error(`Storage upload failed: ${uploadError.message}`);
+                }
+                
+                // Get permanent public URL (bucket is now public)
+                const { data: publicUrlData } = supabase.storage
+                  .from('generated-models')
+                  .getPublicUrl(storagePath);
+                
+                if (publicUrlData?.publicUrl) {
+                  finalUrl = publicUrlData.publicUrl;
+                  console.log('Model archived successfully with permanent URL');
+                  
+                  // Record file in user_files table for tracking
+                  const { error: fileRecordError } = await supabase
+                    .from('user_files')
+                    .insert({
+                      user_id: userId,
+                      job_id: jobId,
+                      file_url: finalUrl,
+                      file_type: contentType,
+                      file_size_bytes: buffer.byteLength,
+                      expires_at: null // Never expires
+                    });
+                  
+                  if (fileRecordError) {
+                    console.warn('Failed to record file in user_files:', fileRecordError);
+                  }
                 } else {
-                  const { data: signedUrlData } = await supabase.storage
-                    .from('generated-models')
-                    .createSignedUrl(storagePath, 604800); // 7 days expiry
-                  if (signedUrlData?.signedUrl) finalUrl = signedUrlData.signedUrl;
+                  console.error('Failed to get public URL for stored model');
+                  throw new Error('Failed to generate public URL for archived model');
                 }
               }
             } catch (persistErr) {
-              console.error('Non-fatal: persisting CAD model to storage failed, falling back to original URL', persistErr);
+              console.error('CRITICAL: Failed to archive CAD model to permanent storage:', persistErr);
+              // Don't fall back to temporary URL - mark as failed instead
+              throw new Error(`Model archiving failed: ${persistErr instanceof Error ? persistErr.message : 'Unknown error'}. Temporary URLs are not supported.`);
             }
 
             const { data: updatedJob, error: updateError } = await supabase
