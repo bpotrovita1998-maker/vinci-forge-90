@@ -75,14 +75,12 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
       return;
     }
     
-    // For expired Replicate URLs, show error message
+    // Try to load Replicate URLs - only show error if loading actually fails
     if (normalizedUrl?.includes('replicate.delivery')) {
-      console.warn('Replicate URL detected - may be expired:', normalizedUrl);
-      setLoadError(true);
-      return;
+      console.log('Loading model from Replicate:', normalizedUrl);
     }
     
-    // Use the URL as-is for other cases
+    // Use the URL as-is for all cases
     setActiveUrl(normalizedUrl);
   }, [normalizedUrl]);
   
