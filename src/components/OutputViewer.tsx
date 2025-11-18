@@ -45,6 +45,9 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [isStitching, setIsStitching] = useState(false);
   const [stitchProgress, setStitchProgress] = useState(0);
   const [localOutputs, setLocalOutputs] = useState<string[]>(job.outputs);
+  const [cncMaterial, setCncMaterial] = useState<string>('aluminum');
+  const [cncParameters, setCncParameters] = useState<any>(null);
+  const [isLoadingCncParams, setIsLoadingCncParams] = useState(false);
 
   // Check if this is a multi-scene video
   const manifest = job.manifest as any;
@@ -474,6 +477,56 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     }
   };
 
+  const generateCncParameters = async (material: string) => {
+    setIsLoadingCncParams(true);
+    setCncParameters(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-cnc-parameters', {
+        body: {
+          material,
+          toolDiameter: 6, // Default 6mm end mill
+          modelDimensions: {
+            width: job.options.width,
+            height: job.options.height
+          }
+        }
+      });
+
+      if (error) {
+        console.error('CNC parameter generation error:', error);
+        toast({
+          title: "Generation Failed",
+          description: error.message || "Could not generate CNC parameters",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data?.parameters) {
+        setCncParameters(data.parameters);
+        toast({
+          title: "Parameters Generated",
+          description: `CNC machining parameters ready for ${material}`,
+        });
+      }
+    } catch (error) {
+      console.error('Error generating CNC parameters:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate machining parameters",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingCncParams(false);
+    }
+  };
+
+  const handleMaterialChange = (material: string) => {
+    setCncMaterial(material);
+    generateCncParameters(material);
+  };
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] glass border-border/30 p-0 flex flex-col">
@@ -867,7 +920,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 </div>
 
                 {/* CNC Machining Section */}
-                <div className="p-4 rounded-lg border border-secondary/30 bg-secondary/5 space-y-3">
+                <div className="p-4 rounded-lg border border-secondary/30 bg-secondary/5 space-y-4">
                   <div className="flex items-center gap-2">
                     <Cog className="w-5 h-5 text-secondary" />
                     <h3 className="font-semibold text-foreground">CNC Machining</h3>
@@ -877,8 +930,83 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                   </div>
                   
                   <p className="text-sm text-muted-foreground">
-                    Download your CAD model in OBJ format optimized for CNC machines and CAM software.
+                    Select material and get AI-generated feeds and speeds for optimal CNC machining.
                   </p>
+
+                  {/* Material Selector */}
+                  <div className="space-y-2">
+                    <Label htmlFor="cnc-material" className="text-sm font-medium">Material</Label>
+                    <Select value={cncMaterial} onValueChange={handleMaterialChange}>
+                      <SelectTrigger id="cnc-material" className="w-full">
+                        <SelectValue placeholder="Select material" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aluminum">Aluminum (6061-T6)</SelectItem>
+                        <SelectItem value="steel">Steel (Mild Steel)</SelectItem>
+                        <SelectItem value="stainless-steel">Stainless Steel (304)</SelectItem>
+                        <SelectItem value="brass">Brass</SelectItem>
+                        <SelectItem value="copper">Copper</SelectItem>
+                        <SelectItem value="wood-hardwood">Wood (Hardwood)</SelectItem>
+                        <SelectItem value="wood-softwood">Wood (Softwood)</SelectItem>
+                        <SelectItem value="plastic-abs">Plastic (ABS)</SelectItem>
+                        <SelectItem value="plastic-acrylic">Plastic (Acrylic)</SelectItem>
+                        <SelectItem value="plastic-delrin">Plastic (Delrin/POM)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Loading State */}
+                  {isLoadingCncParams && (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/10 border border-secondary/20">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-secondary"></div>
+                      <span className="text-sm text-muted-foreground">Generating machining parameters...</span>
+                    </div>
+                  )}
+
+                  {/* CNC Parameters Display */}
+                  {cncParameters && !isLoadingCncParams && (
+                    <div className="space-y-3 p-3 rounded-lg bg-secondary/10 border border-secondary/20">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-secondary" />
+                        <span className="text-sm font-semibold text-foreground">Recommended Parameters</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Spindle Speed:</span>
+                          <p className="font-medium text-foreground">{cncParameters.spindleSpeed} RPM</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Feed Rate:</span>
+                          <p className="font-medium text-foreground">{cncParameters.feedRate} mm/min</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Plunge Rate:</span>
+                          <p className="font-medium text-foreground">{cncParameters.plungeRate} mm/min</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Depth of Cut:</span>
+                          <p className="font-medium text-foreground">{cncParameters.depthOfCut} mm</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Stepover:</span>
+                          <p className="font-medium text-foreground">{cncParameters.stepover}%</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Coolant:</span>
+                          <p className="font-medium text-foreground capitalize">{cncParameters.coolant}</p>
+                        </div>
+                      </div>
+
+                      {cncParameters.notes && (
+                        <div className="pt-2 border-t border-secondary/20">
+                          <p className="text-xs text-muted-foreground">
+                            <strong>💡 Tips:</strong> {cncParameters.notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <Button
                     onClick={downloadOBJ}
@@ -896,9 +1024,10 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                     </div>
                     <p className="pt-2">🔧 <strong>CNC Workflow:</strong></p>
                     <ol className="list-decimal list-inside space-y-1 ml-2">
+                      <li>Select your material above</li>
                       <li>Download OBJ file</li>
                       <li>Import into your CAM software</li>
-                      <li>Define toolpaths and machining operations</li>
+                      <li>Use the recommended parameters above</li>
                       <li>Generate G-code and machine!</li>
                     </ol>
                   </div>
