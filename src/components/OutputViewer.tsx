@@ -46,6 +46,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [stitchProgress, setStitchProgress] = useState(0);
   const [localOutputs, setLocalOutputs] = useState<string[]>(job.outputs);
   const [cncMaterial, setCncMaterial] = useState<string>('aluminum');
+  const [toolDiameter, setToolDiameter] = useState<number>(6);
   const [cncParameters, setCncParameters] = useState<any>(null);
   const [isLoadingCncParams, setIsLoadingCncParams] = useState(false);
 
@@ -477,7 +478,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     }
   };
 
-  const generateCncParameters = async (material: string) => {
+  const generateCncParameters = async (material: string, diameter: number) => {
     setIsLoadingCncParams(true);
     setCncParameters(null);
     
@@ -485,7 +486,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       const { data, error } = await supabase.functions.invoke('generate-cnc-parameters', {
         body: {
           material,
-          toolDiameter: 6, // Default 6mm end mill
+          toolDiameter: diameter,
           modelDimensions: {
             width: job.options.width,
             height: job.options.height
@@ -524,7 +525,13 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
   const handleMaterialChange = (material: string) => {
     setCncMaterial(material);
-    generateCncParameters(material);
+    generateCncParameters(material, toolDiameter);
+  };
+
+  const handleToolDiameterChange = (diameter: string) => {
+    const numDiameter = parseInt(diameter);
+    setToolDiameter(numDiameter);
+    generateCncParameters(cncMaterial, numDiameter);
   };
 
   return (
@@ -933,26 +940,42 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                     Select material and get AI-generated feeds and speeds for optimal CNC machining.
                   </p>
 
-                  {/* Material Selector */}
-                  <div className="space-y-2">
-                    <Label htmlFor="cnc-material" className="text-sm font-medium">Material</Label>
-                    <Select value={cncMaterial} onValueChange={handleMaterialChange}>
-                      <SelectTrigger id="cnc-material" className="w-full">
-                        <SelectValue placeholder="Select material" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="aluminum">Aluminum (6061-T6)</SelectItem>
-                        <SelectItem value="steel">Steel (Mild Steel)</SelectItem>
-                        <SelectItem value="stainless-steel">Stainless Steel (304)</SelectItem>
-                        <SelectItem value="brass">Brass</SelectItem>
-                        <SelectItem value="copper">Copper</SelectItem>
-                        <SelectItem value="wood-hardwood">Wood (Hardwood)</SelectItem>
-                        <SelectItem value="wood-softwood">Wood (Softwood)</SelectItem>
-                        <SelectItem value="plastic-abs">Plastic (ABS)</SelectItem>
-                        <SelectItem value="plastic-acrylic">Plastic (Acrylic)</SelectItem>
-                        <SelectItem value="plastic-delrin">Plastic (Delrin/POM)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  {/* Material and Tool Selectors */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cnc-material" className="text-sm font-medium">Material</Label>
+                      <Select value={cncMaterial} onValueChange={handleMaterialChange}>
+                        <SelectTrigger id="cnc-material" className="w-full">
+                          <SelectValue placeholder="Select material" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="aluminum">Aluminum (6061-T6)</SelectItem>
+                          <SelectItem value="steel">Steel (Mild Steel)</SelectItem>
+                          <SelectItem value="stainless-steel">Stainless Steel (304)</SelectItem>
+                          <SelectItem value="brass">Brass</SelectItem>
+                          <SelectItem value="copper">Copper</SelectItem>
+                          <SelectItem value="wood-hardwood">Wood (Hardwood)</SelectItem>
+                          <SelectItem value="wood-softwood">Wood (Softwood)</SelectItem>
+                          <SelectItem value="plastic-abs">Plastic (ABS)</SelectItem>
+                          <SelectItem value="plastic-acrylic">Plastic (Acrylic)</SelectItem>
+                          <SelectItem value="plastic-delrin">Plastic (Delrin/POM)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="tool-diameter" className="text-sm font-medium">End Mill Diameter</Label>
+                      <Select value={toolDiameter.toString()} onValueChange={handleToolDiameterChange}>
+                        <SelectTrigger id="tool-diameter" className="w-full">
+                          <SelectValue placeholder="Select tool diameter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3">3mm (1/8")</SelectItem>
+                          <SelectItem value="6">6mm (1/4")</SelectItem>
+                          <SelectItem value="12">12mm (1/2")</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {/* Loading State */}
