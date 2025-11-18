@@ -1,7 +1,8 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Stage, PresentationControls } from '@react-three/drei';
-import { Suspense, useState, Component, ReactNode, useEffect } from 'react';
+import { Suspense, useState, Component, ReactNode, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ThreeDViewerProps {
   modelUrl: string;
@@ -41,32 +42,74 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
   }
 }
 
-function Model({ url }: { url: string }) {
+function Model({ url, onError }: { url: string; onError: () => void }) {
   const modelUrl = Array.isArray(url) ? url[0] : url;
 
   if (!modelUrl || typeof modelUrl !== 'string') {
     console.error('Invalid model URL:', url);
+    onError();
     return null;
   }
 
-  const gltf = useGLTF(modelUrl);
-  
-  if (!gltf?.scene) {
-    console.error('No scene in GLTF:', gltf);
+  try {
+    const gltf = useGLTF(modelUrl);
+    
+    if (!gltf?.scene) {
+      console.error('No scene in GLTF:', gltf);
+      onError();
+      return null;
+    }
+    
+    return <primitive object={gltf.scene} />;
+  } catch (error) {
+    console.error('Error loading model:', error);
+    onError();
     return null;
   }
-  
-  return <primitive object={gltf.scene} />;
 }
 
 export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const { toast } = useToast();
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000; // 2 seconds
+  
+  const handleLoadError = useCallback(() => {
+    if (retryCount < MAX_RETRIES) {
+      setIsRetrying(true);
+      console.log(`Model load failed, retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+      
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setLoadError(false);
+        setIsRetrying(false);
+        
+        // Clear the GLB cache for this URL to force a fresh load
+        const cache = (useGLTF as any).cache;
+        if (cache?.delete) {
+          cache.delete(activeUrl);
+        }
+      }, RETRY_DELAY);
+    } else {
+      setLoadError(true);
+      setIsRetrying(false);
+      toast({
+        title: "Failed to load 3D model",
+        description: "The model couldn't be loaded after multiple attempts. Please try refreshing the page.",
+        variant: "destructive",
+      });
+    }
+  }, [retryCount, activeUrl, toast]);
   
   // Set the active URL - use directly if it's already a Supabase storage URL
   useEffect(() => {
     setLoadError(false);
+    setRetryCount(0);
+    setIsRetrying(false);
     
     // If URL is already a Supabase storage URL, use it directly
     if (normalizedUrl?.includes('igqtsjpbkjhvlliuhpcw.supabase.co/storage')) {
@@ -84,13 +127,15 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
     setActiveUrl(normalizedUrl);
   }, [normalizedUrl]);
   
-  // Show loading spinner while URL is being resolved
-  if (!activeUrl) {
+  // Show loading spinner while URL is being resolved or retrying
+  if (!activeUrl || isRetrying) {
     return (
       <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-primary mx-auto animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading 3D model...</p>
+          <p className="text-sm text-muted-foreground">
+            {isRetrying ? `Retrying... (${retryCount}/${MAX_RETRIES})` : 'Loading 3D model...'}
+          </p>
         </div>
       </div>
     );
@@ -121,7 +166,7 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
         className="w-full h-full"
       >
         <Suspense fallback={null}>
-          <ModelErrorBoundary onError={() => setLoadError(true)}>
+          <ModelErrorBoundary onError={handleLoadError}>
             <PresentationControls
               speed={1.5}
               global
@@ -129,7 +174,7 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
               polar={[-Math.PI / 4, Math.PI / 4]}
             >
               <Stage environment={null} intensity={0.6} shadows={false}>
-                <Model url={activeUrl} />
+                <Model url={activeUrl} onError={handleLoadError} />
               </Stage>
             </PresentationControls>
           </ModelErrorBoundary>
