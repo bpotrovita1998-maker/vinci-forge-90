@@ -62,7 +62,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       // Query active jobs directly from state without depending on the jobs array
       setJobs(prev => {
         const activeJobs = prev.filter(j => 
-          j.status === 'running' || j.status === 'queued'
+          ['queued', 'running', 'upscaling', 'encoding'].includes(j.status)
         );
 
         if (activeJobs.length === 0) {
