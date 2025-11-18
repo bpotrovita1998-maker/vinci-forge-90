@@ -162,20 +162,23 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
     <div className="relative w-full h-[500px] bg-muted/30 rounded-lg overflow-hidden">
       <Canvas
         camera={{ position: [0, 0, 5], fov: 50 }}
-        shadows
         className="w-full h-full"
       >
         <Suspense fallback={null}>
           <ModelErrorBoundary onError={handleLoadError}>
+            {/* Add proper lighting */}
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[10, 10, 5]} intensity={1} />
+            <directionalLight position={[-10, -10, -5]} intensity={0.5} />
+            <pointLight position={[0, 10, 0]} intensity={0.3} />
+            
             <PresentationControls
               speed={1.5}
               global
               zoom={0.8}
               polar={[-Math.PI / 4, Math.PI / 4]}
             >
-              <Stage environment={null} intensity={0.6} shadows={false}>
-                <Model url={activeUrl} onError={handleLoadError} />
-              </Stage>
+              <Model url={activeUrl} onError={handleLoadError} />
             </PresentationControls>
           </ModelErrorBoundary>
         </Suspense>
