@@ -606,6 +606,17 @@ export function JobProvider({ children }: { children: ReactNode }) {
             }
           }
           
+          // Check if anything actually changed to prevent unnecessary re-renders
+          const hasStatusChange = partialJob.status && partialJob.status !== j.status;
+          const hasProgressChange = partialJob.progress != null && JSON.stringify(partialJob.progress) !== JSON.stringify(j.progress);
+          const hasOutputsChange = partialJob.outputs && JSON.stringify(partialJob.outputs) !== JSON.stringify(j.outputs);
+          const hasErrorChange = partialJob.error && partialJob.error !== j.error;
+          
+          if (!hasStatusChange && !hasProgressChange && !hasOutputsChange && !hasErrorChange) {
+            console.log('Ignoring WebSocket update - no actual changes detected');
+            return j;
+          }
+          
           // Merge the partial update with existing job data
           const updated = {
             ...j,
