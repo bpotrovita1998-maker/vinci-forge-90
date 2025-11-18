@@ -65,7 +65,11 @@ export class WebSocketService {
           callback({
             id: message.jobId,
             status: message.status,
-            progress: message.progress,
+            progress: message.progress != null ? {
+              stage: message.progressStage || message.status,
+              progress: message.progress,
+              message: message.progressMessage,
+            } : undefined,
             outputs: message.outputs,
             error: message.error,
           });
