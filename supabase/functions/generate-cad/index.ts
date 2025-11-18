@@ -262,126 +262,158 @@ serve(async (req) => {
         }
 
         // Track the final URL (will be updated to Supabase storage URL if archival succeeds)
-        let finalUrl = modelUrl || '';
+        let finalUrl: string | null = null;
+        let archivalError: Error | null = null;
 
         // If the prediction finished successfully and we have a jobId, persist file and update DB
         if ((prediction as any).status === 'succeeded' && jobId) {
           try {
             // Persist to storage so URL never expires
-            try {
-              const { data: jobRow, error: jobError } = await supabase
-                .from('jobs')
-                .select('user_id')
-                .eq('id', jobId)
-                .maybeSingle();
-              
-              if (jobError) {
-                console.error('Failed to fetch job for user_id:', jobError);
-                throw new Error(`Database error fetching job: ${jobError.message}`);
-              }
-              
-              if (!jobRow) {
-                console.error('CAD job not found in database:', jobId);
-                throw new Error('Job not found - cannot determine storage path');
-              }
-              
-              const userId = jobRow.user_id || 'anonymous';
-
-              if (modelUrl) {
-                console.log('Downloading and archiving CAD model to permanent storage...');
-                const urlObj = new URL(modelUrl);
-                const pathname = urlObj.pathname.toLowerCase();
-                const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : pathname.endsWith('.zip') ? 'zip' : 'glb';
-                const filename = `model.${ext}`;
-
-                // Download the model from Replicate
-                const resp = await fetch(modelUrl);
-                if (!resp.ok) {
-                  console.error(`Failed to download model: ${resp.status} ${resp.statusText}`);
-                  throw new Error(`Failed to download model for archiving: ${resp.status}`);
-                }
-                const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
-                const buffer = await resp.arrayBuffer();
-                console.log(`Downloaded ${buffer.byteLength} bytes`);
-
-                // Upload to permanent storage
-                const storagePath = `${userId}/${jobId}/${filename}`;
-                const { error: uploadError } = await supabase.storage
-                  .from('generated-models')
-                  .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
-                
-                if (uploadError) {
-                  console.error('Failed to upload CAD model to storage:', uploadError);
-                  throw new Error(`Storage upload failed: ${uploadError.message}`);
-                }
-                
-                // Get permanent public URL (bucket is now public)
-                const { data: publicUrlData } = supabase.storage
-                  .from('generated-models')
-                  .getPublicUrl(storagePath);
-                
-                if (publicUrlData?.publicUrl) {
-                  finalUrl = publicUrlData.publicUrl;
-                  console.log('Model archived successfully with permanent URL');
-                  
-                  // Record file in user_files table for tracking
-                  const { error: fileRecordError } = await supabase
-                    .from('user_files')
-                    .insert({
-                      user_id: userId,
-                      job_id: jobId,
-                      file_url: finalUrl,
-                      file_type: contentType,
-                      file_size_bytes: buffer.byteLength,
-                      expires_at: null // Never expires
-                    });
-                  
-                  if (fileRecordError) {
-                    console.warn('Failed to record file in user_files:', fileRecordError);
-                  }
-                } else {
-                  console.error('Failed to get public URL for stored model');
-                  throw new Error('Failed to generate public URL for archived model');
-                }
-              }
-            } catch (persistErr) {
-              console.error('CRITICAL: Failed to archive CAD model to permanent storage:', persistErr);
-              // Don't fall back to temporary URL - mark as failed instead
-              throw new Error(`Model archiving failed: ${persistErr instanceof Error ? persistErr.message : 'Unknown error'}. Temporary URLs are not supported.`);
+            const { data: jobRow, error: jobError } = await supabase
+              .from('jobs')
+              .select('user_id')
+              .eq('id', jobId)
+              .maybeSingle();
+            
+            if (jobError) {
+              console.error('Failed to fetch job for user_id:', jobError);
+              throw new Error(`Database error fetching job: ${jobError.message}`);
             }
+            
+            if (!jobRow) {
+              console.error('CAD job not found in database:', jobId);
+              throw new Error('Job not found - cannot determine storage path');
+            }
+            
+            const userId = jobRow.user_id || 'anonymous';
 
-            const { data: updatedJob, error: updateError } = await supabase
+            if (modelUrl) {
+              console.log('Downloading and archiving CAD model to permanent storage...');
+              const urlObj = new URL(modelUrl);
+              const pathname = urlObj.pathname.toLowerCase();
+              const ext = pathname.endsWith('.gltf') ? 'gltf' : pathname.endsWith('.obj') ? 'obj' : pathname.endsWith('.zip') ? 'zip' : 'glb';
+              const filename = `model.${ext}`;
+
+              // Download the model from Replicate
+              const resp = await fetch(modelUrl);
+              if (!resp.ok) {
+                console.error(`Failed to download model: ${resp.status} ${resp.statusText}`);
+                throw new Error(`Failed to download model for archiving: ${resp.status}`);
+              }
+              const contentType = resp.headers.get('content-type') || (ext === 'glb' ? 'model/gltf-binary' : 'application/octet-stream');
+              const buffer = await resp.arrayBuffer();
+              console.log(`Downloaded ${buffer.byteLength} bytes`);
+
+              // Upload to permanent storage
+              const storagePath = `${userId}/${jobId}/${filename}`;
+              const { error: uploadError } = await supabase.storage
+                .from('generated-models')
+                .upload(storagePath, new Blob([buffer], { type: contentType }), { upsert: true });
+              
+              if (uploadError) {
+                console.error('Failed to upload CAD model to storage:', uploadError);
+                throw new Error(`Storage upload failed: ${uploadError.message}`);
+              }
+              
+              // Get permanent public URL (bucket is now public)
+              const { data: publicUrlData } = supabase.storage
+                .from('generated-models')
+                .getPublicUrl(storagePath);
+              
+              if (publicUrlData?.publicUrl) {
+                finalUrl = publicUrlData.publicUrl;
+                console.log('Model archived successfully with permanent URL:', finalUrl);
+                
+                // Record file in user_files table for tracking
+                const { error: fileRecordError } = await supabase
+                  .from('user_files')
+                  .insert({
+                    user_id: userId,
+                    job_id: jobId,
+                    file_url: finalUrl,
+                    file_type: contentType,
+                    file_size_bytes: buffer.byteLength,
+                    expires_at: null // Never expires
+                  });
+                
+                if (fileRecordError) {
+                  console.warn('Failed to record file in user_files:', fileRecordError);
+                }
+              } else {
+                console.error('Failed to get public URL for stored model');
+                throw new Error('Failed to generate public URL for archived model');
+              }
+            }
+          } catch (persistErr) {
+            console.error('CRITICAL: Failed to archive CAD model to permanent storage:', persistErr);
+            archivalError = persistErr instanceof Error ? persistErr : new Error(String(persistErr));
+            // Mark job as failed
+            await supabase
               .from('jobs')
               .update({
-                status: 'completed',
-                progress_stage: 'completed',
-                progress_percent: 100,
-                progress_message: 'CAD model generated successfully',
-                outputs: finalUrl ? [finalUrl] : [],
-                completed_at: new Date().toISOString(),
-                manifest: {
-                  jobId,
-                  type: 'cad',
-                  prompt: (prompt || 'Image-based CAD generation'),
-                  modelFormat: format,
-                  exportFormats: ['GLB', 'OBJ', 'GLTF', 'ZIP'],
-                  recommendedConversion: 'STEP, IGES (use external CAD software)',
-                  generatedAt: new Date().toISOString()
-                }
+                status: 'failed',
+                error: `Model archiving failed: ${archivalError.message}`,
+                progress_stage: 'failed',
+                progress_percent: 0,
+                progress_message: 'Failed to archive model to permanent storage',
               })
-              .eq('id', jobId)
-              .select()
-              .maybeSingle();
-
-            if (updateError) console.error('Failed to update job from status check:', updateError);
-            else console.log('Job updated from status check:', updatedJob);
-          } catch (dbErr) {
-            console.error('DB update error during status check:', dbErr);
+              .eq('id', jobId);
           }
         }
 
-        // Add timestamp to prevent client-side caching
-        // Return finalUrl (Supabase storage) if archival succeeded, otherwise modelUrl (Replicate)
+        // If archival failed, return error
+        if (archivalError) {
+          return new Response(
+            JSON.stringify({ 
+              error: `Model archiving failed: ${archivalError.message}. Temporary URLs are not supported.`,
+              status: 'failed'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+          );
+        }
+
+        // Only proceed if we have a valid finalUrl (successful archival)
+        if (!finalUrl && jobId) {
+          console.error('No finalUrl after successful generation - archival may have failed silently');
+          return new Response(
+            JSON.stringify({ 
+              error: 'Model generation succeeded but archival failed',
+              status: 'failed'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+          );
+        }
+
+        // Update job as completed with permanent URL
+        if (finalUrl && jobId) {
+          const { data: updatedJob, error: updateError } = await supabase
+            .from('jobs')
+            .update({
+              status: 'completed',
+              progress_stage: 'completed',
+              progress_percent: 100,
+              progress_message: 'CAD model generated successfully',
+              outputs: [finalUrl],
+              completed_at: new Date().toISOString(),
+              manifest: {
+                jobId,
+                type: 'cad',
+                prompt: (prompt || 'Image-based CAD generation'),
+                modelFormat: format,
+                exportFormats: ['GLB', 'OBJ', 'GLTF', 'ZIP'],
+                recommendedConversion: 'STEP, IGES (use external CAD software)',
+                generatedAt: new Date().toISOString()
+              }
+            })
+            .eq('id', jobId)
+            .select()
+            .maybeSingle();
+
+          if (updateError) console.error('Failed to update job from status check:', updateError);
+          else console.log('Job completed with permanent URL:', updatedJob);
+        }
+
+        // Return successful response with permanent URL
         const response = {
           status: (prediction as any).status,
           output: finalUrl || modelUrl,
