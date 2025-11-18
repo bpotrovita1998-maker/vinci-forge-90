@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors, Play } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors, Play, Cog } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -17,6 +17,7 @@ import { Label } from './ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -392,6 +393,66 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
           toast({
             title: "Conversion failed",
             description: "Could not convert to STL format",
+            variant: "destructive",
+          });
+        }
+      }, undefined, (error) => {
+        console.error('Model loading failed:', error);
+        toast({
+          title: "Loading failed",
+          description: "Could not load model for conversion",
+          variant: "destructive",
+        });
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadOBJ = async () => {
+    try {
+      toast({
+        title: "Converting to OBJ...",
+        description: "This may take a moment",
+      });
+
+      const url = job.outputs[0];
+      const loader = new GLTFLoader();
+      
+      // Load the GLB file
+      loader.load(url, (gltf) => {
+        try {
+          // Create OBJ exporter
+          const exporter = new OBJExporter();
+          
+          // Export the scene to OBJ format
+          const objData = exporter.parse(gltf.scene);
+          
+          // Create blob and download
+          const blob = new Blob([objData], { type: 'text/plain' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `cnc_model_${job.id.slice(0, 8)}.obj`;
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+          
+          toast({
+            title: "OBJ Downloaded",
+            description: "Ready for CNC machining! Import into your CAM software.",
+          });
+        } catch (error) {
+          console.error('OBJ conversion failed:', error);
+          toast({
+            title: "Conversion failed",
+            description: "Could not convert to OBJ format",
             variant: "destructive",
           });
         }
@@ -801,6 +862,44 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                       <li>Import into your slicer software</li>
                       <li>Configure print settings (layer height, infill, supports)</li>
                       <li>Generate G-code and print!</li>
+                    </ol>
+                  </div>
+                </div>
+
+                {/* CNC Machining Section */}
+                <div className="p-4 rounded-lg border border-secondary/30 bg-secondary/5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Cog className="w-5 h-5 text-secondary" />
+                    <h3 className="font-semibold text-foreground">CNC Machining</h3>
+                    <Badge variant="outline" className="bg-secondary/20 text-secondary border-0 ml-auto">
+                      CAM Ready
+                    </Badge>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Download your CAD model in OBJ format optimized for CNC machines and CAM software.
+                  </p>
+
+                  <Button
+                    onClick={downloadOBJ}
+                    className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download OBJ for CNC
+                  </Button>
+
+                  <div className="text-xs text-muted-foreground space-y-2 pt-2 border-t border-border/30">
+                    <p>⚙️ <strong>CAM Software Compatibility:</strong></p>
+                    <div className="space-y-1 ml-2">
+                      <p>• <strong>OBJ:</strong> Universal format - works with most CAM software (Fusion 360, Mastercam, SolidCAM)</p>
+                      <p>• <strong>STL:</strong> Also compatible with many CAM tools</p>
+                    </div>
+                    <p className="pt-2">🔧 <strong>CNC Workflow:</strong></p>
+                    <ol className="list-decimal list-inside space-y-1 ml-2">
+                      <li>Download OBJ file</li>
+                      <li>Import into your CAM software</li>
+                      <li>Define toolpaths and machining operations</li>
+                      <li>Generate G-code and machine!</li>
                     </ol>
                   </div>
                 </div>
