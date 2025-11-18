@@ -51,4 +51,7 @@ verify_jwt = false
 [functions.stitch-videos]
 verify_jwt = false
 
+[functions.generate-cnc-parameters]
+verify_jwt = false
+
 
