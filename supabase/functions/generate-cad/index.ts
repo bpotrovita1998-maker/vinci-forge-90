@@ -261,11 +261,13 @@ serve(async (req) => {
           } catch (_) {}
         }
 
+        // Track the final URL (will be updated to Supabase storage URL if archival succeeds)
+        let finalUrl = modelUrl || '';
+
         // If the prediction finished successfully and we have a jobId, persist file and update DB
         if ((prediction as any).status === 'succeeded' && jobId) {
           try {
             // Persist to storage so URL never expires
-            let finalUrl = modelUrl || '';
             try {
               const { data: jobRow, error: jobError } = await supabase
                 .from('jobs')
@@ -379,15 +381,16 @@ serve(async (req) => {
         }
 
         // Add timestamp to prevent client-side caching
+        // Return finalUrl (Supabase storage) if archival succeeded, otherwise modelUrl (Replicate)
         const response = {
           status: (prediction as any).status,
-          output: modelUrl,
+          output: finalUrl || modelUrl,
           format,
           timestamp: Date.now(),
           predictionId
         };
         
-        console.log('Returning response:', response);
+        console.log('Returning response with finalUrl:', response);
         
         return new Response(
           JSON.stringify(response),
