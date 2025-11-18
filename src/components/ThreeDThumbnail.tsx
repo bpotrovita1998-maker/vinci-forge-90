@@ -260,6 +260,12 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
       >
         <Suspense fallback={null}>
           <ModelErrorBoundary onError={handleModelError}>
+            {/* Add proper lighting */}
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[10, 10, 5]} intensity={1} />
+            <directionalLight position={[-10, -10, -5]} intensity={0.5} />
+            <pointLight position={[0, 10, 0]} intensity={0.3} />
+            
             <PresentationControls
               speed={1.5}
               global
@@ -267,14 +273,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
               polar={[-Math.PI / 4, Math.PI / 4]}
               enabled={false}
             >
-              <Stage 
-                environment="city" 
-                intensity={0.5}
-                shadows={false}
-                adjustCamera={1.2}
-              >
-                <Model url={activeUrl} />
-              </Stage>
+              <Model url={activeUrl} />
             </PresentationControls>
             <PosterCapture onCapture={handlePosterCapture} />
           </ModelErrorBoundary>
