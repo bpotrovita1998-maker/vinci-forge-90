@@ -9,7 +9,7 @@ const corsHeaders = {
 
 // Input validation schema
 const enhancePromptSchema = z.object({
-  idea: z.string().min(5).max(1000),
+  idea: z.string().min(5).max(5000),
   type: z.enum(['image', 'video', '3d', 'cad']).optional(),
 });
 
