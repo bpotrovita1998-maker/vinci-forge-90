@@ -8,8 +8,15 @@ class LovableAIService {
   private callbacks: Map<string, JobUpdateCallback> = new Map();
   private predictionIds: Map<string, string> = new Map(); // Track prediction IDs for cancellation
   private cancelledJobs: Set<string> = new Set(); // Track cancelled jobs
+  private recoveryInitialized = false;
 
   async submitJob(options: GenerationOptions, jobId?: string): Promise<string> {
+    // Initialize recovery mechanism on first job submission
+    if (!this.recoveryInitialized) {
+      this.recoveryInitialized = true;
+      this.initializeRecovery();
+    }
+    
     // Use provided jobId or generate a new one
     const actualJobId = jobId || crypto.randomUUID();
     
@@ -603,6 +610,81 @@ class LovableAIService {
 
   onJobUpdate(jobId: string, callback: JobUpdateCallback) {
     this.callbacks.set(jobId, callback);
+  }
+
+  private async initializeRecovery() {
+    console.log('LovableAI: Initializing recovery for stuck jobs...');
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check for stuck CAD jobs in upscaling status
+      const { data: stuckJobs } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('type', 'cad')
+        .eq('status', 'upscaling')
+        .is('completed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!stuckJobs || stuckJobs.length === 0) {
+        console.log('LovableAI: No stuck CAD jobs found');
+        return;
+      }
+
+      console.log(`LovableAI: Found ${stuckJobs.length} stuck CAD job(s), attempting recovery`);
+
+      // Try to recover each stuck job
+      for (const jobRow of stuckJobs) {
+        const timeSinceUpdate = Date.now() - new Date(jobRow.updated_at).getTime();
+        
+        // Only recover jobs that have been stuck for more than 5 minutes
+        if (timeSinceUpdate > 5 * 60 * 1000) {
+          console.log(`LovableAI: Recovering stuck job ${jobRow.id}`);
+          this.recoverCADJob(jobRow.id).catch(err => {
+            console.error(`LovableAI: Failed to recover job ${jobRow.id}:`, err);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('LovableAI: Recovery initialization failed:', error);
+    }
+  }
+
+  private async recoverCADJob(jobId: string) {
+    console.log(`LovableAI: Attempting to recover CAD job ${jobId}`);
+    
+    try {
+      // Check database for any outputs that may have been stored
+      const { data: jobRow } = await supabase
+        .from('jobs')
+        .select('outputs, status')
+        .eq('id', jobId)
+        .maybeSingle();
+
+      if (jobRow?.status === 'completed' && jobRow.outputs && Array.isArray(jobRow.outputs) && jobRow.outputs.length > 0) {
+        console.log(`LovableAI: Job ${jobId} already completed in database`);
+        return;
+      }
+
+      // Job is still stuck - mark as failed after recovery timeout
+      console.warn(`LovableAI: Unable to recover job ${jobId}, marking as failed`);
+      
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'failed',
+          progress_stage: 'failed',
+          error: 'Job timed out and could not be recovered. Please try again.',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+    } catch (error) {
+      console.error(`LovableAI: Error recovering CAD job ${jobId}:`, error);
+    }
   }
 
   private notifyUpdate(jobId: string, job: Job) {
