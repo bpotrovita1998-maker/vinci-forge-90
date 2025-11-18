@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Download } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Download, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface PlaylistScene {
@@ -23,9 +23,10 @@ interface PlaylistPlayerProps {
   manifestUrl: string;
   autoPlay?: boolean;
   className?: string;
+  onClose?: () => void;
 }
 
-export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '' }: PlaylistPlayerProps) => {
+export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '', onClose }: PlaylistPlayerProps) => {
   const { toast } = useToast();
   const [manifest, setManifest] = useState<PlaylistManifest | null>(null);
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
@@ -94,11 +95,12 @@ export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '' }
 
     const updateProgress = () => {
       const currentScene = manifest.scenes[currentSceneIndex];
-      const sceneProgress = (video.currentTime / currentScene.duration) * 100;
+      const videoDuration = video.duration || currentScene.duration;
+      const sceneProgress = (video.currentTime / videoDuration) * 100;
       setProgress(sceneProgress);
 
-      // Auto-advance to next scene when current ends
-      if (video.currentTime >= currentScene.duration - 0.1) {
+      // Auto-advance to next scene when current ends (using video's actual duration)
+      if (video.ended || (videoDuration > 0 && video.currentTime >= videoDuration - 0.1)) {
         goToNextScene();
       }
     };
@@ -121,7 +123,7 @@ export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '' }
       setCurrentSceneIndex(prev => prev + 1);
       setProgress(0);
     } else {
-      // Playlist ended
+      // Playlist ended - loop back to start
       setIsPlaying(false);
       setCurrentSceneIndex(0);
       setProgress(0);
@@ -152,13 +154,40 @@ export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '' }
     setIsMuted(!isMuted);
   };
 
-  const downloadCurrentScene = () => {
+  const downloadAllScenes = async () => {
     if (!manifest) return;
-    const currentScene = manifest.scenes[currentSceneIndex];
-    const link = document.createElement('a');
-    link.href = currentScene.url;
-    link.download = `scene-${currentSceneIndex + 1}.mp4`;
-    link.click();
+    
+    toast({
+      title: "Downloading Scenes",
+      description: `Downloading ${manifest.sceneCount} scenes...`,
+    });
+
+    // Download each scene
+    for (let i = 0; i < manifest.scenes.length; i++) {
+      const scene = manifest.scenes[i];
+      try {
+        const response = await fetch(scene.url);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `scene-${i + 1}.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        // Small delay between downloads
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error(`Error downloading scene ${i + 1}:`, error);
+      }
+    }
+
+    toast({
+      title: "Download Complete",
+      description: `All ${manifest.sceneCount} scenes downloaded`,
+    });
   };
 
   if (isLoading) {
@@ -186,6 +215,18 @@ export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '' }
   return (
     <Card className={`overflow-hidden ${className}`}>
       <div className="relative bg-black">
+        {/* Close Button */}
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="absolute top-4 right-4 z-50 bg-black/60 hover:bg-black/80 text-white"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        )}
+        
         {/* Video Player */}
         <div className="relative aspect-video bg-black">
           <video
@@ -273,7 +314,8 @@ export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '' }
             <Button
               variant="ghost"
               size="icon"
-              onClick={downloadCurrentScene}
+              onClick={downloadAllScenes}
+              title="Download all scenes"
             >
               <Download className="w-4 h-4" />
             </Button>
