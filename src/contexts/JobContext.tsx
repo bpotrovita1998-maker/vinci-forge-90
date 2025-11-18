@@ -289,10 +289,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
     const loadJobs = async (reset = false) => {
       const offset = reset ? 0 : currentPage * JOBS_PER_PAGE;
       
-      // Load jobs with pagination
+      // Load jobs with pagination - using 'planned' count for better performance
       const { data, error, count } = await supabase
         .from('jobs')
-        .select('*', { count: 'exact' })
+        .select('*', { count: 'planned' })
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + JOBS_PER_PAGE - 1);
