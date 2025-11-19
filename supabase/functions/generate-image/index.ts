@@ -287,14 +287,16 @@ serve(async (req) => {
                   continue;
                 }
                 
-                const { data: signedUrlData } = await supabase.storage
+                // Get permanent public URL since bucket is public
+                const { data: publicUrlData } = supabase.storage
                   .from('generated-models')
-                  .createSignedUrl(fileName, 604800); // 7 days expiry
+                  .getPublicUrl(fileName);
                 
-                if (signedUrlData?.signedUrl) {
-                  finalUrls.push(signedUrlData.signedUrl);
+                if (publicUrlData?.publicUrl) {
+                  console.log('Image stored at permanent URL:', publicUrlData.publicUrl);
+                  finalUrls.push(publicUrlData.publicUrl);
                 } else {
-                  console.error('Failed to create signed URL');
+                  console.error('Failed to get public URL');
                   finalUrls.push(imageUrl);
                 }
               } catch (error) {
@@ -418,15 +420,16 @@ serve(async (req) => {
             console.error('Storage upload error:', uploadError);
             finalUrls.push(base64Data); // Keep original as fallback
           } else {
-            const { data: signedUrlData } = await supabase.storage
+            // Get permanent public URL since bucket is public
+            const { data: publicUrlData } = supabase.storage
               .from('generated-models')
-              .createSignedUrl(fileName, 604800); // 7 days expiry
+              .getPublicUrl(fileName);
             
-            if (signedUrlData?.signedUrl) {
-              console.log('Image stored at:', signedUrlData.signedUrl);
-              finalUrls.push(signedUrlData.signedUrl);
+            if (publicUrlData?.publicUrl) {
+              console.log('Image stored at permanent URL:', publicUrlData.publicUrl);
+              finalUrls.push(publicUrlData.publicUrl);
             } else {
-              console.error('Failed to create signed URL');
+              console.error('Failed to get public URL');
               finalUrls.push(images[i]);
             }
           }
