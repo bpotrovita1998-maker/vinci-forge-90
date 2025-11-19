@@ -26,7 +26,8 @@ import {
   Wand2,
   Edit,
   DollarSign,
-  Timer
+  Timer,
+  Film
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -1971,6 +1972,18 @@ export default function Scenes() {
                                   <Badge variant="secondary">
                                     {playlist.totalDuration}s total
                                   </Badge>
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="gap-2"
+                                    onClick={() => {
+                                      const movieUrl = `/movie?manifest=${encodeURIComponent(playlist.manifestUrl)}`;
+                                      window.open(movieUrl, '_blank', 'noopener,noreferrer');
+                                    }}
+                                  >
+                                    <Film className="w-4 h-4" />
+                                    Movie
+                                  </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"

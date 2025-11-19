@@ -13,6 +13,7 @@ import Scenes from "./pages/Scenes";
 import Auth from "./pages/Auth";
 import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
+import MovieViewer from "./pages/MovieViewer";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/" element={<ProtectedRoute requireTokens><Index /></ProtectedRoute>} />
               <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
               <Route path="/scenes" element={<ProtectedRoute><Scenes /></ProtectedRoute>} />
+              <Route path="/movie" element={<MovieViewer />} />
               <Route path="/pricing" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Pricing /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
