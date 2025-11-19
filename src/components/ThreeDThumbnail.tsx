@@ -227,7 +227,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   // If no valid URL or error, show fallback
   if (!activeUrl || loadError) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-muted/20">
+      <div className="w-full h-full flex items-center justify-center bg-card">
         <div className="text-center">
           <Package className="w-12 h-12 text-primary mx-auto mb-2" />
           <p className="text-xs text-muted-foreground">3D Model</p>
@@ -237,7 +237,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   }
 
   return (
-    <div className="w-full h-full bg-muted/20 relative" ref={canvasRef}>
+    <div className="w-full h-full bg-card relative" ref={canvasRef}>
       {/* Show cached poster immediately, then fade to live canvas */}
       {(cachedPosterUrl || posterUrl) && (
         <img 
@@ -272,7 +272,16 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           preserveDrawingBuffer: true 
         }}
         onCreated={({ gl }) => {
-          gl.setClearColor(isUnityModel ? '#3a3a3a' : '#0a0a0a');
+          // Use theme background color
+          const bgColor = getComputedStyle(document.documentElement)
+            .getPropertyValue('--background')
+            .trim()
+            .split(' ')
+            .map(v => parseFloat(v));
+          
+          const hslColor = `hsl(${bgColor[0]}, ${bgColor[1]}%, ${bgColor[2]}%)`;
+          gl.setClearColor(hslColor);
+          
           const elem = gl.domElement as HTMLCanvasElement;
           const onLost = (e: any) => { 
             e.preventDefault?.(); 
@@ -290,8 +299,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           <ModelErrorBoundary onError={handleModelError}>
             {isUnityModel ? (
               <>
-                {/* Unity-style lighting and environment */}
-                <color attach="background" args={['#3a3a3a']} />
+                {/* Unity-style lighting and environment with theme background */}
                 <ambientLight intensity={0.4} />
                 <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
                 <directionalLight position={[-5, 5, -5]} intensity={0.3} />
@@ -318,9 +326,8 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
               </>
             ) : (
               <>
-                {/* Regular CAD model lighting */}
+                {/* Regular CAD model lighting with theme background */}
                 <Environment preset="studio" />
-                <color attach="background" args={['#0a0a0a']} />
                 <ambientLight intensity={0.3} />
                 <directionalLight position={[5, 5, 5]} intensity={0.5} />
                 
