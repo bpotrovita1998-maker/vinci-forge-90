@@ -8,14 +8,14 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Da Vinci Renaissance Palette */
-    --background: 220 35% 8%;
+    /* Da Vinci Renaissance Palette - Rich Dark Blue */
+    --background: 220 50% 10%;
     --foreground: 40 20% 92%;
 
-    --card: 220 30% 12%;
+    --card: 220 45% 15%;
     --card-foreground: 40 20% 92%;
 
-    --popover: 220 32% 10%;
+    --popover: 220 48% 12%;
     --popover-foreground: 40 20% 92%;
 
     /* Renaissance Gold */
@@ -27,18 +27,18 @@ All colors MUST be HSL.
     --secondary: 15 55% 45%;
     --secondary-foreground: 40 20% 95%;
 
-    --muted: 220 25% 18%;
+    --muted: 220 40% 20%;
     --muted-foreground: 40 15% 65%;
 
     /* Deep Blue Accent */
-    --accent: 210 60% 45%;
+    --accent: 210 65% 50%;
     --accent-foreground: 40 20% 95%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 40 20% 95%;
 
-    --border: 220 25% 20%;
-    --input: 220 25% 15%;
+    --border: 220 40% 25%;
+    --input: 220 45% 18%;
     --ring: 43 65% 58%;
 
     --radius: 0.75rem;
@@ -72,14 +72,14 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* Same palette for consistency */
-    --background: 220 35% 8%;
+    /* Same palette for consistency - Rich Dark Blue */
+    --background: 220 50% 10%;
     --foreground: 40 20% 92%;
 
-    --card: 220 30% 12%;
+    --card: 220 45% 15%;
     --card-foreground: 40 20% 92%;
 
-    --popover: 220 32% 10%;
+    --popover: 220 48% 12%;
     --popover-foreground: 40 20% 92%;
 
     --primary: 43 65% 58%;
@@ -89,17 +89,17 @@ All colors MUST be HSL.
     --secondary: 15 55% 45%;
     --secondary-foreground: 40 20% 95%;
 
-    --muted: 220 25% 18%;
+    --muted: 220 40% 20%;
     --muted-foreground: 40 15% 65%;
 
-    --accent: 210 60% 45%;
+    --accent: 210 65% 50%;
     --accent-foreground: 40 20% 95%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 40 20% 95%;
 
-    --border: 220 25% 20%;
-    --input: 220 25% 15%;
+    --border: 220 40% 25%;
+    --input: 220 45% 18%;
     --ring: 43 65% 58%;
     
     --sidebar-background: 220 30% 10%;
