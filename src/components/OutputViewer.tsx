@@ -11,7 +11,8 @@ import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare,
 import { Badge } from './ui/badge';
 import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
-import ThreeDViewer from './ThreeDViewer';
+import ThreeDViewer, { MaterialSettings, TransformSettings, LightingSettings } from './ThreeDViewer';
+import ModelEditControls, { MaterialPreset, TransformState, LightingState } from './ModelEditControls';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
@@ -49,6 +50,44 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [toolDiameter, setToolDiameter] = useState<number>(6);
   const [cncParameters, setCncParameters] = useState<any>(null);
   const [isLoadingCncParams, setIsLoadingCncParams] = useState(false);
+  
+  // Model editing state
+  const [materialSettings, setMaterialSettings] = useState<MaterialSettings | undefined>();
+  const [transformSettings, setTransformSettings] = useState<TransformSettings | undefined>();
+  const [lightingSettings, setLightingSettings] = useState<LightingSettings | undefined>();
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  const handleModelMaterialChange = (preset: MaterialPreset) => {
+    setMaterialSettings({
+      color: preset.color,
+      metalness: preset.metalness,
+      roughness: preset.roughness,
+      envMapIntensity: preset.envMapIntensity,
+    });
+  };
+
+  const handleModelTransformChange = (transform: TransformState) => {
+    setTransformSettings({
+      rotationX: transform.rotationX,
+      rotationY: transform.rotationY,
+      rotationZ: transform.rotationZ,
+      scale: transform.scale,
+    });
+  };
+
+  const handleModelLightingChange = (lighting: LightingState) => {
+    setLightingSettings({
+      intensity: lighting.intensity,
+      environmentPreset: lighting.environmentPreset,
+      ambientIntensity: lighting.ambientIntensity,
+    });
+  };
+
+  const handleResetModelEditing = () => {
+    setMaterialSettings(undefined);
+    setTransformSettings(undefined);
+    setLightingSettings(undefined);
+  };
 
   // Check if this is a multi-scene video
   const manifest = job.manifest as any;
@@ -551,29 +590,51 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
         <div className="flex-1 overflow-y-auto px-6">
           <div className="space-y-4 pb-6">
-          {/* Media Preview */}
-          <div className="relative bg-muted/30 rounded-lg overflow-hidden">
-            {(job.options.type === '3d' || job.options.type === 'cad') ? (
-              job.outputs && job.outputs.length > 0 && job.outputs[0] ? (
-                <Suspense fallback={
-                  <div className="w-full h-[500px] flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                      <p className="text-muted-foreground">Loading {job.options.type === 'cad' ? 'CAD' : '3D'} model...</p>
+           {/* Media Preview */}
+           <div className="relative bg-muted/30 rounded-lg overflow-hidden">
+             {(job.options.type === '3d' || job.options.type === 'cad') ? (
+               <div className="space-y-4">
+                 {job.outputs && job.outputs.length > 0 && job.outputs[0] ? (
+                   <Suspense fallback={
+                     <div className="w-full h-[500px] flex items-center justify-center">
+                       <div className="text-center">
+                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                         <p className="text-muted-foreground">Loading {job.options.type === 'cad' ? 'CAD' : '3D'} model...</p>
+                       </div>
+                     </div>
+                    }>
+                      <ThreeDViewer 
+                        modelUrl={job.outputs[0]} 
+                        jobId={job.id} 
+                        userId={job.userId}
+                        materialSettings={materialSettings}
+                        transformSettings={transformSettings}
+                        lightingSettings={lightingSettings}
+                        isEditable={isEditMode}
+                      />
+                    </Suspense>
+                  ) : (
+                    <div className="w-full h-[500px] flex items-center justify-center">
+                      <div className="text-center text-muted-foreground">
+                        <p>No {job.options.type === 'cad' ? 'CAD' : '3D'} model available</p>
+                        <p className="text-xs mt-2">Outputs: {JSON.stringify(job.outputs)}</p>
+                      </div>
                     </div>
-                  </div>
-                }>
-                  <ThreeDViewer modelUrl={job.outputs[0]} jobId={job.id} userId={job.userId} />
-                </Suspense>
-              ) : (
-                <div className="w-full h-[500px] flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <p>No {job.options.type === 'cad' ? 'CAD' : '3D'} model available</p>
-                    <p className="text-xs mt-2">Outputs: {JSON.stringify(job.outputs)}</p>
-                  </div>
+                  )}
+                  
+                  {/* Model Editing Controls */}
+                  {job.outputs && job.outputs.length > 0 && job.outputs[0] && (
+                    <div className="p-4">
+                      <ModelEditControls
+                        onMaterialChange={handleModelMaterialChange}
+                        onTransformChange={handleModelTransformChange}
+                        onLightingChange={handleModelLightingChange}
+                        onReset={handleResetModelEditing}
+                      />
+                    </div>
+                  )}
                 </div>
-              )
-            ) : job.options.type === 'image' ? (
+             ) : job.options.type === 'image' ? (
               <div className="space-y-3">
                 <img
                   src={job.outputs[currentImageIndex]}
