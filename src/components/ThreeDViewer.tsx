@@ -1,13 +1,38 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, PresentationControls, Environment } from '@react-three/drei';
-import { Suspense, useState, Component, ReactNode, useEffect, useCallback } from 'react';
+import { Suspense, useState, Component, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import * as THREE from 'three';
+
+export interface MaterialSettings {
+  color: string;
+  metalness: number;
+  roughness: number;
+  envMapIntensity: number;
+}
+
+export interface TransformSettings {
+  rotationX: number;
+  rotationY: number;
+  rotationZ: number;
+  scale: number;
+}
+
+export interface LightingSettings {
+  intensity: number;
+  environmentPreset: string;
+  ambientIntensity: number;
+}
 
 interface ThreeDViewerProps {
   modelUrl: string;
   jobId?: string;
   userId?: string;
+  materialSettings?: MaterialSettings;
+  transformSettings?: TransformSettings;
+  lightingSettings?: LightingSettings;
+  isEditable?: boolean;
 }
 
 interface ErrorBoundaryProps {
@@ -42,8 +67,19 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
   }
 }
 
-function Model({ url, onError }: { url: string; onError: () => void }) {
+function Model({ 
+  url, 
+  onError, 
+  materialSettings, 
+  transformSettings 
+}: { 
+  url: string; 
+  onError: () => void;
+  materialSettings?: MaterialSettings;
+  transformSettings?: TransformSettings;
+}) {
   const modelUrl = Array.isArray(url) ? url[0] : url;
+  const groupRef = useRef<THREE.Group>(null);
 
   if (!modelUrl || typeof modelUrl !== 'string') {
     console.error('Invalid model URL:', url);
@@ -59,8 +95,58 @@ function Model({ url, onError }: { url: string; onError: () => void }) {
       onError();
       return null;
     }
+
+    // Apply material settings to all meshes in the scene
+    useEffect(() => {
+      if (materialSettings && gltf.scene) {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            if (child.material) {
+              // Create a new material or update existing
+              if (Array.isArray(child.material)) {
+                child.material = child.material.map(mat => {
+                  const newMat = mat.clone();
+                  if (newMat instanceof THREE.MeshStandardMaterial) {
+                    newMat.color = new THREE.Color(materialSettings.color);
+                    newMat.metalness = materialSettings.metalness;
+                    newMat.roughness = materialSettings.roughness;
+                    newMat.envMapIntensity = materialSettings.envMapIntensity;
+                    newMat.needsUpdate = true;
+                  }
+                  return newMat;
+                });
+              } else {
+                const newMat = child.material.clone();
+                if (newMat instanceof THREE.MeshStandardMaterial) {
+                  newMat.color = new THREE.Color(materialSettings.color);
+                  newMat.metalness = materialSettings.metalness;
+                  newMat.roughness = materialSettings.roughness;
+                  newMat.envMapIntensity = materialSettings.envMapIntensity;
+                  newMat.needsUpdate = true;
+                  child.material = newMat;
+                }
+              }
+            }
+          }
+        });
+      }
+    }, [materialSettings, gltf.scene]);
+
+    // Apply transform settings
+    useFrame(() => {
+      if (groupRef.current && transformSettings) {
+        groupRef.current.rotation.x = (transformSettings.rotationX * Math.PI) / 180;
+        groupRef.current.rotation.y = (transformSettings.rotationY * Math.PI) / 180;
+        groupRef.current.rotation.z = (transformSettings.rotationZ * Math.PI) / 180;
+        groupRef.current.scale.setScalar(transformSettings.scale);
+      }
+    });
     
-    return <primitive object={gltf.scene} />;
+    return (
+      <group ref={groupRef}>
+        <primitive object={gltf.scene} />
+      </group>
+    );
   } catch (error) {
     console.error('Error loading model:', error);
     onError();
@@ -68,7 +154,15 @@ function Model({ url, onError }: { url: string; onError: () => void }) {
   }
 }
 
-export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerProps) {
+export default function ThreeDViewer({ 
+  modelUrl, 
+  jobId, 
+  userId,
+  materialSettings,
+  transformSettings,
+  lightingSettings,
+  isEditable = false
+}: ThreeDViewerProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
@@ -167,19 +261,30 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
         <Suspense fallback={null}>
           <ModelErrorBoundary onError={handleLoadError}>
             {/* Environment map for realistic material rendering */}
-            <Environment preset="studio" />
+            <Environment 
+              preset={lightingSettings?.environmentPreset as any || 'studio'} 
+            />
             
             {/* Supplementary lighting */}
-            <ambientLight intensity={0.3} />
-            <directionalLight position={[5, 5, 5]} intensity={0.5} />
+            <ambientLight intensity={lightingSettings?.ambientIntensity || 0.3} />
+            <directionalLight 
+              position={[5, 5, 5]} 
+              intensity={(lightingSettings?.intensity || 1) * 0.5} 
+            />
             
             <PresentationControls
               speed={1.5}
               global
               zoom={0.8}
               polar={[-Math.PI / 4, Math.PI / 4]}
+              enabled={!isEditable}
             >
-              <Model url={activeUrl} onError={handleLoadError} />
+              <Model 
+                url={activeUrl} 
+                onError={handleLoadError}
+                materialSettings={materialSettings}
+                transformSettings={transformSettings}
+              />
             </PresentationControls>
           </ModelErrorBoundary>
         </Suspense>
