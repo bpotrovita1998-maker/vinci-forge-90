@@ -161,3 +161,31 @@ All colors MUST be HSL.
     scrollbar-color: hsl(var(--muted) / 0.6) hsl(var(--background));
   }
 }
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Unity-style slider */
+  .unity-slider [role="slider"] {
+    @apply bg-[#5294e2] border-0 h-3 w-3;
+  }
+  
+  .unity-slider [data-orientation="horizontal"] {
+    @apply bg-[#1a1a1a] h-1;
+  }
+  
+  .unity-slider [role="slider"]:focus-visible {
+    @apply ring-2 ring-[#5294e2] ring-offset-0;
+  }
+}

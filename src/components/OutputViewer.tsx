@@ -13,6 +13,8 @@ import { useState, Suspense } from 'react';
 import { toast } from '@/hooks/use-toast';
 import ThreeDViewer, { MaterialSettings, TransformSettings, LightingSettings } from './ThreeDViewer';
 import ModelEditControls, { MaterialPreset, TransformState, LightingState } from './ModelEditControls';
+import UnityThreeDViewer from './UnityThreeDViewer';
+import UnityModelEditor from './UnityModelEditor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
@@ -52,11 +54,14 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const [cncParameters, setCncParameters] = useState<any>(null);
   const [isLoadingCncParams, setIsLoadingCncParams] = useState(false);
   
-  // Model editing state
+  // Model editing state (for CAD models)
   const [materialSettings, setMaterialSettings] = useState<MaterialSettings | undefined>();
   const [transformSettings, setTransformSettings] = useState<TransformSettings | undefined>();
   const [lightingSettings, setLightingSettings] = useState<LightingSettings | undefined>();
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Unity model editing state (for 3D models)
+  const [unityTransform, setUnityTransform] = useState<any>();
 
   const handleModelMaterialChange = (preset: MaterialPreset) => {
     setMaterialSettings({
@@ -706,15 +711,24 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                        </div>
                      </div>
                     }>
-                      <ThreeDViewer 
-                        modelUrl={job.outputs[0]} 
-                        jobId={job.id} 
-                        userId={job.userId}
-                        materialSettings={materialSettings}
-                        transformSettings={transformSettings}
-                        lightingSettings={lightingSettings}
-                        isEditable={isEditMode}
-                      />
+                      {job.options.type === '3d' ? (
+                        // Unity-style viewer for 3D models
+                        <UnityThreeDViewer 
+                          modelUrl={job.outputs[0]}
+                          transform={unityTransform}
+                        />
+                      ) : (
+                        // CAD viewer for CAD models
+                        <ThreeDViewer 
+                          modelUrl={job.outputs[0]} 
+                          jobId={job.id} 
+                          userId={job.userId}
+                          materialSettings={materialSettings}
+                          transformSettings={transformSettings}
+                          lightingSettings={lightingSettings}
+                          isEditable={isEditMode}
+                        />
+                      )}
                     </Suspense>
                   ) : (
                     <div className="w-full h-[500px] flex items-center justify-center">
@@ -728,14 +742,24 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                   {/* Model Editing Controls */}
                   {job.outputs && job.outputs.length > 0 && job.outputs[0] && (
                     <div className="p-4">
-                      <ModelEditControls
-                        onMaterialChange={handleModelMaterialChange}
-                        onTransformChange={handleModelTransformChange}
-                        onLightingChange={handleModelLightingChange}
-                        onReset={handleResetModelEditing}
-                        onExport={handleExportEditedModel}
-                        hasEdits={!!(materialSettings || transformSettings)}
-                      />
+                      {job.options.type === '3d' ? (
+                        // Unity-style controls for 3D models
+                        <UnityModelEditor
+                          onTransformChange={setUnityTransform}
+                          onReset={() => setUnityTransform(undefined)}
+                          onExport={handleExportEditedModel}
+                        />
+                      ) : (
+                        // CAD controls for CAD models
+                        <ModelEditControls
+                          onMaterialChange={handleModelMaterialChange}
+                          onTransformChange={handleModelTransformChange}
+                          onLightingChange={handleModelLightingChange}
+                          onReset={handleResetModelEditing}
+                          onExport={handleExportEditedModel}
+                          hasEdits={!!(materialSettings || transformSettings)}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
