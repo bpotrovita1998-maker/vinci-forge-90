@@ -790,7 +790,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                      }>
                        {job.options.type === '3d' ? (
                          // Unity-style viewer for 3D models
-                         <div className={isFullscreen ? "h-[calc(100vh-280px)]" : "h-[700px]"}>
+                         <div className={isFullscreen ? "h-[calc(100vh-350px)]" : "h-[700px]"}>
                            <UnityThreeDViewer 
                              modelUrl={job.outputs[0]}
                              transform={unityTransform}
