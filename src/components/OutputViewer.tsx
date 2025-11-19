@@ -9,7 +9,7 @@ import {
 import { Button } from './ui/button';
 import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors, Play, Cog } from 'lucide-react';
 import { Badge } from './ui/badge';
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
 import ThreeDViewer, { MaterialSettings, TransformSettings, LightingSettings } from './ThreeDViewer';
 import ModelEditControls, { MaterialPreset, TransformState, LightingState } from './ModelEditControls';
@@ -62,6 +62,17 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
   // Unity model editing state (for 3D models)
   const [unityTransform, setUnityTransform] = useState<any>();
+  const [isSavingUnityTransform, setIsSavingUnityTransform] = useState(false);
+
+  // Load saved Unity transform from job manifest
+  useEffect(() => {
+    if (job.options.type === '3d' && job.manifest) {
+      const manifest = job.manifest as any;
+      if (manifest.unityTransform) {
+        setUnityTransform(manifest.unityTransform);
+      }
+    }
+  }, [job]);
 
   const handleModelMaterialChange = (preset: MaterialPreset) => {
     setMaterialSettings({
@@ -93,6 +104,49 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     setMaterialSettings(undefined);
     setTransformSettings(undefined);
     setLightingSettings(undefined);
+  };
+
+  const handleSaveUnityTransform = async () => {
+    if (!unityTransform) {
+      toast({
+        title: "No Changes",
+        description: "Make transform changes before saving",
+      });
+      return;
+    }
+
+    setIsSavingUnityTransform(true);
+    
+    try {
+      // Update job manifest with Unity transform
+      const updatedManifest = {
+        ...(job.manifest || {}),
+        unityTransform: unityTransform,
+      };
+
+      const { error } = await supabase
+        .from('jobs')
+        .update({ 
+          manifest: updatedManifest as any,
+        })
+        .eq('id', job.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Changes Saved",
+        description: "Your Unity transform settings have been saved",
+      });
+    } catch (error) {
+      console.error('Save error:', error);
+      toast({
+        title: "Save Failed",
+        description: "Could not save transform settings",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingUnityTransform(false);
+    }
   };
 
   const handleExportEditedModel = async () => {
@@ -749,7 +803,10 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                         <UnityModelEditor
                           onTransformChange={setUnityTransform}
                           onReset={() => setUnityTransform(undefined)}
+                          onSave={handleSaveUnityTransform}
                           onExport={handleExportEditedModel}
+                          initialTransform={unityTransform}
+                          isSaving={isSavingUnityTransform}
                         />
                       ) : (
                         // CAD controls for CAD models
