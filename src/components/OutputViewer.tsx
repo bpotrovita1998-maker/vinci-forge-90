@@ -119,10 +119,12 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     setIsSavingUnityTransform(true);
     
     try {
-      // Update job manifest with Unity transform
+      // Generate thumbnail with the new transform
+      // We'll trigger thumbnail regeneration by updating the manifest
       const updatedManifest = {
         ...(job.manifest || {}),
         unityTransform: unityTransform,
+        thumbnailVersion: Date.now(), // Force thumbnail refresh
       };
 
       const { error } = await supabase
@@ -136,7 +138,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
       toast({
         title: "Changes Saved",
-        description: "Your Unity transform settings have been saved",
+        description: "Your Unity transform settings have been saved. Thumbnail will update shortly.",
       });
     } catch (error) {
       console.error('Save error:', error);
