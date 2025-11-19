@@ -63,5 +63,8 @@ verify_jwt = false
 [functions.regenerate-expired-images]
 verify_jwt = true
 
+[functions.create-movie]
+verify_jwt = false
+
 
 
