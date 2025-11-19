@@ -24,9 +24,10 @@ interface PlaylistPlayerProps {
   autoPlay?: boolean;
   className?: string;
   onClose?: () => void;
+  fullscreen?: boolean;
 }
 
-export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '', onClose }: PlaylistPlayerProps) => {
+export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '', onClose, fullscreen = false }: PlaylistPlayerProps) => {
   const { toast } = useToast();
   const [manifest, setManifest] = useState<PlaylistManifest | null>(null);
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
@@ -211,6 +212,127 @@ export const PlaylistPlayer = ({ manifestUrl, autoPlay = false, className = '', 
   }
 
   const currentScene = manifest.scenes[currentSceneIndex];
+
+  if (fullscreen) {
+    return (
+      <div className={`relative w-full h-full bg-black ${className}`}>
+        {/* Close Button */}
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="absolute top-4 right-4 z-50 bg-black/60 hover:bg-black/80 text-white"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        )}
+        
+        {/* Video Player - Full Screen */}
+        <video
+          ref={videoRef}
+          className={`w-full h-full object-contain transition-opacity duration-300 ${
+            isTransitioning ? 'opacity-0' : 'opacity-100'
+          }`}
+          playsInline
+          muted={isMuted}
+        />
+        
+        {/* Scene overlay */}
+        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-md z-40">
+          <p className="text-white text-sm font-medium">
+            Scene {currentSceneIndex + 1} of {manifest.sceneCount}
+          </p>
+        </div>
+
+        {/* Transition indicator */}
+        {isTransitioning && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-30">
+            <div className="text-white">Loading next scene...</div>
+          </div>
+        )}
+
+        {/* Controls Overlay - Bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 via-black/60 to-transparent z-40">
+          {/* Progress Bar */}
+          <div className="space-y-2 mb-4">
+            <Progress value={progress} className="h-1 bg-white/20" />
+            <div className="flex justify-between text-xs text-white/80">
+              <span>Scene {currentSceneIndex + 1}</span>
+              <span>{currentScene.duration}s</span>
+            </div>
+          </div>
+
+          {/* Control Buttons */}
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goToPreviousScene}
+              disabled={currentSceneIndex === 0}
+              className="text-white hover:bg-white/20"
+            >
+              <SkipBack className="w-5 h-5" />
+            </Button>
+
+            <Button
+              variant="default"
+              size="icon"
+              onClick={togglePlayPause}
+              className="h-12 w-12 bg-white/90 hover:bg-white text-black"
+            >
+              {isPlaying ? (
+                <Pause className="w-6 h-6" />
+              ) : (
+                <Play className="w-6 h-6" />
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goToNextScene}
+              disabled={currentSceneIndex === manifest.scenes.length - 1}
+              className="text-white hover:bg-white/20"
+            >
+              <SkipForward className="w-5 h-5" />
+            </Button>
+
+            <div className="w-px h-6 bg-white/20 mx-2" />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleMute}
+              className="text-white hover:bg-white/20"
+            >
+              {isMuted ? (
+                <VolumeX className="w-5 h-5" />
+              ) : (
+                <Volume2 className="w-5 h-5" />
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={downloadAllScenes}
+              className="text-white hover:bg-white/20"
+            >
+              <Download className="w-5 h-5" />
+            </Button>
+          </div>
+
+          {/* Playlist Info */}
+          <div className="mt-4 text-center">
+            <p className="text-white/60 text-sm">
+              Total Duration: {manifest.totalDuration}s • {manifest.sceneCount} scenes
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className={`overflow-hidden ${className}`}>

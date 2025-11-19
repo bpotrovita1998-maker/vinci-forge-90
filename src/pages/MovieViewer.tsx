@@ -54,11 +54,12 @@ export default function MovieViewer() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="min-h-screen bg-black">
       <PlaylistPlayer 
         manifestUrl={manifestUrl}
         autoPlay={true}
-        className="w-full h-screen"
+        fullscreen={true}
+        className="h-screen"
         onClose={handleClose}
       />
     </div>
