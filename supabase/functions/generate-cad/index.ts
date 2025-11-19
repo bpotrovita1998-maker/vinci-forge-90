@@ -375,8 +375,8 @@ serve(async (req) => {
           );
         }
 
-        // Only proceed if we have a valid finalUrl (successful archival)
-        if (!finalUrl && jobId) {
+        // Only check for finalUrl if the prediction is completed
+        if ((prediction as any).status === 'succeeded' && !finalUrl && jobId) {
           console.error('No finalUrl after successful generation - archival may have failed silently');
           return new Response(
             JSON.stringify({ 
