@@ -1394,12 +1394,12 @@ export default function Scenes() {
   };
 
   const generateStoryboardVideo = async () => {
-    const readyScenes = scenes.filter(s => s.status === 'ready' && s.imageUrl);
+    const readyScenes = scenes.filter(s => s.status === 'ready' && s.videoUrl);
     
     if (readyScenes.length < 2) {
       toast({
-        title: "Not Enough Scenes",
-        description: "You need at least 2 scenes with generated images to create a video",
+        title: "Generate Videos First",
+        description: "You need to generate videos for at least 2 scenes before stitching them together. Change scene type to 'video' and generate each scene.",
         variant: "destructive"
       });
       return;
@@ -1409,43 +1409,42 @@ export default function Scenes() {
 
     setIsGeneratingVideo(true);
     toast({
-      title: "Creating Video",
-      description: `Combining ${readyScenes.length} scene images into a ${totalDuration}s video...`
+      title: "Stitching Videos",
+      description: `Combining ${readyScenes.length} scene videos into a ${totalDuration}s video...`
     });
 
     try {
-      // Create video from scene images
-      const { data, error } = await supabase.functions.invoke('generate-video', {
+      // Stitch videos together
+      const { data, error } = await supabase.functions.invoke('stitch-videos', {
         body: {
-          sceneImages: readyScenes.map(s => ({
-            imageUrl: s.imageUrl,
+          scenes: readyScenes.map((s, index) => ({
+            videoUrl: s.videoUrl,
             duration: s.duration,
-            description: s.description
+            order: index
           })),
-          totalDuration,
-          aspectRatio: '16:9',
-          quality: '1080p'
+          jobId: `storyboard-${Date.now()}`,
+          userId: user?.id
         }
       });
 
       if (error) {
-        console.error('Video creation error:', error);
+        console.error('Video stitching error:', error);
         throw error;
       }
 
-      if (data?.output) {
+      if (data?.stitchedUrl) {
         toast({
           title: "Video Created!",
           description: `Your ${totalDuration}s storyboard video is ready`,
         });
         
         // Optionally download or display the video
-        window.open(data.output, '_blank');
+        window.open(data.stitchedUrl, '_blank');
       } else {
-        throw new Error('No video output received');
+        throw new Error('No stitched video output received');
       }
     } catch (error) {
-      console.error('Error creating video:', error);
+      console.error('Error stitching video:', error);
       toast({
         title: "Video Creation Failed",
         description: error instanceof Error ? error.message : "Failed to create video from scenes",
