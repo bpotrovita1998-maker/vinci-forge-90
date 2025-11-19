@@ -1,13 +1,28 @@
 import { Canvas, useThree } from '@react-three/fiber';
-import { useGLTF, PresentationControls, Environment } from '@react-three/drei';
+import { useGLTF, PresentationControls, Environment, Grid } from '@react-three/drei';
 import { Suspense, Component, ReactNode, useState, useEffect, useRef } from 'react';
 import { Package, Loader2 } from 'lucide-react';
 import { posterCache, getPosterCacheKey } from '@/lib/posterCache';
+import * as THREE from 'three';
+
+interface UnityTransform {
+  positionX: number;
+  positionY: number;
+  positionZ: number;
+  rotationX: number;
+  rotationY: number;
+  rotationZ: number;
+  scaleX: number;
+  scaleY: number;
+  scaleZ: number;
+}
 
 interface ThreeDThumbnailProps {
   modelUrl: string;
   jobId?: string;
   userId?: string;
+  unityTransform?: UnityTransform;
+  isUnityModel?: boolean;
 }
 
 interface ErrorBoundaryProps {
@@ -42,13 +57,25 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
   }
 }
 
-function Model({ url }: { url: string }) {
+function Model({ url, unityTransform, isUnityModel }: { url: string; unityTransform?: UnityTransform; isUnityModel?: boolean }) {
   const gltf = useGLTF(url);
   
   if (!gltf?.scene) {
     console.error('No scene in GLTF:', gltf);
     return null;
   }
+
+  useEffect(() => {
+    if (gltf.scene && isUnityModel && unityTransform) {
+      gltf.scene.position.set(unityTransform.positionX, unityTransform.positionY, unityTransform.positionZ);
+      gltf.scene.rotation.set(
+        THREE.MathUtils.degToRad(unityTransform.rotationX),
+        THREE.MathUtils.degToRad(unityTransform.rotationY),
+        THREE.MathUtils.degToRad(unityTransform.rotationZ)
+      );
+      gltf.scene.scale.set(unityTransform.scaleX, unityTransform.scaleY, unityTransform.scaleZ);
+    }
+  }, [gltf.scene, unityTransform, isUnityModel]);
   
   return <primitive object={gltf.scene} scale={1} />;
 }
@@ -72,7 +99,7 @@ function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) 
   return null;
 }
 
-export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumbnailProps) {
+export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransform, isUnityModel }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
   const [canvasKey, setCanvasKey] = useState(0);
@@ -245,6 +272,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
           preserveDrawingBuffer: true 
         }}
         onCreated={({ gl }) => {
+          gl.setClearColor(isUnityModel ? '#3a3a3a' : '#0a0a0a');
           const elem = gl.domElement as HTMLCanvasElement;
           const onLost = (e: any) => { 
             e.preventDefault?.(); 
@@ -260,22 +288,53 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
       >
         <Suspense fallback={null}>
           <ModelErrorBoundary onError={handleModelError}>
-            {/* Environment map for realistic material rendering */}
-            <Environment preset="studio" />
-            
-            {/* Supplementary lighting */}
-            <ambientLight intensity={0.3} />
-            <directionalLight position={[5, 5, 5]} intensity={0.5} />
-            
-            <PresentationControls
-              speed={1.5}
-              global
-              zoom={0.8}
-              polar={[-Math.PI / 4, Math.PI / 4]}
-              enabled={false}
-            >
-              <Model url={activeUrl} />
-            </PresentationControls>
+            {isUnityModel ? (
+              <>
+                {/* Unity-style lighting and environment */}
+                <color attach="background" args={['#3a3a3a']} />
+                <ambientLight intensity={0.4} />
+                <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
+                <directionalLight position={[-5, 5, -5]} intensity={0.3} />
+                
+                <Model url={activeUrl} unityTransform={unityTransform} isUnityModel={isUnityModel} />
+                
+                {/* Unity-style grid */}
+                <Grid
+                  args={[20, 20]}
+                  cellSize={1}
+                  cellThickness={0.5}
+                  cellColor="#555555"
+                  sectionSize={5}
+                  sectionThickness={1}
+                  sectionColor="#777777"
+                  fadeDistance={30}
+                  fadeStrength={1}
+                  followCamera={false}
+                  infiniteGrid={false}
+                  position={[0, -0.01, 0]}
+                />
+                
+                <Environment preset="studio" />
+              </>
+            ) : (
+              <>
+                {/* Regular CAD model lighting */}
+                <Environment preset="studio" />
+                <color attach="background" args={['#0a0a0a']} />
+                <ambientLight intensity={0.3} />
+                <directionalLight position={[5, 5, 5]} intensity={0.5} />
+                
+                <PresentationControls
+                  speed={1.5}
+                  global
+                  zoom={0.8}
+                  polar={[-Math.PI / 4, Math.PI / 4]}
+                  enabled={false}
+                >
+                  <Model url={activeUrl} />
+                </PresentationControls>
+              </>
+            )}
             <PosterCapture onCapture={handlePosterCapture} />
           </ModelErrorBoundary>
         </Suspense>

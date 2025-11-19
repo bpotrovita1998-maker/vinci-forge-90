@@ -808,7 +808,13 @@ export default function Gallery() {
                                   />
                                 )
                               ) : (job.options.type === '3d' || job.options.type === 'cad') ? (
-                                <ThreeDThumbnail modelUrl={job.outputs[0]} jobId={job.id} userId={job.userId} />
+                                <ThreeDThumbnail 
+                                  modelUrl={job.outputs[0]} 
+                                  jobId={job.id} 
+                                  userId={job.userId}
+                                  unityTransform={(job.manifest as any)?.unityTransform}
+                                  isUnityModel={job.options.type === '3d'}
+                                />
                               ) : (
                                 <img
                                   src={job.outputs[0]}
