@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Label } from './ui/label';
 import { Slider } from './ui/slider';
-import { RotateCcw, Box, Move, RotateCw, Maximize } from 'lucide-react';
+import { RotateCcw, Box, Move, RotateCw, Maximize, Save } from 'lucide-react';
 
 interface UnityTransform {
   positionX: number;
@@ -25,15 +25,21 @@ export interface UnityModelSettings {
 interface UnityModelEditorProps {
   onTransformChange: (transform: UnityTransform) => void;
   onReset: () => void;
+  onSave?: () => void;
   onExport?: () => void;
+  initialTransform?: UnityTransform;
+  isSaving?: boolean;
 }
 
 export default function UnityModelEditor({
   onTransformChange,
   onReset,
+  onSave,
   onExport,
+  initialTransform,
+  isSaving = false,
 }: UnityModelEditorProps) {
-  const [transform, setTransform] = useState<UnityTransform>({
+  const [transform, setTransform] = useState<UnityTransform>(initialTransform || {
     positionX: 0,
     positionY: 0,
     positionZ: 0,
@@ -44,6 +50,13 @@ export default function UnityModelEditor({
     scaleY: 1,
     scaleZ: 1,
   });
+
+  // Update local state when initialTransform changes
+  useEffect(() => {
+    if (initialTransform) {
+      setTransform(initialTransform);
+    }
+  }, [initialTransform]);
 
   const handleTransformChange = (key: keyof UnityTransform, value: number) => {
     const newTransform = { ...transform, [key]: value };
@@ -82,6 +95,17 @@ export default function UnityModelEditor({
             <RotateCcw className="w-3 h-3" />
             Reset
           </Button>
+          {onSave && (
+            <Button
+              onClick={onSave}
+              size="sm"
+              disabled={isSaving}
+              className="h-7 gap-1 text-xs bg-[#4a9f4a] hover:bg-[#3d8a3d] text-white disabled:opacity-50"
+            >
+              <Save className="w-3 h-3" />
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          )}
           {onExport && (
             <Button
               onClick={onExport}
