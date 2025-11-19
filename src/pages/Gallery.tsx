@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OutputViewer from '@/components/OutputViewer';
 import ThreeDThumbnail from '@/components/ThreeDThumbnail';
-import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2 } from 'lucide-react';
+import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2, AlertCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Job } from '@/types/job';
@@ -48,7 +48,7 @@ interface SceneItem {
 }
 
 export default function Gallery() {
-  const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore } = useJobs();
+  const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore, loadError, retryLoadJobs } = useJobs();
   const { user } = useAuth();
   const [galleryMode, setGalleryMode] = useState<'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes'>('all');
   const [selectedType, setSelectedType] = useState<JobType | 'all'>('all');
@@ -103,24 +103,38 @@ export default function Gallery() {
     if (!user) return;
     
     try {
-      // First, get all scenes that might need syncing
+      // First, get all scenes that might need syncing with timeout
       const { data: allScenesData, error: allScenesError } = await supabase
         .from('storyboard_scenes')
         .select('*')
-        .neq('status', 'ready');
+        .neq('status', 'ready')
+        .limit(50); // Limit to prevent timeouts
 
-      if (allScenesError) throw allScenesError;
+      if (allScenesError) {
+        if (allScenesError.code === '57014') {
+          console.error('Scene sync query timed out');
+          return; // Silently fail for scenes sync
+        }
+        throw allScenesError;
+      }
 
       if (allScenesData && allScenesData.length > 0) {
-        // Get completed jobs
+        // Get completed jobs with timeout protection
         const { data: jobsData, error: jobsError } = await supabase
           .from('jobs')
           .select('id, outputs, type, status')
           .eq('user_id', user.id)
           .eq('status', 'completed')
-          .not('outputs', 'is', null);
+          .not('outputs', 'is', null)
+          .limit(100); // Limit to prevent timeouts
 
-        if (jobsError) throw jobsError;
+        if (jobsError) {
+          if (jobsError.code === '57014') {
+            console.error('Jobs sync query timed out');
+            return; // Silently fail for jobs sync
+          }
+          throw jobsError;
+        }
 
         let updatedCount = 0;
         
@@ -552,7 +566,30 @@ export default function Gallery() {
                 </div>
               </div>
 
-              {sortedJobs.length === 0 ? (
+              {loadError ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center py-20"
+                >
+                  <div className="glass border-destructive/30 rounded-lg p-12 max-w-md mx-auto">
+                    <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-foreground mb-2">Failed to Load Gallery</h3>
+                    <p className="text-muted-foreground mb-6">
+                      {loadError}
+                    </p>
+                    <div className="space-y-3">
+                      <Button onClick={retryLoadJobs} className="w-full">
+                        <Loader2 className="w-4 h-4 mr-2" />
+                        Retry Loading
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        If this persists, upgrade your database instance in Settings → Backend → Advanced settings
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : sortedJobs.length === 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
