@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import VideoThumbnailGrid from './VideoThumbnailGrid';
@@ -87,6 +88,108 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
     setMaterialSettings(undefined);
     setTransformSettings(undefined);
     setLightingSettings(undefined);
+  };
+
+  const handleExportEditedModel = async () => {
+    if (!job.outputs || !job.outputs[0]) {
+      toast({
+        title: "Export Failed",
+        description: "No model available to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "Exporting Model",
+        description: "Creating edited GLB file...",
+      });
+
+      const loader = new GLTFLoader();
+      
+      // Load the original model
+      const gltf = await new Promise<any>((resolve, reject) => {
+        loader.load(
+          job.outputs[0],
+          resolve,
+          undefined,
+          reject
+        );
+      });
+
+      const scene = gltf.scene.clone();
+
+      // Apply material settings if they exist
+      if (materialSettings) {
+        scene.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            if (child.material) {
+              const materials = Array.isArray(child.material) ? child.material : [child.material];
+              
+              materials.forEach((mat, idx) => {
+                if (mat instanceof THREE.MeshStandardMaterial) {
+                  mat.color = new THREE.Color(materialSettings.color);
+                  mat.metalness = materialSettings.metalness;
+                  mat.roughness = materialSettings.roughness;
+                  mat.envMapIntensity = materialSettings.envMapIntensity;
+                  mat.needsUpdate = true;
+                }
+              });
+            }
+          }
+        });
+      }
+
+      // Apply transform settings if they exist
+      if (transformSettings) {
+        scene.rotation.x = (transformSettings.rotationX * Math.PI) / 180;
+        scene.rotation.y = (transformSettings.rotationY * Math.PI) / 180;
+        scene.rotation.z = (transformSettings.rotationZ * Math.PI) / 180;
+        scene.scale.setScalar(transformSettings.scale);
+      }
+
+      // Export the modified scene as GLB
+      const exporter = new GLTFExporter();
+      
+      const glbData = await new Promise<ArrayBuffer>((resolve, reject) => {
+        exporter.parse(
+          scene,
+          (result) => {
+            if (result instanceof ArrayBuffer) {
+              resolve(result);
+            } else {
+              reject(new Error('Expected ArrayBuffer from exporter'));
+            }
+          },
+          (error) => reject(error),
+          { binary: true }
+        );
+      });
+
+      // Create download link
+      const blob = new Blob([glbData], { type: 'model/gltf-binary' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `edited-model-${job.id}.glb`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Complete",
+        description: "Edited model downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Failed",
+        description: error instanceof Error ? error.message : "Failed to export model",
+        variant: "destructive",
+      });
+    }
   };
 
   // Check if this is a multi-scene video
@@ -630,6 +733,8 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                         onTransformChange={handleModelTransformChange}
                         onLightingChange={handleModelLightingChange}
                         onReset={handleResetModelEditing}
+                        onExport={handleExportEditedModel}
+                        hasEdits={!!(materialSettings || transformSettings)}
                       />
                     </div>
                   )}

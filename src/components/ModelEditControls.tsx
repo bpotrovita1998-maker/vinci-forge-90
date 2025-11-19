@@ -5,7 +5,7 @@ import { Slider } from './ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { Card } from './ui/card';
-import { RotateCcw, Palette, Sun } from 'lucide-react';
+import { RotateCcw, Palette, Sun, Download } from 'lucide-react';
 
 export interface MaterialPreset {
   name: string;
@@ -33,6 +33,8 @@ interface ModelEditControlsProps {
   onTransformChange: (transform: TransformState) => void;
   onLightingChange: (lighting: LightingState) => void;
   onReset: () => void;
+  onExport?: () => void;
+  hasEdits?: boolean;
 }
 
 const MATERIAL_PRESETS: MaterialPreset[] = [
@@ -101,6 +103,8 @@ export default function ModelEditControls({
   onTransformChange,
   onLightingChange,
   onReset,
+  onExport,
+  hasEdits = false,
 }: ModelEditControlsProps) {
   const [selectedMaterial, setSelectedMaterial] = useState(MATERIAL_PRESETS[0]);
   const [transform, setTransform] = useState<TransformState>({
@@ -155,15 +159,28 @@ export default function ModelEditControls({
     <Card className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Model Editor</h3>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleReset}
-          className="gap-2"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Reset
-        </Button>
+        <div className="flex gap-2">
+          {onExport && hasEdits && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onExport}
+              className="gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Export GLB
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReset}
+            className="gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="material" className="w-full">
