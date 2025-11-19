@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors, Play, Cog } from 'lucide-react';
+import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors, Play, Cog, Maximize2, Minimize2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -63,6 +63,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   // Unity model editing state (for 3D models)
   const [unityTransform, setUnityTransform] = useState<any>();
   const [isSavingUnityTransform, setIsSavingUnityTransform] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Load saved Unity transform from job manifest
   useEffect(() => {
@@ -737,17 +738,39 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] glass border-border/30 p-0 flex flex-col">
+      <DialogContent className={`${isFullscreen ? 'max-w-none w-screen h-screen max-h-screen' : 'max-w-4xl max-h-[90vh]'} glass border-border/30 p-0 flex flex-col`}>
         <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            Output Preview
-            <Badge variant="outline" className="bg-primary text-primary-foreground border-none">
-              {job.options.type}
-            </Badge>
-          </DialogTitle>
-          <DialogDescription className="line-clamp-2">
-            {job.options.prompt}
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <DialogTitle className="flex items-center gap-2">
+                Output Preview
+                <Badge variant="outline" className="bg-primary text-primary-foreground border-none">
+                  {job.options.type}
+                </Badge>
+              </DialogTitle>
+              <DialogDescription className="line-clamp-2">
+                {job.options.prompt}
+              </DialogDescription>
+            </div>
+            <Button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              size="sm"
+              variant="ghost"
+              className="shrink-0 ml-4"
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4 mr-2" />
+                  Exit Fullscreen
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4 mr-2" />
+                  Fullscreen
+                </>
+              )}
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6">
@@ -767,7 +790,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                      }>
                        {job.options.type === '3d' ? (
                          // Unity-style viewer for 3D models
-                         <div className="h-[700px]">
+                         <div className={isFullscreen ? "h-[calc(100vh-280px)]" : "h-[700px]"}>
                            <UnityThreeDViewer 
                              modelUrl={job.outputs[0]}
                              transform={unityTransform}
