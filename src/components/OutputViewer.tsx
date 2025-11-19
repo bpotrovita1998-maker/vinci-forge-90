@@ -710,26 +710,28 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                          <p className="text-muted-foreground">Loading {job.options.type === 'cad' ? 'CAD' : '3D'} model...</p>
                        </div>
                      </div>
-                    }>
-                      {job.options.type === '3d' ? (
-                        // Unity-style viewer for 3D models
-                        <UnityThreeDViewer 
-                          modelUrl={job.outputs[0]}
-                          transform={unityTransform}
-                        />
-                      ) : (
-                        // CAD viewer for CAD models
-                        <ThreeDViewer 
-                          modelUrl={job.outputs[0]} 
-                          jobId={job.id} 
-                          userId={job.userId}
-                          materialSettings={materialSettings}
-                          transformSettings={transformSettings}
-                          lightingSettings={lightingSettings}
-                          isEditable={isEditMode}
-                        />
-                      )}
-                    </Suspense>
+                     }>
+                       {job.options.type === '3d' ? (
+                         // Unity-style viewer for 3D models
+                         <div className="h-[700px]">
+                           <UnityThreeDViewer 
+                             modelUrl={job.outputs[0]}
+                             transform={unityTransform}
+                           />
+                         </div>
+                       ) : (
+                         // CAD viewer for CAD models
+                         <ThreeDViewer 
+                           modelUrl={job.outputs[0]} 
+                           jobId={job.id} 
+                           userId={job.userId}
+                           materialSettings={materialSettings}
+                           transformSettings={transformSettings}
+                           lightingSettings={lightingSettings}
+                           isEditable={isEditMode}
+                         />
+                       )}
+                     </Suspense>
                   ) : (
                     <div className="w-full h-[500px] flex items-center justify-center">
                       <div className="text-center text-muted-foreground">
