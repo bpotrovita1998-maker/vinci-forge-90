@@ -60,5 +60,8 @@ verify_jwt = false
 [functions.migrate-cad-models]
 verify_jwt = false
 
+[functions.regenerate-expired-images]
+verify_jwt = true
+
 
 
