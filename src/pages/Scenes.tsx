@@ -121,13 +121,11 @@ export default function Scenes() {
   const [stitchedPlaylists, setStitchedPlaylists] = useState<Array<{
     id: string;
     manifestUrl: string;
-    movieUrl?: string;
     sceneCount: number;
     totalDuration: number;
     createdAt: string;
   }>>([]);
   const [isStitching, setIsStitching] = useState(false);
-  const [isCreatingMovie, setIsCreatingMovie] = useState(false);
   const saveTimeoutRef = useRef<number | null>(null);
   const saveQueuedRef = useRef<boolean>(false);
   const saveQueuedToastRef = useRef<boolean>(false);
@@ -1259,72 +1257,6 @@ export default function Scenes() {
     }
   };
 
-  const createMovie = async () => {
-    if (!user) return;
-
-    const videoScenes = scenes.filter(s => s.status === 'ready' && s.videoUrl);
-    
-    if (videoScenes.length < 1) {
-      toast({
-        title: "No Videos",
-        description: "Add at least one video scene to create a movie",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsCreatingMovie(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('create-movie', {
-        body: {
-          scenes: videoScenes.map((scene, index) => ({
-            videoUrl: scene.videoUrl!,
-            duration: scene.duration,
-            order: index
-          })),
-          storyboardId: currentStoryboard?.id || crypto.randomUUID(),
-          userId: user.id
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.success && data.movieUrl) {
-        // Update the first playlist with the movie URL, or create new one
-        if (stitchedPlaylists.length > 0) {
-          setStitchedPlaylists(prev => prev.map((p, idx) => 
-            idx === 0 ? { ...p, movieUrl: data.movieUrl } : p
-          ));
-        } else {
-          // Create a new playlist entry with the movie
-          const newPlaylist = {
-            id: crypto.randomUUID(),
-            manifestUrl: '', // No manifest needed for direct movie
-            movieUrl: data.movieUrl,
-            sceneCount: data.sceneCount,
-            totalDuration: data.duration,
-            createdAt: new Date().toISOString()
-          };
-          setStitchedPlaylists([newPlaylist]);
-        }
-
-        toast({
-          title: "Movie Created!",
-          description: `Combined ${data.sceneCount} scenes into a ${data.duration}s movie`,
-        });
-      }
-    } catch (error) {
-      console.error('Error creating movie:', error);
-      toast({
-        title: "Movie Creation Failed",
-        description: error instanceof Error ? error.message : "Failed to create movie",
-        variant: "destructive"
-      });
-    } finally {
-      setIsCreatingMovie(false);
-    }
-  };
-
   const editSceneImage = async () => {
     if (!editingScene || !editingScene.imageUrl || !editPrompt.trim()) {
       toast({
@@ -1980,44 +1912,23 @@ export default function Scenes() {
                       {stitchedPlaylists.length} Playlist{stitchedPlaylists.length !== 1 ? 's' : ''}
                     </Badge>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={createMovie}
-                      disabled={isCreatingMovie || scenes.filter(s => s.status === 'ready' && s.videoUrl).length < 1}
-                      className="gap-2"
-                      variant="default"
-                    >
-                      {isCreatingMovie ? (
-                        <>
-                          <Sparkles className="w-4 h-4 animate-spin" />
-                          Creating Movie...
-                        </>
-                      ) : (
-                        <>
-                          <Film className="w-4 h-4" />
-                          Create Movie
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={stitchVideos}
-                      disabled={isStitching || scenes.filter(s => s.status === 'ready' && s.videoUrl).length < 1}
-                      className="gap-2"
-                      variant="outline"
-                    >
-                      {isStitching ? (
-                        <>
-                          <Sparkles className="w-4 h-4 animate-spin" />
-                          Creating Playlist...
-                        </>
-                      ) : (
-                        <>
-                          <Video className="w-4 h-4" />
-                          Create Playlist
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={stitchVideos}
+                    disabled={isStitching || scenes.filter(s => s.status === 'ready' && s.videoUrl).length < 1}
+                    className="gap-2"
+                  >
+                    {isStitching ? (
+                      <>
+                        <Sparkles className="w-4 h-4 animate-spin" />
+                        Creating Playlist...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="w-4 h-4" />
+                        Create Playlist
+                      </>
+                    )}
+                  </Button>
                 </div>
 
                 {/* Playlists Grid */}
@@ -2066,19 +1977,12 @@ export default function Scenes() {
                                     size="sm"
                                     className="gap-2"
                                     onClick={() => {
-                                      if (playlist.movieUrl) {
-                                        // Open movie directly
-                                        const movieUrl = `/movie?video=${encodeURIComponent(playlist.movieUrl)}`;
-                                        window.open(movieUrl, '_blank', 'noopener,noreferrer');
-                                      } else if (playlist.manifestUrl) {
-                                        // Open playlist viewer
-                                        const movieUrl = `/movie?manifest=${encodeURIComponent(playlist.manifestUrl)}`;
-                                        window.open(movieUrl, '_blank', 'noopener,noreferrer');
-                                      }
+                                      const movieUrl = `/movie?manifest=${encodeURIComponent(playlist.manifestUrl)}`;
+                                      window.open(movieUrl, '_blank', 'noopener,noreferrer');
                                     }}
                                   >
                                     <Film className="w-4 h-4" />
-                                    {playlist.movieUrl ? 'Watch Movie' : 'Play Scenes'}
+                                    Movie
                                   </Button>
                                   <Button
                                     variant="ghost"
