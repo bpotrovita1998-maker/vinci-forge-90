@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Stage, PresentationControls } from '@react-three/drei';
+import { OrbitControls, useGLTF, PresentationControls, Environment } from '@react-three/drei';
 import { Suspense, useState, Component, ReactNode, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -166,11 +166,12 @@ export default function ThreeDViewer({ modelUrl, jobId, userId }: ThreeDViewerPr
       >
         <Suspense fallback={null}>
           <ModelErrorBoundary onError={handleLoadError}>
-            {/* Add proper lighting */}
-            <ambientLight intensity={0.5} />
-            <directionalLight position={[10, 10, 5]} intensity={1} />
-            <directionalLight position={[-10, -10, -5]} intensity={0.5} />
-            <pointLight position={[0, 10, 0]} intensity={0.3} />
+            {/* Environment map for realistic material rendering */}
+            <Environment preset="studio" />
+            
+            {/* Supplementary lighting */}
+            <ambientLight intensity={0.3} />
+            <directionalLight position={[5, 5, 5]} intensity={0.5} />
             
             <PresentationControls
               speed={1.5}
