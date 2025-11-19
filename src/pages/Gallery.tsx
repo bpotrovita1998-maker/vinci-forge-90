@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OutputViewer from '@/components/OutputViewer';
 import ThreeDThumbnail from '@/components/ThreeDThumbnail';
-import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2, AlertCircle } from 'lucide-react';
+import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Job } from '@/types/job';
@@ -57,6 +57,12 @@ export default function Gallery() {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [thumbnailRefreshKey, setThumbnailRefreshKey] = useState(0);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerationStatus, setRegenerationStatus] = useState<{
+    total: number;
+    completed: number;
+    expiredCount: number;
+  } | null>(null);
   
   
   // Infinite scroll sentinel ref
@@ -357,6 +363,82 @@ export default function Gallery() {
     }
   };
 
+  const handleBulkRegenerate = async () => {
+    if (!user) return;
+    
+    setIsRegenerating(true);
+    setRegenerationStatus(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('regenerate-expired-images', {
+        body: {}
+      });
+
+      if (error) throw error;
+
+      if (data.expiredCount === 0) {
+        toast.success('No expired images found!');
+        setIsRegenerating(false);
+        return;
+      }
+
+      toast.success(`Regenerating ${data.expiredCount} expired image${data.expiredCount > 1 ? 's' : ''}...`);
+      
+      setRegenerationStatus({
+        total: data.expiredCount,
+        completed: 0,
+        expiredCount: data.expiredCount
+      });
+
+      // Set up realtime listener to track progress
+      const channel = supabase
+        .channel('job-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'jobs',
+            filter: `id=in.(${data.jobIds.join(',')})`,
+          },
+          (payload) => {
+            const job = payload.new as Job;
+            if (job.status === 'completed' || job.status === 'failed') {
+              setRegenerationStatus(prev => {
+                if (!prev) return null;
+                const newCompleted = prev.completed + 1;
+                
+                if (newCompleted >= prev.total) {
+                  toast.success('All images regenerated successfully!');
+                  setIsRegenerating(false);
+                  // Refresh the gallery
+                  setTimeout(() => window.location.reload(), 1000);
+                }
+                
+                return {
+                  ...prev,
+                  completed: newCompleted
+                };
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      // Cleanup subscription after completion or timeout
+      setTimeout(() => {
+        channel.unsubscribe();
+        setIsRegenerating(false);
+      }, 300000); // 5 minutes timeout
+
+    } catch (error) {
+      console.error('Regeneration failed:', error);
+      toast.error('Failed to start regeneration');
+      setIsRegenerating(false);
+      setRegenerationStatus(null);
+    }
+  };
+
   const getTypeIcon = (type: JobType) => {
     switch (type) {
       case 'image': return <ImageIcon className="w-4 h-4" />;
@@ -391,6 +473,56 @@ export default function Gallery() {
 
           <div className="mb-6 space-y-4">
             <StorageUsage />
+            
+            {/* Bulk Regeneration Button */}
+            <Card className="glass border-border/30 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-foreground mb-1">Expired Images</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Regenerate all images with expired temporary URLs
+                  </p>
+                </div>
+                <Button
+                  onClick={handleBulkRegenerate}
+                  disabled={isRegenerating}
+                  className="gap-2"
+                >
+                  {isRegenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Regenerating...
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="w-4 h-4" />
+                      Fix Expired Images
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              {regenerationStatus && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                    <span>
+                      Progress: {regenerationStatus.completed} / {regenerationStatus.total}
+                    </span>
+                    <span>
+                      {Math.round((regenerationStatus.completed / regenerationStatus.total) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted/20 rounded-full h-2">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${(regenerationStatus.completed / regenerationStatus.total) * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </Card>
           </div>
 
           <Tabs value={galleryMode} onValueChange={(v) => setGalleryMode(v as 'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes')} className="space-y-6">
