@@ -1,5 +1,5 @@
 import { Canvas, useThree } from '@react-three/fiber';
-import { useGLTF, Stage, PresentationControls } from '@react-three/drei';
+import { useGLTF, PresentationControls, Environment } from '@react-three/drei';
 import { Suspense, Component, ReactNode, useState, useEffect, useRef } from 'react';
 import { Package, Loader2 } from 'lucide-react';
 import { posterCache, getPosterCacheKey } from '@/lib/posterCache';
@@ -260,11 +260,12 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId }: ThreeDThumb
       >
         <Suspense fallback={null}>
           <ModelErrorBoundary onError={handleModelError}>
-            {/* Add proper lighting */}
-            <ambientLight intensity={0.5} />
-            <directionalLight position={[10, 10, 5]} intensity={1} />
-            <directionalLight position={[-10, -10, -5]} intensity={0.5} />
-            <pointLight position={[0, 10, 0]} intensity={0.3} />
+            {/* Environment map for realistic material rendering */}
+            <Environment preset="studio" />
+            
+            {/* Supplementary lighting */}
+            <ambientLight intensity={0.3} />
+            <directionalLight position={[5, 5, 5]} intensity={0.5} />
             
             <PresentationControls
               speed={1.5}
