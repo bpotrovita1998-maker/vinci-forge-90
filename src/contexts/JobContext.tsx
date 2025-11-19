@@ -28,6 +28,8 @@ interface JobContextType {
   loadMoreJobs: () => Promise<void>;
   hasMoreJobs: boolean;
   isLoadingMore: boolean;
+  loadError: string | null;
+  retryLoadJobs: () => void;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -41,7 +43,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [hasMoreJobs, setHasMoreJobs] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const JOBS_PER_PAGE = 100;
+  const JOBS_PER_PAGE = 20; // Reduced from 100 for faster queries
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -286,96 +291,122 @@ export function JobProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const loadJobs = async (reset = false) => {
+    const loadJobs = async (reset = false, retryAttempt = 0) => {
       const offset = reset ? 0 : currentPage * JOBS_PER_PAGE;
       
-      // Load jobs with pagination - using 'planned' count for better performance
-      const { data, error, count } = await supabase
-        .from('jobs')
-        .select('*', { count: 'planned' })
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + JOBS_PER_PAGE - 1);
-
-      if (error) {
-        console.error('Failed to load jobs:', error);
+      try {
+        setLoadError(null);
         
-        // Handle specific timeout errors
-        if (error.code === '57014') {
-          toast.error('Database query timed out. Please refresh the page - we\'ve optimized the query for next time.');
-        } else {
-          toast.error('Failed to load job history');
-        }
-        return;
-      }
+        // Load jobs with pagination - reduced page size for faster queries
+        const { data, error, count } = await supabase
+          .from('jobs')
+          .select('*', { count: 'exact' })
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(JOBS_PER_PAGE)
+          .range(offset, offset + JOBS_PER_PAGE - 1);
 
-      if (data) {
-        const jobsWithDates: Job[] = data.map((dbJob: any) => ({
-          id: dbJob.id,
-          options: {
-            prompt: dbJob.prompt,
-            negativePrompt: dbJob.negative_prompt,
-            type: dbJob.type,
-            width: dbJob.width,
-            height: dbJob.height,
-            duration: dbJob.duration,
-            fps: dbJob.fps,
-            videoMode: dbJob.video_mode,
-            threeDMode: dbJob.three_d_mode,
-            seed: dbJob.seed,
-            steps: dbJob.steps,
-            cfgScale: dbJob.cfg_scale,
-            numImages: dbJob.num_images,
-          },
-          status: dbJob.status,
-          progress: {
-            stage: dbJob.progress_stage,
-            progress: dbJob.progress_percent,
-            currentStep: dbJob.current_step,
-            totalSteps: dbJob.total_steps,
-            eta: dbJob.eta,
-            message: dbJob.progress_message || '',
-          },
-          outputs: dbJob.outputs as string[],
-          manifest: dbJob.manifest,
-          createdAt: new Date(dbJob.created_at),
-          startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
-          completedAt: dbJob.completed_at ? new Date(dbJob.completed_at) : undefined,
-          error: dbJob.error,
-        }));
-        
-        if (reset) {
-          // When resetting, preserve any jobs that were just created locally
-          // but might not be in the fetched results yet
-          setJobs(prev => {
-            // Find jobs in prev that are very recent (< 5 seconds old) and not in fetched data
-            const now = Date.now();
-            const recentLocalJobs = prev.filter(job => {
-              const jobAge = now - job.createdAt.getTime();
-              const isVeryRecent = jobAge < 5000; // Less than 5 seconds old
-              const notInFetchedData = !jobsWithDates.some(fetchedJob => fetchedJob.id === job.id);
-              return isVeryRecent && notInFetchedData;
+        if (error) {
+          console.error('Failed to load jobs:', error);
+          
+          // Handle timeout errors with retry
+          if (error.code === '57014' && retryAttempt < MAX_RETRIES) {
+            console.log(`Query timeout, retrying... (${retryAttempt + 1}/${MAX_RETRIES})`);
+            setRetryCount(retryAttempt + 1);
+            
+            // Exponential backoff: 2s, 4s, 8s
+            const delay = 2000 * Math.pow(2, retryAttempt);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            return loadJobs(reset, retryAttempt + 1);
+          } else if (error.code === '57014') {
+            setLoadError('Database query timed out. Your database instance may need an upgrade for better performance.');
+            toast.error('Failed to load gallery. Database timeout - please upgrade your instance size.', {
+              duration: 5000,
             });
-            
-            if (recentLocalJobs.length > 0) {
-              console.log('Preserving', recentLocalJobs.length, 'recent local jobs during reload');
-              return [...recentLocalJobs, ...jobsWithDates];
-            }
-            
-            return jobsWithDates;
-          });
-          setCurrentPage(1);
-        } else {
-          setJobs(prev => [...prev, ...jobsWithDates]);
+          } else {
+            setLoadError('Failed to load job history');
+            toast.error('Failed to load job history');
+          }
+          return;
         }
-        
-        // Check if there are more jobs to load
-        const totalJobs = count || 0;
-        const loadedJobs = reset ? jobsWithDates.length : jobs.length + jobsWithDates.length;
-        setHasMoreJobs(loadedJobs < totalJobs);
 
-        // Check for timed out jobs immediately after loading
-        await checkAndTimeoutJobs(jobsWithDates);
+        if (data) {
+          const jobsWithDates: Job[] = data.map((dbJob: any) => ({
+            id: dbJob.id,
+            options: {
+              prompt: dbJob.prompt,
+              negativePrompt: dbJob.negative_prompt,
+              type: dbJob.type,
+              width: dbJob.width,
+              height: dbJob.height,
+              duration: dbJob.duration,
+              fps: dbJob.fps,
+              videoMode: dbJob.video_mode,
+              threeDMode: dbJob.three_d_mode,
+              seed: dbJob.seed,
+              steps: dbJob.steps,
+              cfgScale: dbJob.cfg_scale,
+              numImages: dbJob.num_images,
+            },
+            status: dbJob.status,
+            progress: {
+              stage: dbJob.progress_stage,
+              progress: dbJob.progress_percent,
+              currentStep: dbJob.current_step,
+              totalSteps: dbJob.total_steps,
+              eta: dbJob.eta,
+              message: dbJob.progress_message || '',
+            },
+            outputs: dbJob.outputs as string[],
+            manifest: dbJob.manifest,
+            createdAt: new Date(dbJob.created_at),
+            startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
+            completedAt: dbJob.completed_at ? new Date(dbJob.completed_at) : undefined,
+            error: dbJob.error,
+            userId: dbJob.user_id,
+          }));
+          
+          if (reset) {
+            // When resetting, preserve any jobs that were just created locally
+            // but might not be in the fetched results yet
+            setJobs(prev => {
+              // Find jobs in prev that are very recent (< 5 seconds old) and not in fetched data
+              const now = Date.now();
+              const recentLocalJobs = prev.filter(job => {
+                const jobAge = now - job.createdAt.getTime();
+                const isVeryRecent = jobAge < 5000; // Less than 5 seconds old
+                const notInFetchedData = !jobsWithDates.some(fetchedJob => fetchedJob.id === job.id);
+                return isVeryRecent && notInFetchedData;
+              });
+              
+              if (recentLocalJobs.length > 0) {
+                console.log('Preserving', recentLocalJobs.length, 'recent local jobs during reload');
+                return [...recentLocalJobs, ...jobsWithDates];
+              }
+              
+              return jobsWithDates;
+            });
+            setCurrentPage(1);
+          } else {
+            setJobs(prev => [...prev, ...jobsWithDates]);
+          }
+          
+          // Check if there are more jobs to load
+          const totalJobs = count || 0;
+          const loadedJobs = reset ? jobsWithDates.length : jobs.length + jobsWithDates.length;
+          setHasMoreJobs(loadedJobs < totalJobs);
+
+          // Check for timed out jobs immediately after loading
+          await checkAndTimeoutJobs(jobsWithDates);
+          
+          // Reset retry count on success
+          setRetryCount(0);
+        }
+      } catch (err) {
+        console.error('Unexpected error loading jobs:', err);
+        setLoadError('An unexpected error occurred');
+        toast.error('Failed to load gallery');
       }
     };
 
@@ -785,6 +816,14 @@ export function JobProvider({ children }: { children: ReactNode }) {
       loadMoreJobs,
       hasMoreJobs,
       isLoadingMore,
+      loadError,
+      retryLoadJobs: () => {
+        // This will be implemented inside the effect
+        setJobs([]);
+        setCurrentPage(0);
+        setLoadError(null);
+        setRetryCount(0);
+      },
     }}>
       {children}
     </JobContext.Provider>
