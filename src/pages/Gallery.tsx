@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useJobs } from '@/contexts/JobContext';
 import { JobType } from '@/types/job';
 import { Card } from '@/components/ui/card';
@@ -59,6 +59,9 @@ export default function Gallery() {
   const [thumbnailRefreshKey, setThumbnailRefreshKey] = useState(0);
   const [isMigrating, setIsMigrating] = useState(false);
   
+  // Infinite scroll sentinel ref
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  
   // Helper function to get the display video URL (stitched if available, otherwise first)
   const getDisplayVideoUrl = (job: Job): string => {
     const manifest = job.manifest as any;
@@ -79,6 +82,33 @@ export default function Gallery() {
   const [selectedScene, setSelectedScene] = useState<SceneItem | null>(null);
   const [sceneTypeFilter, setSceneTypeFilter] = useState<'all' | 'image' | 'video'>('all');
   const [storyboards, setStoryboards] = useState<Array<{id: string, title: string}>>([]);
+
+  // Infinite scroll - load more when sentinel comes into view
+  const handleInfiniteScroll = useCallback((entries: IntersectionObserverEntry[]) => {
+    const [entry] = entries;
+    if (entry.isIntersecting && hasMoreJobs && !isLoadingMore) {
+      loadMoreJobs();
+    }
+  }, [hasMoreJobs, isLoadingMore, loadMoreJobs]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(handleInfiniteScroll, {
+      root: null,
+      rootMargin: '100px', // Trigger 100px before reaching the sentinel
+      threshold: 0.1,
+    });
+
+    const currentSentinel = sentinelRef.current;
+    if (currentSentinel) {
+      observer.observe(currentSentinel);
+    }
+
+    return () => {
+      if (currentSentinel) {
+        observer.unobserve(currentSentinel);
+      }
+    };
+  }, [handleInfiniteScroll]);
 
   const completedJobs = jobs.filter(job => job.status === 'completed' && job.outputs.length > 0);
 
@@ -733,30 +763,16 @@ export default function Gallery() {
                 </motion.div>
               )}
 
-              {/* Pagination Controls */}
+              {/* Infinite scroll sentinel */}
               {sortedJobs.length > 0 && hasMoreJobs && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex justify-center mt-8"
-                >
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={loadMoreJobs}
-                    disabled={isLoadingMore}
-                    className="glass border-border/30 hover:border-primary/50 gap-2"
-                  >
-                    {isLoadingMore ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      `Load More (${sortedJobs.length} shown)`
-                    )}
-                  </Button>
-                </motion.div>
+                <div ref={sentinelRef} className="flex justify-center py-8">
+                  {isLoadingMore && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Loading more...</span>
+                    </div>
+                  )}
+                </div>
               )}
             </TabsContent>
 
@@ -928,30 +944,16 @@ export default function Gallery() {
                     </motion.div>
                   )}
 
-                  {/* Pagination Controls for type-specific tabs */}
+                  {/* Infinite scroll sentinel for type-specific tabs */}
                   {filteredTypeJobs.length > 0 && hasMoreJobs && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex justify-center mt-8"
-                    >
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={loadMoreJobs}
-                        disabled={isLoadingMore}
-                        className="glass border-border/30 hover:border-primary/50 gap-2"
-                      >
-                        {isLoadingMore ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Loading...
-                          </>
-                        ) : (
-                          `Load More (${filteredTypeJobs.length} shown)`
-                        )}
-                      </Button>
-                    </motion.div>
+                    <div ref={sentinelRef} className="flex justify-center py-8">
+                      {isLoadingMore && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Loading more...</span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </TabsContent>
               );
