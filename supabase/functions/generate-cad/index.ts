@@ -216,18 +216,35 @@ serve(async (req) => {
         console.log('Prediction status:', (prediction as any).status);
         
         // Update progress based on prediction status
-        if (jobId && (prediction as any).status === 'processing') {
-          try {
-            await supabase
-              .from('jobs')
-              .update({
-                status: 'upscaling',
-                progress_stage: 'upscaling',
-                progress_message: 'Generating CAD-quality mesh...'
-              })
-              .eq('id', jobId);
-          } catch (dbErr) {
-            console.error('Non-fatal: failed to update processing status:', dbErr);
+        if (jobId) {
+          const predStatus = (prediction as any).status;
+          let updateData: any = null;
+          
+          if (predStatus === 'starting') {
+            updateData = {
+              status: 'running',
+              progress_stage: 'running',
+              progress_percent: 10,
+              progress_message: 'Starting CAD generation pipeline...'
+            };
+          } else if (predStatus === 'processing') {
+            updateData = {
+              status: 'running',
+              progress_stage: 'running',
+              progress_percent: 50,
+              progress_message: 'AI model processing 3D geometry...'
+            };
+          }
+          
+          if (updateData) {
+            try {
+              await supabase
+                .from('jobs')
+                .update(updateData)
+                .eq('id', jobId);
+            } catch (dbErr) {
+              console.error('Non-fatal: failed to update processing status:', dbErr);
+            }
           }
         }
         
@@ -389,6 +406,22 @@ serve(async (req) => {
 
         // Update job as completed with permanent URL
         if (finalUrl && jobId) {
+          // First update to show mesh generation is happening
+          try {
+            await supabase
+              .from('jobs')
+              .update({
+                status: 'upscaling',
+                progress_stage: 'upscaling',
+                progress_percent: 90,
+                progress_message: 'Generating CAD-quality mesh...'
+              })
+              .eq('id', jobId);
+          } catch (dbErr) {
+            console.error('Non-fatal: failed to update mesh generation status:', dbErr);
+          }
+          
+          // Then update to completed
           const { data: updatedJob, error: updateError } = await supabase
             .from('jobs')
             .update({
@@ -524,10 +557,10 @@ serve(async (req) => {
           await supabase
             .from('jobs')
             .update({
-              status: 'processing',
-              progress_stage: 'processing',
-              progress_percent: 0,
-              progress_message: 'CAD prediction submitted, waiting to start...',
+              status: 'queued',
+              progress_stage: 'queued',
+              progress_percent: 5,
+              progress_message: 'CAD prediction queued, waiting to start...',
               manifest: {
                 prompt: prompt || 'Image-based CAD generation',
                 predictionId: (prediction as any).id,
