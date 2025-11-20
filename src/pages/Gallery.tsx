@@ -67,7 +67,7 @@ export default function Gallery() {
   
   // Client-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 20;
+  const ITEMS_PER_PAGE = 15;
   
   
   // Scenes state
