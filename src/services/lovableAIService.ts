@@ -129,30 +129,40 @@ class LovableAIService {
     console.log('LovableAI: Starting async 3D generation for', jobId);
 
     try {
-      // Step 1: Generate a reference image first
-      this.updateJobStage(jobId, 'running', 'Generating reference image...');
-      
-      const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
-        body: {
-          prompt: `${job.options.prompt}. Clean white background, professional product shot, centered object, high detail.`,
-          width: job.options.width,
-          height: job.options.height,
-          numImages: 1,
+      let inputImage: string;
+
+      // Check if user provided an input image
+      if (job.options.imageUrl) {
+        console.log('LovableAI: Using provided image for 3D generation');
+        this.updateJobStage(jobId, 'running', 'Processing uploaded image...');
+        inputImage = job.options.imageUrl;
+      } else {
+        // Step 1: Generate a reference image first
+        this.updateJobStage(jobId, 'running', 'Generating reference image...');
+        
+        const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
+          body: {
+            prompt: `${job.options.prompt}. Clean white background, professional product shot, centered object, high detail.`,
+            width: job.options.width,
+            height: job.options.height,
+            numImages: 1,
+          }
+        });
+
+        if (imageError || !imageData?.images?.[0]) {
+          throw new Error('Failed to generate reference image');
         }
-      });
 
-      if (imageError || !imageData?.images?.[0]) {
-        throw new Error('Failed to generate reference image');
+        console.log('LovableAI: Reference image generated');
+        inputImage = imageData.images[0];
       }
-
-      console.log('LovableAI: Reference image generated, starting async 3D conversion');
       
       // Step 2: Start async 3D generation (returns prediction ID)
       this.updateJobStage(jobId, 'upscaling', 'Starting 3D generation...');
       
       const { data: threeDData, error: threeDError } = await supabase.functions.invoke('generate-3d', {
         body: {
-          inputImage: imageData.images[0],
+          inputImage: inputImage,
           seed: job.options.seed,
           jobId: jobId,
         }
@@ -299,30 +309,40 @@ class LovableAIService {
     console.log('LovableAI: Generating CAD model for', jobId);
 
     try {
-      // Step 1: Generate a reference image with CAD-optimized prompt
-      this.updateJobStage(jobId, 'running', 'Generating CAD reference image...');
-      
-      const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
-        body: {
-          prompt: `${job.options.prompt}. Engineering CAD model, technical drawing, isometric view, precise geometry, professional industrial design, clean edges, symmetrical, suitable for manufacturing.`,
-          width: job.options.width,
-          height: job.options.height,
-          numImages: 1,
+      let inputImage: string;
+
+      // Check if user provided an input image
+      if (job.options.imageUrl) {
+        console.log('LovableAI: Using provided image for CAD generation');
+        this.updateJobStage(jobId, 'running', 'Processing uploaded image for CAD...');
+        inputImage = job.options.imageUrl;
+      } else {
+        // Step 1: Generate a reference image with CAD-optimized prompt
+        this.updateJobStage(jobId, 'running', 'Generating CAD reference image...');
+        
+        const { data: imageData, error: imageError } = await supabase.functions.invoke('generate-image', {
+          body: {
+            prompt: `${job.options.prompt}. Engineering CAD model, technical drawing, isometric view, precise geometry, professional industrial design, clean edges, symmetrical, suitable for manufacturing.`,
+            width: job.options.width,
+            height: job.options.height,
+            numImages: 1,
+          }
+        });
+
+        if (imageError || !imageData?.images?.[0]) {
+          throw new Error('Failed to generate CAD reference image');
         }
-      });
 
-      if (imageError || !imageData?.images?.[0]) {
-        throw new Error('Failed to generate CAD reference image');
+        console.log('LovableAI: CAD reference image generated');
+        inputImage = imageData.images[0];
       }
-
-      console.log('LovableAI: CAD reference image generated, converting to 3D mesh');
       
       // Step 2: Convert to high-quality CAD mesh
       this.updateJobStage(jobId, 'upscaling', 'Generating CAD-quality mesh...');
       
       const { data: cadData, error: cadError } = await supabase.functions.invoke('generate-cad', {
         body: {
-          inputImage: imageData.images[0],
+          inputImage: inputImage,
           seed: job.options.seed,
           jobId: jobId,
           prompt: job.options.prompt,

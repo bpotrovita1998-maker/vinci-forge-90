@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video, Box, Cuboid } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X } from 'lucide-react';
 import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -69,6 +69,9 @@ export default function Hero() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showEnhancer, setShowEnhancer] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [options, setOptions] = useState<Partial<GenerationOptions>>({
     type: 'image',
@@ -85,10 +88,66 @@ export default function Hero() {
     upscaleQuality: 4, // Default to 4x balanced quality
   });
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload an image file (JPG, PNG, WebP)',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload an image smaller than 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setImageFile(file);
+
+    // Convert to data URL for preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setUploadedImage(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    toast({
+      title: 'Image uploaded',
+      description: 'Your image will be used as input for generation',
+    });
+  };
+
+  const handleRemoveImage = () => {
+    setUploadedImage(null);
+    setImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleGenerate = async () => {
     try {
-      // Validate prompt
-      promptSchema.parse(prompt);
+      // Validate prompt (allow empty if image is uploaded)
+      if (!uploadedImage) {
+        promptSchema.parse(prompt);
+      } else if (prompt.trim().length === 0) {
+        toast({
+          title: 'Add a description',
+          description: 'Please describe what you want to generate from this image',
+          variant: 'destructive',
+        });
+        return;
+      }
       
       // PRO gating and free image guard before hitting backend
       const isPro = isAdmin || subscription?.status === 'active';
@@ -127,6 +186,7 @@ export default function Hero() {
         upscaleVideo: options.upscaleVideo,
         videoMode: options.videoMode,
         upscaleQuality: options.upscaleQuality,
+        imageUrl: uploadedImage || undefined, // Include uploaded image if available
       };
 
       const jobId = await submitJob(fullOptions);
@@ -136,8 +196,9 @@ export default function Hero() {
         description: `Job ${jobId.slice(0, 8)}... has been queued for processing.`,
       });
 
-      // Clear prompt after successful submission
+      // Clear prompt and image after successful submission
       setPrompt('');
+      handleRemoveImage();
       
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -204,10 +265,31 @@ export default function Hero() {
         >
           <div className="glass rounded-2xl p-6 space-y-4 shadow-[0_0_40px_rgba(201,169,97,0.15)]">
             <div className="space-y-2">
+              {/* Image Upload Preview */}
+              {uploadedImage && (
+                <div className="relative inline-block mb-2">
+                  <img 
+                    src={uploadedImage} 
+                    alt="Uploaded reference" 
+                    className="h-24 w-24 object-cover rounded-lg border-2 border-primary/30"
+                  />
+                  <button
+                    onClick={handleRemoveImage}
+                    className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 transition-colors"
+                    aria-label="Remove image"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe what you want to create... (e.g., 'A majestic dragon flying over snow-capped mountains at dawn')"
+                placeholder={uploadedImage 
+                  ? "Describe what you want to generate from this image..." 
+                  : "Describe what you want to create... (e.g., 'A majestic dragon flying over snow-capped mountains at dawn')"
+                }
                 className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && prompt.trim()) {
@@ -215,6 +297,34 @@ export default function Hero() {
                   }
                 }}
               />
+              
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-2"
+                >
+                  <Paperclip className="w-4 h-4" />
+                  {uploadedImage ? 'Change Image' : 'Add Image'}
+                </Button>
+                {uploadedImage && (
+                  <span className="text-xs text-muted-foreground">
+                    Image will be used as input for generation
+                  </span>
+                )}
+              </div>
+              
               <p className="text-xs text-muted-foreground">
                 💡 <span className="font-medium">Tip:</span> Describe visual scenes (nouns, adjectives, settings). Avoid questions or instructions.
                 <br />
@@ -227,7 +337,7 @@ export default function Hero() {
               <Button
                 size="lg"
                 onClick={handleGenerate}
-                disabled={!prompt.trim() || isGenerating}
+                disabled={(!prompt.trim() && !uploadedImage) || isGenerating}
                 className="w-full bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
               >
                 <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
