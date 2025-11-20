@@ -4,19 +4,23 @@ import { z } from 'zod';
  * Sanitizes user input to prevent XSS and injection attacks
  */
 export class InputSanitizer {
-  // Patterns that indicate potential attacks
+  // Patterns that indicate ACTUAL code injection attacks (very specific)
   private static readonly DANGEROUS_PATTERNS = [
-    // SQL injection patterns (only in combined suspicious context)
-    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b).*(\b(FROM|WHERE|TABLE|DATABASE)\b)/gi,
+    // XSS - actual script tags and executable code
+    /<script[^>]*>[\s\S]*?<\/script>/gi,
+    /<iframe[^>]*>[\s\S]*?<\/iframe>/gi,
+    /javascript:\s*void\s*\(|javascript:\s*alert\s*\(|javascript:\s*eval\s*\(/gi,
     
-    // XSS patterns
-    /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
-    /<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi,
-    /javascript:\s*[^;\s]/gi,
-    /on\w+\s*=\s*["'][^"']*["']/gi, // Event handlers like onclick=
-    /<img[\s\S]*?on\w+\s*=[\s\S]*?>/gi,
-    /eval\s*\(\s*["'`]/gi,
-    /expression\s*\(/gi,
+    // Event handlers in HTML context only
+    /<[^>]+on(load|error|click|mouse|key)\s*=\s*["'][^"']*["'][^>]*>/gi,
+    
+    // Direct code execution attempts
+    /eval\s*\(\s*["'`]|Function\s*\(\s*["'`]/gi,
+    
+    // SQL injection - ONLY when clear SQL syntax with semicolons or unions
+    /;\s*(DROP|DELETE|INSERT|UPDATE|ALTER)\s+(TABLE|DATABASE|FROM)/gi,
+    /UNION\s+SELECT|UNION\s+ALL\s+SELECT/gi,
+    /--\s*$|\/\*[\s\S]*?\*\//gm, // SQL comments used in injection
   ];
 
   /**
@@ -58,26 +62,15 @@ export class InputSanitizer {
       return { sanitized: '', isValid: false, reason: 'Prompt is too long (max 8000 characters)' };
     }
 
-    // Check for dangerous patterns
+    // Check for dangerous patterns (ONLY actual code injection)
     for (const pattern of this.DANGEROUS_PATTERNS) {
       if (pattern.test(trimmed)) {
         return { 
           sanitized: '', 
           isValid: false, 
-          reason: 'Prompt contains potentially harmful code. Please use descriptive text only.' 
+          reason: 'Prompt contains potentially harmful code injection. Please remove script tags, SQL injection syntax, or JavaScript execution attempts.' 
         };
       }
-    }
-
-    // Check for excessive special characters (potential obfuscation) - more lenient for technical prompts
-    const specialCharCount = (trimmed.match(/[^a-zA-Z0-9\s.,!?'\-()[\]{}:;#@%&*/+=<>]/g) || []).length;
-    const ratio = specialCharCount / trimmed.length;
-    if (ratio > 0.5) {
-      return {
-        sanitized: '',
-        isValid: false,
-        reason: 'Prompt contains too many unusual characters. Please use descriptive text.'
-      };
     }
 
     // Sanitize the prompt
@@ -87,15 +80,18 @@ export class InputSanitizer {
   }
 
   /**
-   * HTML encode only the most critical characters for XSS prevention
+   * HTML encode only when storing/displaying, not for AI prompts
    */
   private static htmlEncode(str: string): string {
-    const htmlEntities: Record<string, string> = {
-      '<': '&lt;',
-      '>': '&gt;',
-    };
-
-    return str.replace(/[<>]/g, (match) => htmlEntities[match]);
+    // Only encode if we detect actual HTML tags
+    if (/<[^>]+>/g.test(str)) {
+      const htmlEntities: Record<string, string> = {
+        '<': '&lt;',
+        '>': '&gt;',
+      };
+      return str.replace(/[<>]/g, (match) => htmlEntities[match]);
+    }
+    return str;
   }
 
   /**
