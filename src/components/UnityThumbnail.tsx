@@ -1,6 +1,6 @@
 import { Canvas, useThree } from '@react-three/fiber';
 import { useGLTF, Environment, Grid, PerspectiveCamera } from '@react-three/drei';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { Loader2, Package } from 'lucide-react';
 import * as THREE from 'three';
 
@@ -63,6 +63,21 @@ export default function UnityThumbnail({ modelUrl, transform, jobId }: UnityThum
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  // Cleanup WebGL resources on unmount
+  useEffect(() => {
+    return () => {
+      const canvas = canvasRef.current?.querySelector('canvas');
+      if (canvas) {
+        const gl = canvas.getContext('webgl') || canvas.getContext('webgl2');
+        if (gl) {
+          const loseContext = gl.getExtension('WEBGL_lose_context');
+          if (loseContext) loseContext.loseContext();
+        }
+      }
+    };
+  }, []);
 
   const handlePosterCapture = (dataUrl: string) => {
     setPosterUrl(dataUrl);

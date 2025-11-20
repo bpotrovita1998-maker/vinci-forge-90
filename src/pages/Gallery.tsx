@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OutputViewer from '@/components/OutputViewer';
 import ThreeDThumbnail from '@/components/ThreeDThumbnail';
+import VirtualGalleryGrid from '@/components/VirtualGalleryGrid';
 import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,8 +66,12 @@ export default function Gallery() {
   } | null>(null);
   
   
-  // Infinite scroll sentinel ref
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  // Scenes state
+  const [scenes, setScenes] = useState<SceneItem[]>([]);
+  const [selectedStoryboard, setSelectedStoryboard] = useState<string>('all');
+  const [selectedScene, setSelectedScene] = useState<SceneItem | null>(null);
+  const [sceneTypeFilter, setSceneTypeFilter] = useState<'all' | 'image' | 'video'>('all');
+  const [storyboards, setStoryboards] = useState<Array<{id: string, title: string}>>([]);
   
   // Helper function to get the display video URL (stitched if available, otherwise first)
   const getDisplayVideoUrl = (job: Job): string => {
@@ -81,40 +86,6 @@ export default function Gallery() {
     
     return job.outputs[0]; // Return first video or single video
   };
-  
-  // Scenes state
-  const [scenes, setScenes] = useState<SceneItem[]>([]);
-  const [selectedStoryboard, setSelectedStoryboard] = useState<string>('all');
-  const [selectedScene, setSelectedScene] = useState<SceneItem | null>(null);
-  const [sceneTypeFilter, setSceneTypeFilter] = useState<'all' | 'image' | 'video'>('all');
-  const [storyboards, setStoryboards] = useState<Array<{id: string, title: string}>>([]);
-
-  // Infinite scroll - load more when sentinel comes into view
-  const handleInfiniteScroll = useCallback((entries: IntersectionObserverEntry[]) => {
-    const [entry] = entries;
-    if (entry.isIntersecting && hasMoreJobs && !isLoadingMore) {
-      loadMoreJobs();
-    }
-  }, [hasMoreJobs, isLoadingMore, loadMoreJobs]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(handleInfiniteScroll, {
-      root: null,
-      rootMargin: '100px', // Trigger 100px before reaching the sentinel
-      threshold: 0.1,
-    });
-
-    const currentSentinel = sentinelRef.current;
-    if (currentSentinel) {
-      observer.observe(currentSentinel);
-    }
-
-    return () => {
-      if (currentSentinel) {
-        observer.unobserve(currentSentinel);
-      }
-    };
-  }, [handleInfiniteScroll]);
 
   const completedJobs = jobs.filter(job => job.status === 'completed' && job.outputs.length > 0);
 
@@ -848,9 +819,9 @@ export default function Gallery() {
                 </motion.div>
               )}
 
-              {/* Infinite scroll sentinel */}
+              {/* Load more indicator */}
               {sortedJobs.length > 0 && hasMoreJobs && (
-                <div ref={sentinelRef} className="flex justify-center py-8">
+                <div className="flex justify-center py-8">
                   {isLoadingMore && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1035,9 +1006,9 @@ export default function Gallery() {
                     </motion.div>
                   )}
 
-                  {/* Infinite scroll sentinel for type-specific tabs */}
+                  {/* Load more indicator for type-specific tabs */}
                   {filteredTypeJobs.length > 0 && hasMoreJobs && (
-                    <div ref={sentinelRef} className="flex justify-center py-8">
+                    <div className="flex justify-center py-8">
                       {isLoadingMore && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Loader2 className="w-4 h-4 animate-spin" />
