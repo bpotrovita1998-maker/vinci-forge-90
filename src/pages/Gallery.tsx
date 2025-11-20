@@ -50,16 +50,6 @@ interface SceneItem {
 
 export default function Gallery() {
   const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore, loadError, retryLoadJobs } = useJobs();
-  
-  // Auto-load all jobs on mount
-  useEffect(() => {
-    const loadAllJobs = async () => {
-      while (hasMoreJobs && !isLoadingMore) {
-        await loadMoreJobs();
-      }
-    };
-    loadAllJobs();
-  }, []);
   const { user } = useAuth();
   const [galleryMode, setGalleryMode] = useState<'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes'>('all');
   const [selectedType, setSelectedType] = useState<JobType | 'all'>('all');
