@@ -106,12 +106,33 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [cachedPosterUrl, setCachedPosterUrl] = useState<string | null>(null);
+  const [isInView, setIsInView] = useState(false);
   const normalizedUrl = Array.isArray(modelUrl) ? modelUrl[0] : modelUrl;
   const canvasRef = useRef<HTMLDivElement>(null);
   const cacheKey = getPosterCacheKey(jobId, normalizedUrl);
 
   const retryCount = useRef(0);
   const maxRetries = 2;
+
+  // Intersection observer to only render when visible
+  useEffect(() => {
+    if (!canvasRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting);
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    );
+
+    observer.observe(canvasRef.current);
+
+    return () => {
+      if (canvasRef.current) {
+        observer.unobserve(canvasRef.current);
+      }
+    };
+  }, []);
 
   // Load cached poster from IndexedDB on mount
   useEffect(() => {
@@ -251,28 +272,24 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
 
   return (
     <div className="w-full h-full bg-card relative" ref={canvasRef}>
-      {/* Show cached poster immediately, then fade to live canvas */}
-      {(cachedPosterUrl || posterUrl) && (
+      {/* Show cached poster - no live Canvas needed for thumbnails */}
+      {cachedPosterUrl && (
         <img 
-          src={cachedPosterUrl || posterUrl || ''} 
+          src={cachedPosterUrl} 
           alt="Model preview" 
-          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
-          style={{ opacity: (!isLoading || cachedPosterUrl) ? 0.95 : 1 }}
+          className="w-full h-full object-cover"
         />
       )}
-      {/* Only show loader if no cached poster exists */}
-      {isLoading && !cachedPosterUrl && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
-      )}
-      {/* Subtle hydration indicator when canvas is loading with cached poster */}
-      {cachedPosterUrl && isLoading && (
-        <div className="absolute top-2 right-2 z-10">
-          <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse" />
-        </div>
-      )}
-      <Canvas
+      
+      {/* If no cached poster, try to generate one with a SINGLE render */}
+      {!cachedPosterUrl && !posterUrl && !loadError && isInView && (
+        <>
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            </div>
+          )}
+          <Canvas
         key={canvasKey}
         camera={{ position: [0, 0, 3], fov: 50 }}
         className="w-full h-full"
@@ -308,58 +325,61 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
           elem.addEventListener('webglcontextrestored', onRestored as any);
         }}
-      >
-        <Suspense fallback={null}>
-          <ModelErrorBoundary onError={handleModelError}>
-            {isUnityModel ? (
-              <>
-                {/* Unity-style lighting and environment with theme background */}
-                <ambientLight intensity={0.4} />
-                <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
-                <directionalLight position={[-5, 5, -5]} intensity={0.3} />
-                
-                <Model url={activeUrl} unityTransform={unityTransform} isUnityModel={isUnityModel} />
-                
-                {/* Unity-style grid */}
-                <Grid
-                  args={[20, 20]}
-                  cellSize={1}
-                  cellThickness={0.5}
-                  cellColor="#555555"
-                  sectionSize={5}
-                  sectionThickness={1}
-                  sectionColor="#777777"
-                  fadeDistance={30}
-                  fadeStrength={1}
-                  followCamera={false}
-                  infiniteGrid={false}
-                  position={[0, -0.01, 0]}
-                />
-                
-                <Environment preset="studio" />
-              </>
-            ) : (
-              <>
-                {/* Regular CAD model lighting with theme background */}
-                <Environment preset="studio" />
-                <ambientLight intensity={0.3} />
-                <directionalLight position={[5, 5, 5]} intensity={0.5} />
-                
-                <PresentationControls
-                  speed={1.5}
-                  global
-                  zoom={0.8}
-                  polar={[-Math.PI / 4, Math.PI / 4]}
-                  enabled={false}
-                >
-                  <Model url={activeUrl} />
-                </PresentationControls>
-              </>
-            )}
-            <PosterCapture onCapture={handlePosterCapture} />
-          </ModelErrorBoundary>
-        </Suspense>
-      </Canvas>
+          >
+            <Suspense fallback={null}>
+              <ModelErrorBoundary onError={handleModelError}>
+                {isUnityModel ? (
+                  <>
+                    <ambientLight intensity={0.4} />
+                    <directionalLight position={[10, 10, 5]} intensity={1} />
+                    <Model url={activeUrl} unityTransform={unityTransform} isUnityModel={isUnityModel} />
+                    <Grid
+                      args={[20, 20]}
+                      cellSize={1}
+                      cellThickness={0.5}
+                      cellColor="#555555"
+                      sectionSize={5}
+                      sectionThickness={1}
+                      sectionColor="#777777"
+                      fadeDistance={30}
+                      fadeStrength={1}
+                      followCamera={false}
+                      infiniteGrid={false}
+                      position={[0, -0.01, 0]}
+                    />
+                    <Environment preset="studio" />
+                  </>
+                ) : (
+                  <>
+                    <Environment preset="studio" />
+                    <ambientLight intensity={0.3} />
+                    <directionalLight position={[5, 5, 5]} intensity={0.5} />
+                    <PresentationControls
+                      speed={1.5}
+                      global
+                      zoom={0.8}
+                      polar={[-Math.PI / 4, Math.PI / 4]}
+                      enabled={false}
+                    >
+                      <Model url={activeUrl} />
+                    </PresentationControls>
+                  </>
+                )}
+                <PosterCapture onCapture={handlePosterCapture} />
+              </ModelErrorBoundary>
+            </Suspense>
+          </Canvas>
+        </>
+      )}
+      
+      {/* Show static poster if we have it */}
+      {posterUrl && !cachedPosterUrl && (
+        <img 
+          src={posterUrl} 
+          alt="Model preview" 
+          className="w-full h-full object-cover"
+        />
+      )}
     </div>
   );
 }
