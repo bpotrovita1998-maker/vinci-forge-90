@@ -31,7 +31,9 @@ export interface GenerationOptions {
   upscaleQuality?: 2 | 4 | 8; // upscaling multiplier
   
   // Image input
-  imageUrl?: string; // For image-to-X generation
+  imageUrl?: string; // For image-to-X generation (primary image)
+  imageUrls?: string[]; // For multiple image inputs
+  imageFormat?: 'png' | 'jpeg' | 'webp'; // Target format for uploaded images
 }
 
 export interface JobManifest {
