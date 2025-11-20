@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import AdvancedOptions from './AdvancedOptions';
 import CADTemplates from './CADTemplates';
 import PromptEnhancer from './PromptEnhancer';
+import ImageComparisonSlider from './ImageComparisonSlider';
 import { z } from 'zod';
 import { useSubscription } from '@/hooks/useSubscription';
 import {
@@ -383,29 +384,10 @@ export default function Hero() {
               )}
               
               {uploadedImages.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {uploadedImages.map((image, index) => (
-                    <div key={index} className="relative inline-block">
-                      <img 
-                        src={image} 
-                        alt={`Upload ${index + 1}`} 
-                        className="h-20 w-20 object-cover rounded-lg border-2 border-primary"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute -top-2 -right-2 h-6 w-6"
-                        onClick={() => handleRemoveImage(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded">
-                        {index + 1}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <ImageComparisonSlider 
+                  images={uploadedImages}
+                  onRemoveImage={handleRemoveImage}
+                />
               )}
               
               <p className="text-xs text-muted-foreground">
