@@ -1,13 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Dangerous patterns that could indicate injection attacks
+// Only block ACTUAL code injection attempts
 const DANGEROUS_PATTERNS = [
-  /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
-  /<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi,
-  /javascript:\s*[^;\s]/gi,
-  /on\w+\s*=\s*["'][^"']*["']/gi,
-  /eval\s*\(\s*["'`]/gi,
-  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)\b).*(\b(FROM|WHERE|TABLE|DATABASE)\b)/gi,
+  /<script[^>]*>[\s\S]*?<\/script>/gi,
+  /<iframe[^>]*>[\s\S]*?<\/iframe>/gi,
+  /javascript:\s*void\s*\(|javascript:\s*alert\s*\(|javascript:\s*eval\s*\(/gi,
+  /<[^>]+on(load|error|click|mouse|key)\s*=\s*["'][^"']*["'][^>]*>/gi,
+  /eval\s*\(\s*["'`]|Function\s*\(\s*["'`]/gi,
+  /;\s*(DROP|DELETE|INSERT|UPDATE|ALTER)\s+(TABLE|DATABASE|FROM)/gi,
+  /UNION\s+SELECT|UNION\s+ALL\s+SELECT/gi,
 ];
 
 // Sanitize input to prevent injection attacks
@@ -20,15 +21,8 @@ function sanitizePrompt(input: string): string {
   
   for (const pattern of DANGEROUS_PATTERNS) {
     if (pattern.test(sanitized)) {
-      throw new Error('Prompt contains potentially harmful code. Please use descriptive text only.');
+      throw new Error('Prompt contains code injection. Remove script tags, SQL injection syntax, or JavaScript execution attempts.');
     }
-  }
-  
-  // More lenient check for special characters
-  const specialCharCount = (sanitized.match(/[^a-zA-Z0-9\s.,!?'\-()[\]{}:;#@%&*/+=<>]/g) || []).length;
-  const ratio = specialCharCount / sanitized.length;
-  if (ratio > 0.5) {
-    throw new Error('Prompt contains too many unusual characters');
   }
   
   return sanitized;
