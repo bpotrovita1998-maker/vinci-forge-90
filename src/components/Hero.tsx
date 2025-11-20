@@ -12,6 +12,8 @@ import PromptEnhancer from './PromptEnhancer';
 import ImageComparisonSlider from './ImageComparisonSlider';
 import { z } from 'zod';
 import { useSubscription } from '@/hooks/useSubscription';
+import { moderationService } from '@/services/moderationService';
+import { InputSanitizer } from '@/lib/inputSanitization';
 import {
   Collapsible,
   CollapsibleContent,
@@ -193,14 +195,44 @@ export default function Hero() {
         return;
       }
       
+      // Sanitize and validate prompt
+      const sanitizationResult = InputSanitizer.sanitizePrompt(prompt);
+      if (!sanitizationResult.isValid) {
+        toast({
+          title: "Invalid input",
+          description: sanitizationResult.reason || "Please provide valid input",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Validate prompt (allow empty if image is uploaded)
       if (uploadedImages.length === 0) {
-        promptSchema.parse(prompt);
-      } else if (prompt.trim().length === 0) {
+        promptSchema.parse(sanitizationResult.sanitized);
+      } else if (sanitizationResult.sanitized.length === 0) {
         toast({
           title: 'Add a description',
           description: 'Please describe what you want to generate from these images',
           variant: 'destructive',
+        });
+        return;
+      }
+
+      // Content moderation check
+      setIsGenerating(true);
+      toast({
+        title: "Checking content safety...",
+        description: "Verifying your prompt meets content guidelines",
+      });
+
+      const moderationResult = await moderationService.moderatePrompt(sanitizationResult.sanitized);
+      
+      if (!moderationResult.safe) {
+        setIsGenerating(false);
+        toast({
+          title: "Content policy violation",
+          description: moderationResult.reason || "Your prompt contains content that violates our policies. Please modify and try again.",
+          variant: "destructive",
         });
         return;
       }
@@ -226,8 +258,8 @@ export default function Hero() {
       setIsGenerating(true);
       
       const fullOptions: GenerationOptions = {
-        prompt: prompt.trim(),
-        negativePrompt: options.negativePrompt?.trim(),
+        prompt: sanitizationResult.sanitized,
+        negativePrompt: options.negativePrompt ? InputSanitizer.sanitizeText(options.negativePrompt, 2000) : undefined,
         type: options.type || 'image',
         width: options.width || 1024,
         height: options.height || 1024,

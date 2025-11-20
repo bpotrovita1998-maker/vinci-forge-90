@@ -1,5 +1,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+// Dangerous patterns that could indicate injection attacks
+const DANGEROUS_PATTERNS = [
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE|CAST)\b)/gi,
+  /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
+  /javascript:/gi,
+  /on\w+\s*=\s*["'][^"']*["']/gi,
+];
+
+// Sanitize input to prevent injection attacks
+function sanitizePrompt(input: string): string {
+  if (!input || typeof input !== 'string') {
+    throw new Error('Invalid prompt');
+  }
+  
+  let sanitized = input.replace(/\0/g, '').trim();
+  
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (pattern.test(sanitized)) {
+      throw new Error('Prompt contains potentially harmful code. Please use descriptive text only.');
+    }
+  }
+  
+  const specialCharCount = (sanitized.match(/[^a-zA-Z0-9\s.,!?'-]/g) || []).length;
+  const ratio = specialCharCount / sanitized.length;
+  if (ratio > 0.3) {
+    throw new Error('Prompt contains too many special characters');
+  }
+  
+  return sanitized;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -32,7 +63,9 @@ serve(async (req) => {
       );
     }
 
-    console.log("Editing image with prompt:", body.prompt);
+    // Sanitize the prompt
+    const sanitizedPrompt = sanitizePrompt(body.prompt);
+    console.log("Editing image with sanitized prompt");
     console.log("Image URL:", body.imageUrl);
 
     // Validate that the URL is an image, not a video
@@ -74,7 +107,7 @@ serve(async (req) => {
           {
             role: "user",
             content: [
-              { type: "text", text: body.prompt },
+              { type: "text", text: sanitizedPrompt },
               {
                 type: "image_url",
                 image_url: { url: body.imageUrl }
