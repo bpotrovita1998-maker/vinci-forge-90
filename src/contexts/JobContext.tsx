@@ -43,7 +43,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [hasMoreJobs, setHasMoreJobs] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const JOBS_PER_PAGE = 20; // Reduced from 100 for faster queries
+  const JOBS_PER_PAGE = 100; // Load all jobs
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 3;
