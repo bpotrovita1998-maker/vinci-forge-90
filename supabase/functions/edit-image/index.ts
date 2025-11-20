@@ -48,11 +48,13 @@ serve(async (req) => {
       );
     }
 
-    // Ensure it's a proper HTTP(S) URL
-    if (!body.imageUrl.startsWith('http://') && !body.imageUrl.startsWith('https://')) {
+    // Ensure it's a valid URL (HTTP(S) or data URL for base64)
+    if (!body.imageUrl.startsWith('http://') && 
+        !body.imageUrl.startsWith('https://') && 
+        !body.imageUrl.startsWith('data:image/')) {
       return new Response(
         JSON.stringify({ 
-          error: "Image must be a valid HTTP(S) URL" 
+          error: "Image must be a valid HTTP(S) URL or base64 data URL" 
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 400,
