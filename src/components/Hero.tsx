@@ -69,8 +69,9 @@ export default function Hero() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showEnhancer, setShowEnhancer] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageFormat, setImageFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [options, setOptions] = useState<Partial<GenerationOptions>>({
@@ -88,62 +89,116 @@ export default function Hero() {
     upscaleQuality: 4, // Default to 4x balanced quality
   });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: 'Invalid file type',
-        description: 'Please upload an image file (JPG, PNG, WebP)',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: 'File too large',
-        description: 'Please upload an image smaller than 10MB',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setImageFile(file);
-
-    // Convert to data URL for preview
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setUploadedImage(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    toast({
-      title: 'Image uploaded',
-      description: 'Your image will be used as input for generation',
+  const convertImageFormat = async (file: File, targetFormat: 'png' | 'jpeg' | 'webp'): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          
+          const mimeType = targetFormat === 'jpeg' ? 'image/jpeg' : `image/${targetFormat}`;
+          const quality = targetFormat === 'jpeg' ? 0.92 : undefined;
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              reject(new Error('Failed to convert image'));
+              return;
+            }
+            const convertedReader = new FileReader();
+            convertedReader.onloadend = () => resolve(convertedReader.result as string);
+            convertedReader.readAsDataURL(blob);
+          }, mimeType, quality);
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
     });
   };
 
-  const handleRemoveImage = () => {
-    setUploadedImage(null);
-    setImageFile(null);
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    // Validate all files
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name} is not an image file`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `${file.name} exceeds 10MB limit`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    try {
+      const convertedImages = await Promise.all(
+        files.map(file => convertImageFormat(file, imageFormat))
+      );
+      
+      setImageFiles(prev => [...prev, ...files]);
+      setUploadedImages(prev => [...prev, ...convertedImages]);
+      
+      toast({
+        title: "Images uploaded",
+        description: `${files.length} image(s) uploaded as ${imageFormat.toUpperCase()}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Conversion failed",
+        description: "Failed to convert image format",
+        variant: "destructive",
+      });
+    }
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
+  const handleRemoveImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleGenerate = async () => {
     try {
+      // Validate input
+      if (!prompt.trim() && uploadedImages.length === 0) {
+        toast({
+          title: "Missing input",
+          description: "Please enter a prompt or upload images",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Validate prompt (allow empty if image is uploaded)
-      if (!uploadedImage) {
+      if (uploadedImages.length === 0) {
         promptSchema.parse(prompt);
       } else if (prompt.trim().length === 0) {
         toast({
           title: 'Add a description',
-          description: 'Please describe what you want to generate from this image',
+          description: 'Please describe what you want to generate from these images',
           variant: 'destructive',
         });
         return;
@@ -186,7 +241,9 @@ export default function Hero() {
         upscaleVideo: options.upscaleVideo,
         videoMode: options.videoMode,
         upscaleQuality: options.upscaleQuality,
-        imageUrl: uploadedImage || undefined, // Include uploaded image if available
+        imageUrl: uploadedImages[0] || undefined,
+        imageUrls: uploadedImages.length > 0 ? uploadedImages : undefined,
+        imageFormat,
       };
 
       const jobId = await submitJob(fullOptions);
@@ -198,7 +255,8 @@ export default function Hero() {
 
       // Clear prompt and image after successful submission
       setPrompt('');
-      handleRemoveImage();
+      setUploadedImages([]);
+      setImageFiles([]);
       
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -265,46 +323,12 @@ export default function Hero() {
         >
           <div className="glass rounded-2xl p-6 space-y-4 shadow-[0_0_40px_rgba(201,169,97,0.15)]">
             <div className="space-y-2">
-              {/* Image Upload Preview */}
-              {uploadedImage && (
-                <div className="mb-3">
-                  <div className="relative inline-block">
-                    <img 
-                      src={uploadedImage} 
-                      alt="Uploaded reference" 
-                      className="h-24 w-24 object-cover rounded-lg border-2 border-primary/30"
-                    />
-                    <button
-                      onClick={handleRemoveImage}
-                      className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 transition-colors"
-                      aria-label="Remove image"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {options.type === 'image' && (
-                    <p className="text-xs text-primary mt-2 font-medium">
-                      🎨 Image editing mode active - describe the changes you want to make
-                    </p>
-                  )}
-                  {(options.type === '3d' || options.type === 'cad') && (
-                    <p className="text-xs text-primary mt-2 font-medium">
-                      🎯 Image will be used as input for {options.type === 'cad' ? 'CAD' : '3D'} model generation
-                    </p>
-                  )}
-                </div>
-              )}
-              
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder={
-                  uploadedImage && options.type === 'image'
-                    ? "Describe the changes you want (e.g., 'make it rainy', 'change to sunset lighting', 'add snow')" 
-                    : uploadedImage
-                    ? `Describe what you want to generate from this image as a ${options.type === 'cad' ? 'CAD model' : '3D object'}...`
-                    : "Describe what you want to create... (e.g., 'A majestic dragon flying over snow-capped mountains at dawn')"
-                }
+                placeholder={uploadedImages.length > 0 && options.type === 'image' 
+                  ? "Describe the changes you want to make to the images..." 
+                  : "A futuristic cityscape at sunset with flying cars..."}
                 className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && prompt.trim()) {
@@ -315,14 +339,15 @@ export default function Hero() {
               
               {/* Hidden file input */}
               <input
-                ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                ref={fileInputRef}
                 onChange={handleImageUpload}
+                accept="image/*"
+                multiple
                 className="hidden"
               />
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Button
                   type="button"
                   variant="outline"
@@ -330,34 +355,61 @@ export default function Hero() {
                   onClick={() => fileInputRef.current?.click()}
                   className="gap-2"
                 >
-                  <Paperclip className="w-4 h-4" />
-                  {uploadedImage ? 'Change Image' : 'Add Image'}
+                  <Paperclip className="h-4 w-4" />
+                  Add Images
                 </Button>
-                {uploadedImage && options.type === 'image' && (
-                  <span className="text-xs text-muted-foreground">
-                    ✨ Edit mode: Your image will be modified based on your description
-                  </span>
-                )}
-                {uploadedImage && (options.type === '3d' || options.type === 'cad') && (
-                  <span className="text-xs text-muted-foreground">
-                    Image will be converted to {options.type === 'cad' ? 'CAD model' : '3D mesh'}
+                
+                <select
+                  value={imageFormat}
+                  onChange={(e) => setImageFormat(e.target.value as 'png' | 'jpeg' | 'webp')}
+                  className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="png">PNG</option>
+                  <option value="jpeg">JPEG</option>
+                  <option value="webp">WebP</option>
+                </select>
+                
+                {uploadedImages.length > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    {uploadedImages.length} image(s) uploaded
                   </span>
                 )}
               </div>
               
+              {uploadedImages.length > 0 && options.type === 'image' && (
+                <span className="text-sm text-muted-foreground">
+                  ✨ Edit mode: Your images will be modified based on your prompt
+                </span>
+              )}
+              
+              {uploadedImages.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {uploadedImages.map((image, index) => (
+                    <div key={index} className="relative inline-block">
+                      <img 
+                        src={image} 
+                        alt={`Upload ${index + 1}`} 
+                        className="h-20 w-20 object-cover rounded-lg border-2 border-primary"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={() => handleRemoveImage(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                      <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded">
+                        {index + 1}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               <p className="text-xs text-muted-foreground">
-                {uploadedImage && options.type === 'image' ? (
-                  <>
-                    💡 <span className="font-medium">Image Editing Tip:</span> Describe the transformation you want (e.g., "make it sunset", "add rain", "winter scene")
-                  </>
-                ) : (
-                  <>
-                    💡 <span className="font-medium">Tip:</span> Describe visual scenes (nouns, adjectives, settings). Avoid questions or instructions.
-                    <br />
-                    <span className="text-primary/80">Good:</span> "A cyberpunk city at night with neon lights" • 
-                    <span className="text-destructive/80">Bad:</span> "Can you make me a city?" or "This is great!"
-                  </>
-                )}
+                💡 <span className="font-medium">Tip:</span> Upload multiple reference images (PNG/JPEG/WebP) for better results. Use image editing mode to transform existing images.
               </p>
             </div>
             
@@ -365,7 +417,7 @@ export default function Hero() {
               <Button
                 size="lg"
                 onClick={handleGenerate}
-                disabled={(!prompt.trim() && !uploadedImage) || isGenerating}
+                disabled={(!prompt.trim() && uploadedImages.length === 0) || isGenerating}
                 className="w-full bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
               >
                 <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
@@ -390,7 +442,7 @@ export default function Hero() {
                 </CollapsibleContent>
               </Collapsible>
               
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <Button
                   variant={options.type === 'image' ? 'default' : 'outline'}
                   size="lg"
@@ -469,9 +521,9 @@ export default function Hero() {
           className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-8"
         >
           {[
-            { title: 'Full HD Quality', desc: 'Up to 1920×1080 resolution' },
-            { title: 'Long Videos', desc: 'Create videos up to 30 minutes' },
-            { title: '3D Rendering', desc: 'Stereoscopic and object 3D' },
+            { title: 'Multi-Image Input', desc: 'Upload multiple reference images' },
+            { title: 'Format Options', desc: 'PNG, JPEG, or WebP conversion' },
+            { title: 'Image Editing', desc: 'Transform images with AI' },
           ].map((feature, i) => (
             <div
               key={i}
