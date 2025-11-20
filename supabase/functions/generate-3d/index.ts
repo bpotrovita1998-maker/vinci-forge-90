@@ -10,10 +10,12 @@ const corsHeaders = {
 
 // Dangerous patterns that could indicate injection attacks
 const DANGEROUS_PATTERNS = [
-  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE|CAST)\b)/gi,
   /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
-  /javascript:/gi,
+  /<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi,
+  /javascript:\s*[^;\s]/gi,
   /on\w+\s*=\s*["'][^"']*["']/gi,
+  /eval\s*\(\s*["'`]/gi,
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)\b).*(\b(FROM|WHERE|TABLE|DATABASE)\b)/gi,
 ];
 
 // Sanitize input to prevent injection attacks
@@ -28,10 +30,11 @@ function sanitizePrompt(input: string): string {
     }
   }
   
-  const specialCharCount = (sanitized.match(/[^a-zA-Z0-9\s.,!?'-]/g) || []).length;
+  // More lenient check for special characters
+  const specialCharCount = (sanitized.match(/[^a-zA-Z0-9\s.,!?'\-()[\]{}:;#@%&*/+=<>]/g) || []).length;
   const ratio = specialCharCount / sanitized.length;
-  if (ratio > 0.3) {
-    throw new Error('Prompt contains too many special characters');
+  if (ratio > 0.5) {
+    throw new Error('Prompt contains too many unusual characters');
   }
   
   return sanitized;
