@@ -30,6 +30,7 @@ interface JobContextType {
   isLoadingMore: boolean;
   loadError: string | null;
   retryLoadJobs: () => void;
+  refreshJobs: () => Promise<void>;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -43,7 +44,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [hasMoreJobs, setHasMoreJobs] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const JOBS_PER_PAGE = 20; // Optimized for performance
+  const JOBS_PER_PAGE = 100; // Load more jobs for gallery
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 3;
@@ -804,6 +805,80 @@ export function JobProvider({ children }: { children: ReactNode }) {
     return await moderationService.moderatePrompt(prompt);
   }, []);
 
+  const refreshJobs = useCallback(async () => {
+    setJobs([]);
+    setCurrentPage(0);
+    setLoadError(null);
+    setRetryCount(0);
+    setHasMoreJobs(false);
+    
+    // Reload from scratch - load all jobs at once
+    if (!user?.id) return;
+    
+    try {
+      // Load all completed jobs first (no limit)
+      const { data, error, count } = await supabase
+        .from('jobs')
+        .select('id, user_id, type, status, prompt, negative_prompt, width, height, three_d_mode, duration, fps, video_mode, num_images, num_videos, upscale_video, progress_stage, progress_percent, progress_message, current_step, total_steps, eta, created_at, started_at, completed_at, error, manifest, outputs, seed, steps, cfg_scale, updated_at', { count: 'exact' })
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(500); // Load up to 500 jobs at once
+
+      if (error) {
+        console.error('Failed to refresh jobs:', error);
+        toast.error('Failed to refresh gallery');
+        return;
+      }
+
+      if (data) {
+        const jobsWithDates: Job[] = data.map((dbJob: any) => ({
+          id: dbJob.id,
+          options: {
+            prompt: dbJob.prompt,
+            negativePrompt: dbJob.negative_prompt,
+            type: dbJob.type,
+            width: dbJob.width,
+            height: dbJob.height,
+            duration: dbJob.duration,
+            fps: dbJob.fps,
+            videoMode: dbJob.video_mode,
+            threeDMode: dbJob.three_d_mode,
+            seed: dbJob.seed,
+            steps: dbJob.steps,
+            cfgScale: dbJob.cfg_scale,
+            numImages: dbJob.num_images,
+          },
+          status: dbJob.status,
+          progress: {
+            stage: dbJob.progress_stage,
+            progress: dbJob.progress_percent,
+            currentStep: dbJob.current_step,
+            totalSteps: dbJob.total_steps,
+            eta: dbJob.eta,
+            message: dbJob.progress_message || '',
+          },
+          outputs: dbJob.outputs as string[],
+          manifest: dbJob.manifest,
+          createdAt: new Date(dbJob.created_at),
+          startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
+          completedAt: dbJob.completed_at ? new Date(dbJob.completed_at) : undefined,
+          error: dbJob.error,
+          userId: dbJob.user_id,
+        }));
+
+        setJobs(jobsWithDates);
+        const totalJobs = count || 0;
+        setHasMoreJobs(jobsWithDates.length < totalJobs);
+        
+        const completedCount = jobsWithDates.filter(j => j.status === 'completed').length;
+        toast.success(`Loaded ${completedCount} completed items from permanent storage`);
+      }
+    } catch (err) {
+      console.error('Error refreshing jobs:', err);
+      toast.error('Failed to refresh gallery');
+    }
+  }, [user?.id]);
+
   return (
     <JobContext.Provider value={{
       jobs,
@@ -819,12 +894,12 @@ export function JobProvider({ children }: { children: ReactNode }) {
       isLoadingMore,
       loadError,
       retryLoadJobs: () => {
-        // This will be implemented inside the effect
         setJobs([]);
         setCurrentPage(0);
         setLoadError(null);
         setRetryCount(0);
       },
+      refreshJobs,
     }}>
       {children}
     </JobContext.Provider>
