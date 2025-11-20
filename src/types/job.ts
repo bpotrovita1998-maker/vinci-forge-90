@@ -29,6 +29,9 @@ export interface GenerationOptions {
   cfgScale?: number;
   numImages?: number; // for image generation
   upscaleQuality?: 2 | 4 | 8; // upscaling multiplier
+  
+  // Image input
+  imageUrl?: string; // For image-to-X generation
 }
 
 export interface JobManifest {
