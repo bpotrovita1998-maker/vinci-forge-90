@@ -6,21 +6,17 @@ import { z } from 'zod';
 export class InputSanitizer {
   // Patterns that indicate potential attacks
   private static readonly DANGEROUS_PATTERNS = [
-    // SQL injection patterns
-    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE|CAST)\b)/gi,
-    /(-{2}|\/\*|\*\/|;)/g, // SQL comments and terminators
+    // SQL injection patterns (only in combined suspicious context)
+    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b).*(\b(FROM|WHERE|TABLE|DATABASE)\b)/gi,
     
     // XSS patterns
     /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
     /<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi,
-    /javascript:/gi,
+    /javascript:\s*[^;\s]/gi,
     /on\w+\s*=\s*["'][^"']*["']/gi, // Event handlers like onclick=
     /<img[\s\S]*?on\w+\s*=[\s\S]*?>/gi,
-    /eval\s*\(/gi,
+    /eval\s*\(\s*["'`]/gi,
     /expression\s*\(/gi,
-    
-    // Shell injection
-    /[;&|`$(){}[\]<>]/g,
   ];
 
   /**
@@ -73,14 +69,14 @@ export class InputSanitizer {
       }
     }
 
-    // Check for excessive special characters (potential obfuscation)
-    const specialCharCount = (trimmed.match(/[^a-zA-Z0-9\s.,!?'-]/g) || []).length;
+    // Check for excessive special characters (potential obfuscation) - more lenient for technical prompts
+    const specialCharCount = (trimmed.match(/[^a-zA-Z0-9\s.,!?'\-()[\]{}:;#@%&*/+=<>]/g) || []).length;
     const ratio = specialCharCount / trimmed.length;
-    if (ratio > 0.3) {
+    if (ratio > 0.5) {
       return {
         sanitized: '',
         isValid: false,
-        reason: 'Prompt contains too many special characters. Please use natural language.'
+        reason: 'Prompt contains too many unusual characters. Please use descriptive text.'
       };
     }
 
@@ -91,19 +87,15 @@ export class InputSanitizer {
   }
 
   /**
-   * HTML encode special characters to prevent XSS
+   * HTML encode only the most critical characters for XSS prevention
    */
   private static htmlEncode(str: string): string {
     const htmlEntities: Record<string, string> = {
-      '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#x27;',
-      '/': '&#x2F;',
     };
 
-    return str.replace(/[&<>"'/]/g, (match) => htmlEntities[match]);
+    return str.replace(/[<>]/g, (match) => htmlEntities[match]);
   }
 
   /**

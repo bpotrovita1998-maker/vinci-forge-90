@@ -9,10 +9,12 @@ const corsHeaders = {
 
 // Dangerous patterns that could indicate injection attacks
 const DANGEROUS_PATTERNS = [
-  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE|CAST)\b)/gi,
   /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
-  /javascript:/gi,
+  /<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi,
+  /javascript:\s*[^;\s]/gi,
   /on\w+\s*=\s*["'][^"']*["']/gi,
+  /eval\s*\(\s*["'`]/gi,
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)\b).*(\b(FROM|WHERE|TABLE|DATABASE)\b)/gi,
 ];
 
 // Sanitize input to prevent injection attacks
