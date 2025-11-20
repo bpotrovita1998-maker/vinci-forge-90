@@ -215,11 +215,24 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
     }
   }, [normalizedUrl, jobId, userId, cachedPosterUrl]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - dispose WebGL resources
   useEffect(() => {
     return () => {
       if (posterUrl) {
         URL.revokeObjectURL(posterUrl);
+      }
+      // Force WebGL context cleanup
+      if (canvasRef.current) {
+        const canvas = canvasRef.current.querySelector('canvas');
+        if (canvas) {
+          const gl = canvas.getContext('webgl') || canvas.getContext('webgl2');
+          if (gl) {
+            const loseContext = gl.getExtension('WEBGL_lose_context');
+            if (loseContext) {
+              loseContext.loseContext();
+            }
+          }
+        }
       }
     };
   }, [posterUrl]);
@@ -266,10 +279,11 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
         dpr={[1, 1]}
         frameloop="demand"
         gl={{ 
-          antialias: true, 
+          antialias: false, // Disable for better performance
           alpha: true, 
           powerPreference: 'low-power', 
-          preserveDrawingBuffer: true 
+          preserveDrawingBuffer: true,
+          failIfMajorPerformanceCaveat: true // Prevent slow contexts
         }}
         onCreated={({ gl }) => {
           // Use theme background color
