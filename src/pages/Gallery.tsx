@@ -49,7 +49,7 @@ interface SceneItem {
 }
 
 export default function Gallery() {
-  const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore, loadError, retryLoadJobs } = useJobs();
+  const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore, loadError, retryLoadJobs, refreshJobs } = useJobs();
   const { user } = useAuth();
   const [galleryMode, setGalleryMode] = useState<'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes'>('all');
   const [selectedType, setSelectedType] = useState<JobType | 'all'>('all');
@@ -720,6 +720,15 @@ export default function Gallery() {
                       <SelectItem value="oldest">Oldest first</SelectItem>
                     </SelectContent>
                   </Select>
+
+                  <Button
+                    variant="outline"
+                    onClick={refreshJobs}
+                    className="gap-2 glass border-border/30"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Load All
+                  </Button>
                 </div>
               </div>
 
@@ -951,6 +960,15 @@ export default function Gallery() {
                           <SelectItem value="oldest">Oldest first</SelectItem>
                         </SelectContent>
                       </Select>
+
+                      <Button
+                        variant="outline"
+                        onClick={refreshJobs}
+                        className="gap-2 glass border-border/30"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Load All
+                      </Button>
                     </div>
                   </div>
 
