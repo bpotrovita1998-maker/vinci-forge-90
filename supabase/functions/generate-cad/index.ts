@@ -8,9 +8,38 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Dangerous patterns that could indicate injection attacks
+const DANGEROUS_PATTERNS = [
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE|CAST)\b)/gi,
+  /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
+  /javascript:/gi,
+  /on\w+\s*=\s*["'][^"']*["']/gi,
+];
+
+// Sanitize input to prevent injection attacks
+function sanitizePrompt(input: string): string {
+  if (!input || typeof input !== 'string') return '';
+  
+  let sanitized = input.replace(/\0/g, '').trim();
+  
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (pattern.test(sanitized)) {
+      throw new Error('Prompt contains potentially harmful code. Please use descriptive text only.');
+    }
+  }
+  
+  const specialCharCount = (sanitized.match(/[^a-zA-Z0-9\s.,!?'-]/g) || []).length;
+  const ratio = specialCharCount / sanitized.length;
+  if (ratio > 0.3) {
+    throw new Error('Prompt contains too many special characters');
+  }
+  
+  return sanitized;
+}
+
 // Input validation schema
 const generateCADSchema = z.object({
-  prompt: z.string().min(1).max(2000).optional(),
+  prompt: z.string().min(1).max(2000).transform(sanitizePrompt).optional(),
   inputImage: z.string().optional(),
   seed: z.number().optional(),
   jobId: z.string().uuid().optional(),

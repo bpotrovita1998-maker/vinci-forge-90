@@ -7,9 +7,39 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Dangerous patterns that could indicate injection attacks
+const DANGEROUS_PATTERNS = [
+  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE|CAST)\b)/gi,
+  /<script[\s\S]*?>[\s\S]*?<\/script>/gi,
+  /javascript:/gi,
+  /on\w+\s*=\s*["'][^"']*["']/gi,
+];
+
+// Sanitize input to prevent injection attacks
+function sanitizeInput(input: string): string {
+  if (!input || typeof input !== 'string') return '';
+  
+  // Remove null bytes
+  let sanitized = input.replace(/\0/g, '').trim();
+  
+  // Check for dangerous patterns
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (pattern.test(sanitized)) {
+      throw new Error('Input contains potentially harmful code');
+    }
+  }
+  
+  // Limit length
+  if (sanitized.length > 10000) {
+    sanitized = sanitized.slice(0, 10000);
+  }
+  
+  return sanitized;
+}
+
 // Input validation schema
 const enhancePromptSchema = z.object({
-  idea: z.string().min(5).max(5000),
+  idea: z.string().min(5).max(10000).transform(sanitizeInput),
   type: z.enum(['image', 'video', '3d', 'cad']).optional(),
 });
 
