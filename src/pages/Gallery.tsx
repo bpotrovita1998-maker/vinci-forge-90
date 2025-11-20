@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import OutputViewer from '@/components/OutputViewer';
 import ThreeDThumbnail from '@/components/ThreeDThumbnail';
 import VirtualGalleryGrid from '@/components/VirtualGalleryGrid';
-import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Job } from '@/types/job';
@@ -65,6 +65,10 @@ export default function Gallery() {
     expiredCount: number;
   } | null>(null);
   
+  // Client-side pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
+  
   
   // Scenes state
   const [scenes, setScenes] = useState<SceneItem[]>([]);
@@ -100,6 +104,90 @@ export default function Gallery() {
     const dateB = b.completedAt?.getTime() || 0;
     return sortBy === 'newest' ? dateB - dateA : dateA - dateB;
   });
+
+  // Auto-load more jobs if needed to fill pages
+  useEffect(() => {
+    const totalNeeded = currentPage * ITEMS_PER_PAGE;
+    if (sortedJobs.length < totalNeeded && hasMoreJobs && !isLoadingMore) {
+      loadMoreJobs();
+    }
+  }, [currentPage, sortedJobs.length, hasMoreJobs, isLoadingMore]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedType, searchQuery, sortBy, galleryMode]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(sortedJobs.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedJobs = sortedJobs.slice(startIndex, endIndex);
+
+  const PaginationControls = ({ jobs: jobsList }: { jobs: Job[] }) => {
+    const totalPages = Math.ceil(jobsList.length / ITEMS_PER_PAGE);
+    if (totalPages <= 1) return null;
+
+    const getPageNumbers = () => {
+      const pages = [];
+      const showEllipsis = totalPages > 7;
+      
+      if (!showEllipsis) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        if (currentPage <= 3) {
+          pages.push(1, 2, 3, 4, '...', totalPages);
+        } else if (currentPage >= totalPages - 2) {
+          pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+          pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+        }
+      }
+      return pages;
+    };
+
+    return (
+      <div className="flex items-center justify-center gap-2 py-8">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="glass border-border/30"
+        >
+          Previous
+        </Button>
+        
+        <div className="flex gap-1">
+          {getPageNumbers().map((page, idx) => 
+            page === '...' ? (
+              <span key={`ellipsis-${idx}`} className="px-3 py-2 text-muted-foreground">...</span>
+            ) : (
+              <Button
+                key={page}
+                variant={currentPage === page ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCurrentPage(page as number)}
+                className={currentPage === page ? '' : 'glass border-border/30'}
+              >
+                {page}
+              </Button>
+            )
+          )}
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="glass border-border/30"
+        >
+          Next
+        </Button>
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -676,12 +764,13 @@ export default function Gallery() {
                   </div>
                 </motion.div>
               ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                >
-                  {sortedJobs.map((job, index) => (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                  >
+                    {paginatedJobs.map((job, index) => (
                     <motion.div
                       key={job.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -814,26 +903,30 @@ export default function Gallery() {
                           </div>
                         </div>
                       </Card>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
+                      </motion.div>
+                    ))}
+                  </motion.div>
 
-              {/* Load more indicator */}
-              {sortedJobs.length > 0 && hasMoreJobs && (
-                <div className="flex justify-center py-8">
+                  <PaginationControls jobs={sortedJobs} />
+                  
                   {isLoadingMore && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Loading more...</span>
+                    <div className="flex justify-center py-4">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Loading more items...</span>
+                      </div>
                     </div>
                   )}
-                </div>
+                </>
               )}
             </TabsContent>
 
             {['image', 'video', '3d', 'cad'].map((jobType) => {
               const filteredTypeJobs = sortedJobs.filter(j => j.options.type === jobType);
+              const typeTotalPages = Math.ceil(filteredTypeJobs.length / ITEMS_PER_PAGE);
+              const typeStartIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+              const typeEndIndex = typeStartIndex + ITEMS_PER_PAGE;
+              const paginatedTypeJobs = filteredTypeJobs.slice(typeStartIndex, typeEndIndex);
               
               return (
                 <TabsContent key={jobType} value={jobType} className="space-y-6">
@@ -879,12 +972,13 @@ export default function Gallery() {
                       </div>
                     </motion.div>
                   ) : (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                    >
-                      {filteredTypeJobs.map((job, index) => (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                      >
+                        {paginatedTypeJobs.map((job, index) => (
                         <motion.div
                           key={job.id}
                           initial={{ opacity: 0, y: 20 }}
@@ -1001,21 +1095,21 @@ export default function Gallery() {
                               </div>
                             </div>
                           </Card>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  )}
+                          </motion.div>
+                        ))}
+                      </motion.div>
 
-                  {/* Load more indicator for type-specific tabs */}
-                  {filteredTypeJobs.length > 0 && hasMoreJobs && (
-                    <div className="flex justify-center py-8">
+                      <PaginationControls jobs={filteredTypeJobs} />
+                      
                       {isLoadingMore && (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Loading more...</span>
+                        <div className="flex justify-center py-4">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Loading more items...</span>
+                          </div>
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </TabsContent>
               );
