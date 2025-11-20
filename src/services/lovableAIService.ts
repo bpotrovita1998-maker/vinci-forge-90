@@ -520,52 +520,97 @@ class LovableAIService {
       return;
     }
 
-    console.log('LovableAI: Calling generate-image edge function for', jobId);
+    console.log('LovableAI: Starting image generation/editing for', jobId);
 
     try {
-      // Call the edge function
-      const { data, error } = await supabase.functions.invoke('generate-image', {
-        body: {
-          prompt: job.options.prompt,
-          width: job.options.width,
-          height: job.options.height,
-          numImages: job.options.numImages || 1,
-          upscaleQuality: job.options.upscaleQuality || 4,
-          jobId: jobId,
-          userId: job.userId,
-        }
-      });
-
-      console.log('LovableAI: Edge function response:', { data, error });
-
-      if (error) {
-        console.error('LovableAI: Edge function error:', error);
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const httpErr = error as any;
-          if (httpErr?.context?.json) {
-            const errBody = await httpErr.context.json();
-            // Include details field if available for more helpful error messages
-            const msg = errBody?.details || errBody?.error || errBody?.message || httpErr.message;
-            throw new Error(msg || 'Failed to generate image');
+      // Check if this is an image-to-image edit operation
+      if (job.options.imageUrl) {
+        console.log('LovableAI: Using image-to-image editing for', jobId);
+        this.updateJobStage(jobId, 'running', 'Editing image with AI...');
+        
+        // Call the edit-image edge function
+        const { data, error } = await supabase.functions.invoke('edit-image', {
+          body: {
+            imageUrl: job.options.imageUrl,
+            prompt: job.options.prompt,
           }
-        } catch (_) {
-          throw new Error((error as Error).message || 'Failed to generate image');
+        });
+
+        console.log('LovableAI: Edit-image response:', { data, error });
+
+        if (error) {
+          console.error('LovableAI: Edit-image error:', error);
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const httpErr = error as any;
+            if (httpErr?.context?.json) {
+              const errBody = await httpErr.context.json();
+              const msg = errBody?.details || errBody?.error || errBody?.message || httpErr.message;
+              throw new Error(msg || 'Failed to edit image');
+            }
+          } catch (_) {
+            throw new Error((error as Error).message || 'Failed to edit image');
+          }
         }
+
+        if (!data || !data.editedImageUrl) {
+          console.error('LovableAI: No edited image in response:', data);
+          throw new Error('No edited image generated');
+        }
+
+        console.log('LovableAI: Image edited successfully for', jobId);
+
+        // Complete the job with the edited image
+        this.completeJob(jobId, [data.editedImageUrl]);
+        
+      } else {
+        // Standard image generation
+        console.log('LovableAI: Calling generate-image edge function for', jobId);
+        
+        // Call the edge function
+        const { data, error } = await supabase.functions.invoke('generate-image', {
+          body: {
+            prompt: job.options.prompt,
+            width: job.options.width,
+            height: job.options.height,
+            numImages: job.options.numImages || 1,
+            upscaleQuality: job.options.upscaleQuality || 4,
+            jobId: jobId,
+            userId: job.userId,
+          }
+        });
+
+        console.log('LovableAI: Edge function response:', { data, error });
+
+        if (error) {
+          console.error('LovableAI: Edge function error:', error);
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const httpErr = error as any;
+            if (httpErr?.context?.json) {
+              const errBody = await httpErr.context.json();
+              // Include details field if available for more helpful error messages
+              const msg = errBody?.details || errBody?.error || errBody?.message || httpErr.message;
+              throw new Error(msg || 'Failed to generate image');
+            }
+          } catch (_) {
+            throw new Error((error as Error).message || 'Failed to generate image');
+          }
+        }
+
+        if (!data || !data.images || data.images.length === 0) {
+          console.error('LovableAI: No images in response:', data);
+          throw new Error('No images generated');
+        }
+
+        console.log('LovableAI: Generated', data.images.length, 'images for', jobId);
+
+        // Complete the job with the generated images
+        this.completeJob(jobId, data.images);
       }
-
-      if (!data || !data.images || data.images.length === 0) {
-        console.error('LovableAI: No images in response:', data);
-        throw new Error('No images generated');
-      }
-
-      console.log('LovableAI: Generated', data.images.length, 'images for', jobId);
-
-      // Complete the job with the generated images
-      this.completeJob(jobId, data.images);
 
     } catch (error) {
-      console.error('LovableAI: Image generation error for', jobId, ':', error);
+      console.error('LovableAI: Image generation/editing error for', jobId, ':', error);
       throw error;
     }
   }

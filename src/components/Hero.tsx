@@ -267,28 +267,43 @@ export default function Hero() {
             <div className="space-y-2">
               {/* Image Upload Preview */}
               {uploadedImage && (
-                <div className="relative inline-block mb-2">
-                  <img 
-                    src={uploadedImage} 
-                    alt="Uploaded reference" 
-                    className="h-24 w-24 object-cover rounded-lg border-2 border-primary/30"
-                  />
-                  <button
-                    onClick={handleRemoveImage}
-                    className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 transition-colors"
-                    aria-label="Remove image"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                <div className="mb-3">
+                  <div className="relative inline-block">
+                    <img 
+                      src={uploadedImage} 
+                      alt="Uploaded reference" 
+                      className="h-24 w-24 object-cover rounded-lg border-2 border-primary/30"
+                    />
+                    <button
+                      onClick={handleRemoveImage}
+                      className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 transition-colors"
+                      aria-label="Remove image"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {options.type === 'image' && (
+                    <p className="text-xs text-primary mt-2 font-medium">
+                      🎨 Image editing mode active - describe the changes you want to make
+                    </p>
+                  )}
+                  {(options.type === '3d' || options.type === 'cad') && (
+                    <p className="text-xs text-primary mt-2 font-medium">
+                      🎯 Image will be used as input for {options.type === 'cad' ? 'CAD' : '3D'} model generation
+                    </p>
+                  )}
                 </div>
               )}
               
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder={uploadedImage 
-                  ? "Describe what you want to generate from this image..." 
-                  : "Describe what you want to create... (e.g., 'A majestic dragon flying over snow-capped mountains at dawn')"
+                placeholder={
+                  uploadedImage && options.type === 'image'
+                    ? "Describe the changes you want (e.g., 'make it rainy', 'change to sunset lighting', 'add snow')" 
+                    : uploadedImage
+                    ? `Describe what you want to generate from this image as a ${options.type === 'cad' ? 'CAD model' : '3D object'}...`
+                    : "Describe what you want to create... (e.g., 'A majestic dragon flying over snow-capped mountains at dawn')"
                 }
                 className="min-h-[120px] resize-none bg-background/50 border-border/50 text-lg placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
                 onKeyDown={(e) => {
@@ -318,18 +333,31 @@ export default function Hero() {
                   <Paperclip className="w-4 h-4" />
                   {uploadedImage ? 'Change Image' : 'Add Image'}
                 </Button>
-                {uploadedImage && (
+                {uploadedImage && options.type === 'image' && (
                   <span className="text-xs text-muted-foreground">
-                    Image will be used as input for generation
+                    ✨ Edit mode: Your image will be modified based on your description
+                  </span>
+                )}
+                {uploadedImage && (options.type === '3d' || options.type === 'cad') && (
+                  <span className="text-xs text-muted-foreground">
+                    Image will be converted to {options.type === 'cad' ? 'CAD model' : '3D mesh'}
                   </span>
                 )}
               </div>
               
               <p className="text-xs text-muted-foreground">
-                💡 <span className="font-medium">Tip:</span> Describe visual scenes (nouns, adjectives, settings). Avoid questions or instructions.
-                <br />
-                <span className="text-primary/80">Good:</span> "A cyberpunk city at night with neon lights" • 
-                <span className="text-destructive/80">Bad:</span> "Can you make me a city?" or "This is great!"
+                {uploadedImage && options.type === 'image' ? (
+                  <>
+                    💡 <span className="font-medium">Image Editing Tip:</span> Describe the transformation you want (e.g., "make it sunset", "add rain", "winter scene")
+                  </>
+                ) : (
+                  <>
+                    💡 <span className="font-medium">Tip:</span> Describe visual scenes (nouns, adjectives, settings). Avoid questions or instructions.
+                    <br />
+                    <span className="text-primary/80">Good:</span> "A cyberpunk city at night with neon lights" • 
+                    <span className="text-destructive/80">Bad:</span> "Can you make me a city?" or "This is great!"
+                  </>
+                )}
               </p>
             </div>
             
