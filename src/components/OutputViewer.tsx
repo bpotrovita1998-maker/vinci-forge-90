@@ -136,9 +136,21 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
       if (error) throw error;
 
+      // Refresh the job data to ensure the saved transform is loaded
+      const { data: refreshedJob, error: fetchError } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('id', job.id)
+        .single();
+
+      if (!fetchError && refreshedJob) {
+        // Update the job manifest in the parent component
+        Object.assign(job, refreshedJob);
+      }
+
       toast({
         title: "Changes Saved",
-        description: "Your Unity transform settings have been saved. Thumbnail will update shortly.",
+        description: "Your Unity transform settings have been saved successfully.",
       });
     } catch (error) {
       console.error('Save error:', error);
