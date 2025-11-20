@@ -412,18 +412,62 @@ serve(async (req) => {
         console.log('Upscaling complete');
       }
 
-    // Store base64 images permanently if jobId and userId provided
+    // Store images permanently if jobId and userId provided
     let finalUrls = images;
     if (jobId && userId) {
       finalUrls = [];
       for (let i = 0; i < images.length; i++) {
         try {
-          const base64Data = images[i];
-          // Extract base64 content and determine format
-          const matches = base64Data.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+          const imageData = images[i];
+          
+          // Check if it's a URL or base64
+          if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+            // It's already a URL, download and store in Supabase Storage
+            console.log('Downloading image from URL:', imageData.substring(0, 50) + '...');
+            const imageResponse = await fetch(imageData);
+            const imageBlob = await imageResponse.arrayBuffer();
+            
+            // Determine format from URL or default to webp
+            let format = 'webp';
+            if (imageData.includes('.png')) format = 'png';
+            else if (imageData.includes('.jpg') || imageData.includes('.jpeg')) format = 'jpeg';
+            
+            const fileName = `${userId}/${jobId}/image_${i}.${format}`;
+            console.log('Uploading URL image to storage:', fileName);
+            
+            const { error: uploadError } = await supabase.storage
+              .from('generated-models')
+              .upload(fileName, imageBlob, {
+                contentType: `image/${format}`,
+                upsert: true
+              });
+            
+            if (uploadError) {
+              console.error('Storage upload error:', uploadError);
+              finalUrls.push(imageData); // Keep original URL as fallback
+              continue;
+            }
+            
+            // Get permanent public URL
+            const { data: publicUrlData } = supabase.storage
+              .from('generated-models')
+              .getPublicUrl(fileName);
+            
+            if (publicUrlData?.publicUrl) {
+              console.log('Image stored at permanent URL:', publicUrlData.publicUrl);
+              finalUrls.push(publicUrlData.publicUrl);
+            } else {
+              console.error('Failed to get public URL');
+              finalUrls.push(imageData);
+            }
+            continue;
+          }
+          
+          // It's base64 data
+          const matches = imageData.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
           if (!matches) {
-            console.error('Invalid base64 format:', base64Data.substring(0, 50));
-            finalUrls.push(base64Data); // Keep original as fallback
+            console.warn('Unexpected image format, keeping as-is');
+            finalUrls.push(imageData); // Keep original as fallback
             continue;
           }
           
@@ -446,7 +490,7 @@ serve(async (req) => {
           
           if (uploadError) {
             console.error('Storage upload error:', uploadError);
-            finalUrls.push(base64Data); // Keep original as fallback
+            finalUrls.push(imageData); // Keep original as fallback
           } else {
             // Get permanent public URL since bucket is public
             const { data: publicUrlData } = supabase.storage

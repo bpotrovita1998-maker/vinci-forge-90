@@ -297,10 +297,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
       try {
         setLoadError(null);
         
-        // Load jobs with pagination - reduced page size for faster queries
+        // Load jobs with pagination - only fetch essential fields to avoid large payloads
+        // For completed jobs, outputs field may contain large base64 data
         const { data, error, count } = await supabase
           .from('jobs')
-          .select('*', { count: 'exact' })
+          .select('id, user_id, type, status, prompt, negative_prompt, width, height, three_d_mode, duration, fps, video_mode, num_images, num_videos, upscale_video, progress_stage, progress_percent, progress_message, current_step, total_steps, eta, created_at, started_at, completed_at, error, manifest, outputs, seed, steps, cfg_scale, updated_at', { count: 'exact' })
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(JOBS_PER_PAGE)
