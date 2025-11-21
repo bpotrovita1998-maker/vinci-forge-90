@@ -62,8 +62,8 @@ const Memory = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="container mx-auto p-6 pb-20 space-y-6 max-h-screen overflow-y-auto">
+      <div className="flex items-center gap-3 sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-4">
         <Brain className="h-8 w-8 text-primary" />
         <div>
           <h1 className="text-3xl font-bold">AI Memory</h1>
@@ -160,14 +160,15 @@ const Memory = () => {
 
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Active Instructions</h2>
-            {instructions.length === 0 ? (
-              <Card>
-                <CardContent className="pt-6 text-center text-muted-foreground">
-                  No instructions yet. Add your first instruction above!
-                </CardContent>
-              </Card>
-            ) : (
-              instructions.map((instruction) => (
+            <div className="max-h-[500px] overflow-y-auto pr-2 space-y-4">
+              {instructions.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6 text-center text-muted-foreground">
+                    No instructions yet. Add your first instruction above!
+                  </CardContent>
+                </Card>
+              ) : (
+                instructions.map((instruction) => (
                 <Card key={instruction.id}>
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between gap-4">
@@ -203,8 +204,9 @@ const Memory = () => {
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </TabsContent>
 
@@ -222,7 +224,7 @@ const Memory = () => {
                   No patterns learned yet. Keep using Vinci AI and it will learn your preferences!
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="max-h-[600px] overflow-y-auto pr-2 space-y-4">
                   {patterns.map((pattern) => (
                     <Card key={pattern.id}>
                       <CardContent className="pt-6">
