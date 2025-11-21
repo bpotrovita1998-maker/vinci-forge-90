@@ -123,10 +123,29 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    console.log("AI response data:", JSON.stringify(data, null, 2));
+    
+    // Try multiple possible response structures
+    let editedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    // Fallback: check if image is in content
+    if (!editedImageUrl && data.choices?.[0]?.message?.content) {
+      const content = data.choices[0].message.content;
+      // Check if content contains a base64 image
+      if (typeof content === 'string' && content.includes('data:image/')) {
+        editedImageUrl = content.match(/data:image\/[^;]+;base64,[^\s"')]+/)?.[0];
+      }
+    }
+    
+    // Fallback: check if there's an image array directly in message
+    if (!editedImageUrl && Array.isArray(data.choices?.[0]?.message?.images)) {
+      const firstImage = data.choices[0].message.images[0];
+      editedImageUrl = firstImage?.url || firstImage?.image_url?.url;
+    }
 
     if (!editedImageUrl) {
-      throw new Error('No edited image returned from AI');
+      console.error('No edited image found in response. Full response:', JSON.stringify(data, null, 2));
+      throw new Error('No edited image returned from AI. The model may not support image editing.');
     }
 
     console.log("Image edited successfully");
