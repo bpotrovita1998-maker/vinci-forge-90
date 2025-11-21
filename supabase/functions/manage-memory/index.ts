@@ -38,6 +38,8 @@ serve(async (req) => {
             preference_type,
             preference_key,
             preference_value
+          }, {
+            onConflict: 'user_id,preference_type,preference_key'
           });
 
         if (error) throw error;
