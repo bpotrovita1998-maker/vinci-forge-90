@@ -222,6 +222,25 @@ export const useMemory = () => {
     return pref?.preference_value;
   };
 
+  const analyzeAndLearn = async (prompt: string, type: string, settings: any) => {
+    try {
+      // Run analysis in background - don't wait for it
+      supabase.functions.invoke('analyze-and-learn', {
+        body: { prompt, type, settings }
+      }).then(({ data }) => {
+        if (data?.analyzed && data?.insights?.suggested_instruction) {
+          console.log('AI learned new pattern:', data.insights);
+          // Refresh memory to show new learnings
+          loadMemoryData();
+        }
+      }).catch(err => {
+        console.error('Background learning failed:', err);
+      });
+    } catch (error) {
+      console.error('Error triggering learning:', error);
+    }
+  };
+
   return {
     preferences,
     instructions,
@@ -233,6 +252,7 @@ export const useMemory = () => {
     deleteInstruction,
     recordPattern,
     getPreference,
+    analyzeAndLearn,
     refreshMemory: loadMemoryData
   };
 };

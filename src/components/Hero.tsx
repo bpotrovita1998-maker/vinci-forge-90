@@ -10,6 +10,7 @@ import AdvancedOptions from './AdvancedOptions';
 import CADTemplates from './CADTemplates';
 import PromptEnhancer from './PromptEnhancer';
 import ImageComparisonSlider from './ImageComparisonSlider';
+import { MemoryIndicator } from './MemoryIndicator';
 import { z } from 'zod';
 import { useSubscription } from '@/hooks/useSubscription';
 import { moderationService } from '@/services/moderationService';
@@ -70,7 +71,7 @@ const promptSchema = z.string()
 export default function Hero() {
   const { submitJob } = useJobs();
   const { isAdmin, subscription, tokenBalance } = useSubscription();
-  const { instructions, recordPattern, getPreference, savePreference } = useMemory();
+  const { instructions, recordPattern, getPreference, savePreference, analyzeAndLearn } = useMemory();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showEnhancer, setShowEnhancer] = useState(false);
@@ -333,11 +334,19 @@ export default function Hero() {
       await savePreference('default_settings', 'height', fullOptions.height);
       await savePreference('default_settings', 'steps', fullOptions.steps);
       
+      // Automatically analyze and learn from this generation (runs in background)
+      analyzeAndLearn(sanitizationResult.sanitized, fullOptions.type, {
+        width: fullOptions.width,
+        height: fullOptions.height,
+        steps: fullOptions.steps,
+        cfgScale: fullOptions.cfgScale,
+      });
+      
       toast({
         title: "Job Submitted!",
         description: instructions.length > 0 
-          ? `Job ${jobId.slice(0, 8)}... has been queued with your custom instructions applied.`
-          : `Job ${jobId.slice(0, 8)}... has been queued for processing.`,
+          ? `Job ${jobId.slice(0, 8)}... queued with your custom instructions. AI is learning your style!`
+          : `Job ${jobId.slice(0, 8)}... has been queued. AI is learning your preferences!`,
       });
 
       // Clear prompt and image after successful submission
@@ -409,6 +418,11 @@ export default function Hero() {
           className="space-y-4"
         >
           <div className="glass rounded-2xl p-6 space-y-4 shadow-[0_0_40px_rgba(201,169,97,0.15)]">
+            {/* Memory Indicator */}
+            <div className="flex justify-center">
+              <MemoryIndicator />
+            </div>
+            
             <div className="space-y-2">
               <Textarea
                 value={prompt}
