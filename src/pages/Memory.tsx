@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Brain, Plus, Trash2, Edit2, Save } from 'lucide-react';
+import { Brain, Plus, Trash2, Edit2, Save, Sparkles, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useMemory } from '@/hooks/useMemory';
@@ -74,9 +75,10 @@ const Memory = () => {
       </div>
 
       <Tabs defaultValue="instructions" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="instructions">Custom Instructions</TabsTrigger>
           <TabsTrigger value="patterns">Learning Patterns</TabsTrigger>
+          <TabsTrigger value="auto">Auto-Learned</TabsTrigger>
         </TabsList>
 
         <TabsContent value="instructions" className="space-y-6">
@@ -246,6 +248,81 @@ const Memory = () => {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="auto" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <CardTitle>AI Auto-Learning</CardTitle>
+              </div>
+              <CardDescription>
+                Instructions automatically learned from your generation patterns
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 p-4 rounded-lg bg-primary/5 border border-primary/20">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">Automatic Learning Active</p>
+                    <p className="text-xs text-muted-foreground">
+                      After every generation, AI analyzes your style and preferences to improve future results
+                    </p>
+                  </div>
+                </div>
+
+                {instructions.filter(i => i.title === 'Auto-learned Style').length > 0 ? (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold">Auto-Generated Instructions</h3>
+                    {instructions
+                      .filter(i => i.title === 'Auto-learned Style')
+                      .map((instruction) => (
+                        <Card key={instruction.id}>
+                          <CardContent className="pt-6">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Sparkles className="h-4 w-4 text-primary" />
+                                  <h3 className="font-semibold">{instruction.title}</h3>
+                                  <Badge variant="secondary" className="text-xs px-2 py-0 bg-primary/20 text-primary border-0">
+                                    Auto-learned
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                  {instruction.instruction}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={instruction.is_active}
+                                  onCheckedChange={(checked) =>
+                                    handleToggleActive(instruction.id, checked)
+                                  }
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => deleteInstruction(instruction.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    <p>No auto-learned instructions yet.</p>
+                    <p className="text-sm mt-2">Create a few generations with similar styles and AI will automatically learn your preferences!</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

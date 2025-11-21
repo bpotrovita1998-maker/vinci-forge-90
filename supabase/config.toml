@@ -66,5 +66,11 @@ verify_jwt = true
 [functions.create-movie]
 verify_jwt = false
 
+[functions.manage-memory]
+verify_jwt = true
+
+[functions.analyze-and-learn]
+verify_jwt = true
+
 
 
