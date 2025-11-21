@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { useSubscription } from '@/hooks/useSubscription';
 import { moderationService } from '@/services/moderationService';
 import { InputSanitizer } from '@/lib/inputSanitization';
+import { useMemory } from '@/hooks/useMemory';
 import {
   Collapsible,
   CollapsibleContent,
@@ -69,6 +70,7 @@ const promptSchema = z.string()
 export default function Hero() {
   const { submitJob } = useJobs();
   const { isAdmin, subscription, tokenBalance } = useSubscription();
+  const { instructions, recordPattern, getPreference, savePreference } = useMemory();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showEnhancer, setShowEnhancer] = useState(false);
@@ -91,6 +93,39 @@ export default function Hero() {
     upscaleVideo: false,
     upscaleQuality: 4, // Default to 4x balanced quality
   });
+
+  // Load saved preferences on mount
+  useEffect(() => {
+    const savedWidth = getPreference('default_settings', 'width');
+    const savedHeight = getPreference('default_settings', 'height');
+    const savedSteps = getPreference('default_settings', 'steps');
+    
+    if (savedWidth || savedHeight || savedSteps) {
+      setOptions(prev => ({
+        ...prev,
+        width: savedWidth || prev.width,
+        height: savedHeight || prev.height,
+        steps: savedSteps || prev.steps,
+      }));
+    }
+  }, []);
+
+  // Apply custom instructions to prompt
+  const applyCustomInstructions = (basePrompt: string): string => {
+    if (instructions.length === 0) return basePrompt;
+    
+    const relevantInstructions = instructions
+      .filter(i => i.is_active)
+      .sort((a, b) => b.priority - a.priority);
+    
+    if (relevantInstructions.length === 0) return basePrompt;
+    
+    const instructionsText = relevantInstructions
+      .map(i => i.instruction)
+      .join('. ');
+    
+    return `${basePrompt}. ${instructionsText}`;
+  };
 
   const convertImageFormat = async (file: File, targetFormat: 'png' | 'jpeg' | 'webp'): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -257,8 +292,11 @@ export default function Hero() {
       
       setIsGenerating(true);
       
+      // Apply custom instructions to prompt
+      const enhancedPrompt = applyCustomInstructions(sanitizationResult.sanitized);
+      
       const fullOptions: GenerationOptions = {
-        prompt: sanitizationResult.sanitized,
+        prompt: enhancedPrompt,
         negativePrompt: options.negativePrompt ? InputSanitizer.sanitizeText(options.negativePrompt, 2000) : undefined,
         type: options.type || 'image',
         width: options.width || 1024,
@@ -281,9 +319,25 @@ export default function Hero() {
 
       const jobId = await submitJob(fullOptions);
       
+      // Record generation patterns for learning
+      await recordPattern('generation_settings', {
+        type: fullOptions.type,
+        width: fullOptions.width,
+        height: fullOptions.height,
+        steps: fullOptions.steps,
+        cfgScale: fullOptions.cfgScale,
+      });
+      
+      // Save frequently used settings as preferences
+      await savePreference('default_settings', 'width', fullOptions.width);
+      await savePreference('default_settings', 'height', fullOptions.height);
+      await savePreference('default_settings', 'steps', fullOptions.steps);
+      
       toast({
         title: "Job Submitted!",
-        description: `Job ${jobId.slice(0, 8)}... has been queued for processing.`,
+        description: instructions.length > 0 
+          ? `Job ${jobId.slice(0, 8)}... has been queued with your custom instructions applied.`
+          : `Job ${jobId.slice(0, 8)}... has been queued for processing.`,
       });
 
       // Clear prompt and image after successful submission
