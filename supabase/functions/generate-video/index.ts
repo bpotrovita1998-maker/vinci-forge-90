@@ -42,8 +42,13 @@ const generateVideoSchema = z.object({
   jobId: z.string().uuid().optional(),
   duration: z.number().min(4).max(8).optional(),
   aspectRatio: z.string().optional(),
+  resolution: z.enum(['720p', '1080p']).optional(),
   characterReference: z.string().url().optional(),
   styleReference: z.string().url().optional(),
+  referenceImages: z.array(z.string().url()).max(3).optional(),
+  startFrame: z.string().url().optional(),
+  endFrame: z.string().url().optional(),
+  extendFromVideo: z.string().url().optional(),
   scenePrompts: z.array(z.string().min(1).max(2000).transform(sanitizePrompt)).optional(),
   sceneIndex: z.number().optional(),
 });
@@ -502,21 +507,44 @@ serve(async (req) => {
       console.log("Added style description");
     }
     
-    // Build Google Veo 3.1 Fast input parameters
-    // Google Veo 3.1 Fast only supports 16:9 and 9:16 aspect ratios
+    // Build Google Veo 3.1 input parameters
+    // Google Veo 3.1 supports 16:9 and 9:16 aspect ratios, 720p and 1080p resolution
     let aspectRatio = body.aspectRatio || "16:9";
     if (aspectRatio !== "16:9" && aspectRatio !== "9:16") {
       aspectRatio = "16:9"; // Fallback to 16:9 for unsupported ratios
     }
     
+    // Determine resolution (Veo 3.1 supports 720p and 1080p at 24 FPS)
+    const resolution = body.resolution || '1080p';
+    
     const veoInput: any = {
       prompt: enhancedPrompt,
       aspect_ratio: aspectRatio,
-      duration: body.duration || 8, // Google Veo default 8 seconds
+      duration: body.duration || 8, // Veo 3.1: 4, 6, or 8 seconds
+      resolution: resolution, // 720p or 1080p
     };
     
-    // Add reference image for visual consistency if provided
-    if (body.referenceImage) {
+    // Add reference images for visual consistency (up to 3)
+    if (body.referenceImages && body.referenceImages.length > 0) {
+      veoInput.reference_images = body.referenceImages.slice(0, 3);
+      console.log("Using reference images for consistency:", body.referenceImages.length);
+    }
+    
+    // Frame-to-frame generation
+    if (body.startFrame && body.endFrame) {
+      veoInput.start_frame = body.startFrame;
+      veoInput.end_frame = body.endFrame;
+      console.log("Frame-to-frame generation enabled");
+    }
+    
+    // Scene extension (extend from previous video)
+    if (body.extendFromVideo) {
+      veoInput.extend_from = body.extendFromVideo;
+      console.log("Extending from video:", body.extendFromVideo);
+    }
+    
+    // Add reference image for visual consistency if provided (legacy support)
+    if (body.referenceImage && !body.referenceImages) {
       veoInput.image = body.referenceImage;
       console.log("Using reference image for consistency:", body.referenceImage);
     }
@@ -527,7 +555,7 @@ serve(async (req) => {
       console.log("Using seed for consistency:", body.seed);
     }
     
-    console.log("Google Veo input:", JSON.stringify(veoInput, null, 2));
+    console.log("Google Veo 3.1 input:", JSON.stringify(veoInput, null, 2));
     
     // Start prediction with Google Veo 3.1 Fast (async)
     const prediction = await replicate.predictions.create({

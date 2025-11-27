@@ -13,13 +13,20 @@ export interface GenerationOptions {
   height: number;
   
   // Video options
-  duration?: number; // seconds
+  duration?: number; // seconds (4, 6, or 8 for Veo 3.1)
   fps?: number;
   videoMode?: VideoMode;
   numVideos?: number; // for video generation
   upscaleVideo?: boolean; // upscale to 4K with 60fps
   scenePrompts?: string[]; // for multi-part video generation
   aspectRatio?: string; // aspect ratio for video (16:9, 9:16)
+  resolution?: '720p' | '1080p'; // video resolution (Veo 3.1)
+  
+  // Veo 3.1 specific options
+  referenceImages?: string[]; // Up to 3 reference images for video generation
+  startFrame?: string; // Starting frame for frame-to-frame generation
+  endFrame?: string; // Ending frame for frame-to-frame generation
+  extendFromVideo?: string; // Video URL to extend from
   
   // 3D options
   threeDMode: ThreeDMode;
