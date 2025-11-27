@@ -1,6 +1,6 @@
 import { NavLink } from './NavLink';
 import { Button } from './ui/button';
-import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign, Coins, Video, Brain } from 'lucide-react';
+import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign, Coins, Video, Brain, Settings as SettingsIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -136,6 +136,12 @@ export default function Navigation() {
                     <DropdownMenuItem className="cursor-pointer">
                       <User className="w-4 h-4 mr-2" />
                       Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <NavLink to="/settings" className="flex items-center w-full">
+                        <SettingsIcon className="w-4 h-4 mr-2" />
+                        Settings
+                      </NavLink>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-border/30" />
                     <DropdownMenuItem 

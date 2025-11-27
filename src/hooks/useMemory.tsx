@@ -252,7 +252,7 @@ export const useMemory = () => {
     instructions,
     patterns,
     loading,
-    savePreference,
+    savePreference, // Now accepts optional silent parameter
     saveInstruction,
     updateInstruction,
     deleteInstruction,
