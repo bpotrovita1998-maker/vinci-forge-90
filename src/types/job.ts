@@ -19,6 +19,7 @@ export interface GenerationOptions {
   numVideos?: number; // for video generation
   upscaleVideo?: boolean; // upscale to 4K with 60fps
   scenePrompts?: string[]; // for multi-part video generation
+  aspectRatio?: string; // aspect ratio for video (16:9, 9:16)
   
   // 3D options
   threeDMode: ThreeDMode;

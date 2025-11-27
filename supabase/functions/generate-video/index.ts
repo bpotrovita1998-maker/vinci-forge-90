@@ -445,9 +445,15 @@ serve(async (req) => {
     }
     
     // Build Google Veo 3.1 Fast input parameters
+    // Google Veo 3.1 Fast only supports 16:9 and 9:16 aspect ratios
+    let aspectRatio = body.aspectRatio || "16:9";
+    if (aspectRatio !== "16:9" && aspectRatio !== "9:16") {
+      aspectRatio = "16:9"; // Fallback to 16:9 for unsupported ratios
+    }
+    
     const veoInput: any = {
       prompt: enhancedPrompt,
-      aspect_ratio: body.aspectRatio || "16:9",
+      aspect_ratio: aspectRatio,
       duration: body.duration || 8, // Google Veo default 8 seconds
     };
     
