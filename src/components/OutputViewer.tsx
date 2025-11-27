@@ -10,6 +10,7 @@ import { Button } from './ui/button';
 import { Download, ExternalLink, Copy, Check, Box, Printer, Package, GitCompare, Film, Sparkles, Scissors, Play, Cog, Maximize2, Minimize2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { useState, Suspense, useEffect } from 'react';
+import { useOutputCompression } from '@/hooks/useOutputCompression';
 import { toast } from '@/hooks/use-toast';
 import ThreeDViewer, { MaterialSettings, TransformSettings, LightingSettings } from './ThreeDViewer';
 import ModelEditControls, { MaterialPreset, TransformState, LightingState } from './ModelEditControls';
@@ -40,9 +41,17 @@ interface OutputViewerProps {
 }
 
 export default function OutputViewer({ job, onClose }: OutputViewerProps) {
+  const { getDisplayUrl, getDownloadUrl, hasCompressedOutputs, compressOutputs, isCompressing } = useOutputCompression(job);
   const [copied, setCopied] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+
+  // Auto-compress if not yet compressed
+  useEffect(() => {
+    if (!hasCompressedOutputs && !isCompressing && job.outputs.length > 0) {
+      compressOutputs();
+    }
+  }, [hasCompressedOutputs, isCompressing, job.outputs.length, compressOutputs]);
   const [unityScale, setUnityScale] = useState<string>('1');
   const [videoViewMode, setVideoViewMode] = useState<'grid' | 'single' | 'compare' | 'scenes' | 'editor' | 'fullvideo'>('single');
   const [isDownloadingBatch, setIsDownloadingBatch] = useState(false);
@@ -420,7 +429,8 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
   const handleDownload = async () => {
     try {
       const index = job.options.type === 'video' ? currentVideoIndex : currentImageIndex;
-      const url = localOutputs[index];
+      // Always download the original full-quality file
+      const url = getDownloadUrl(index);
       const response = await fetch(url);
       const blob = await response.blob();
       const link = document.createElement('a');
@@ -432,8 +442,8 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
       toast({
-        title: "Download started",
-        description: "Your file is being downloaded",
+        title: "Full Quality Download",
+        description: "Downloading original file at full resolution",
       });
     } catch (error) {
       console.error('Download failed:', error);
@@ -789,6 +799,16 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
 
         <div className="flex-1 overflow-y-auto px-6">
           <div className="space-y-4 pb-6">
+            {/* Compression Notice */}
+            {hasCompressedOutputs && !isCompressing && (job.options.type === 'image' || job.options.type === 'video') && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs text-muted-foreground">
+                <p className="flex items-center gap-2">
+                  <Sparkles className="w-3 h-3 text-primary" />
+                  <span>Showing optimized version for faster loading. Download button provides full-quality original.</span>
+                </p>
+              </div>
+            )}
+
            {/* Media Preview */}
            <div className="relative bg-muted/30 rounded-lg overflow-hidden">
              {(job.options.type === '3d' || job.options.type === 'cad') ? (
@@ -862,7 +882,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
              ) : job.options.type === 'image' ? (
               <div className="space-y-3">
                 <img
-                  src={job.outputs[currentImageIndex]}
+                  src={getDisplayUrl(currentImageIndex)}
                   alt="Generated output"
                   className="w-full h-auto"
                 />
@@ -880,7 +900,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                         }`}
                       >
                         <img
-                          src={url}
+                          src={getDisplayUrl(i)}
                           alt={`Variant ${i + 1}`}
                           className="w-full h-full object-cover"
                         />
@@ -969,7 +989,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 ) : videoViewMode === 'fullvideo' && hasStitchedVideo ? (
                   <div className="space-y-3">
                     <video
-                      src={localOutputs[stitchedVideoIndex]}
+                      src={getDisplayUrl(stitchedVideoIndex)}
                       controls
                       className="w-full h-auto max-h-[600px] rounded-lg"
                       autoPlay
@@ -1050,7 +1070,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                         </div>
                         {job.outputs[index] && (
                           <video
-                            src={job.outputs[index]}
+                            src={getDisplayUrl(index)}
                             controls
                             className="w-full h-auto"
                             playsInline
@@ -1075,7 +1095,7 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                 ) : (
                   <div className="space-y-3">
                     <video
-                      src={localOutputs[currentVideoIndex]}
+                      src={getDisplayUrl(currentVideoIndex)}
                       controls
                       className="w-full h-auto max-h-[600px]"
                       autoPlay

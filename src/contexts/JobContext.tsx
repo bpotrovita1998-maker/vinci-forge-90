@@ -302,7 +302,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
         // For completed jobs, outputs field may contain large base64 data
         const { data, error, count } = await supabase
           .from('jobs')
-          .select('id, user_id, type, status, prompt, negative_prompt, width, height, three_d_mode, duration, fps, video_mode, num_images, num_videos, upscale_video, progress_stage, progress_percent, progress_message, current_step, total_steps, eta, created_at, started_at, completed_at, error, manifest, outputs, seed, steps, cfg_scale, updated_at', { count: 'exact' })
+          .select('id, user_id, type, status, prompt, negative_prompt, width, height, three_d_mode, duration, fps, video_mode, num_images, num_videos, upscale_video, progress_stage, progress_percent, progress_message, current_step, total_steps, eta, created_at, started_at, completed_at, error, manifest, outputs, compressed_outputs, seed, steps, cfg_scale, updated_at', { count: 'exact' })
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(JOBS_PER_PAGE)
@@ -361,6 +361,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
               message: dbJob.progress_message || '',
             },
             outputs: dbJob.outputs as string[],
+            compressed_outputs: dbJob.compressed_outputs as string[] | undefined,
             manifest: dbJob.manifest,
             createdAt: new Date(dbJob.created_at),
             startedAt: dbJob.started_at ? new Date(dbJob.started_at) : undefined,
@@ -667,8 +668,64 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
         // Show completion toast
         if (partialJob.status === 'completed') {
-          toast.success('Generation complete! Click the job to view your result.');
+          toast.success('Generation complete! Optimizing for fast loading...');
           websocketService.unsubscribeFromJob(jobId);
+          
+          // Trigger compression asynchronously (don't wait for it)
+          setTimeout(() => {
+            import('@/services/compressionService').then(({ compressImage, compressVideoThumbnail, uploadCompressedFile }) => {
+              const compressJobOutputs = async () => {
+                if (!partialJob.outputs || partialJob.outputs.length === 0) return;
+                
+                const job = jobs.find(j => j.id === jobId);
+                if (!job) return;
+
+                try {
+                  const compressedUrls: string[] = [];
+                  
+                  for (let i = 0; i < partialJob.outputs.length; i++) {
+                    const outputUrl = partialJob.outputs[i];
+                    
+                    try {
+                      let compressionResult;
+                      
+                      if (job.options.type === 'image') {
+                        compressionResult = await compressImage(outputUrl);
+                      } else if (job.options.type === 'video') {
+                        compressionResult = await compressVideoThumbnail(outputUrl);
+                      } else {
+                        // Skip compression for 3D/CAD (use poster cache)
+                        compressedUrls.push(outputUrl);
+                        continue;
+                      }
+
+                      const compressedUrl = await uploadCompressedFile(
+                        compressionResult.compressedBlob,
+                        outputUrl,
+                        job.options.type
+                      );
+
+                      compressedUrls.push(compressedUrl);
+                    } catch (error) {
+                      console.error(`Failed to compress output ${i}:`, error);
+                      compressedUrls.push(outputUrl);
+                    }
+                  }
+
+                  // Update database
+                  await supabase.from('jobs').update({ 
+                    compressed_outputs: compressedUrls 
+                  }).eq('id', jobId);
+                  
+                  console.log('Compression complete for job', jobId);
+                } catch (error) {
+                  console.error('Compression failed:', error);
+                }
+              };
+              
+              compressJobOutputs();
+            });
+          }, 1000);
         } else if (partialJob.status === 'failed') {
           toast.error(`Generation failed: ${partialJob.error || 'Unknown error'}`);
           websocketService.unsubscribeFromJob(jobId);
