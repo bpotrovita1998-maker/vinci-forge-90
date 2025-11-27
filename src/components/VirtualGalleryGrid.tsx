@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Job } from '@/types/job';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { Image as ImageIcon, Video, Box, Eye, Download, Trash2, Package } from '
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { JobType } from '@/types/job';
+import { supabase } from '@/integrations/supabase/client';
 
 interface VirtualGalleryGridProps {
   jobs: Job[];
@@ -26,6 +27,16 @@ export default function VirtualGalleryGrid({
   onUnityExport,
   thumbnailRefreshKey = 0
 }: VirtualGalleryGridProps) {
+  // Helper to get compressed URL or fallback to original
+  const getDisplayUrl = (job: Job, index: number = 0): string => {
+    // Try to get compressed_outputs from the job data (loaded from DB)
+    const jobData = job as any;
+    if (jobData.compressed_outputs && Array.isArray(jobData.compressed_outputs)) {
+      return jobData.compressed_outputs[index] || job.outputs[index];
+    }
+    return job.outputs[index];
+  };
+
   const getTypeIcon = (type: JobType) => {
     switch (type) {
       case 'image': return <ImageIcon className="w-4 h-4" />;
@@ -61,7 +72,7 @@ export default function VirtualGalleryGrid({
                   />
                 ) : type === 'video' ? (
                   <video
-                    src={job.outputs[0]}
+                    src={getDisplayUrl(job, 0)}
                     className="w-full h-full object-cover"
                     muted
                     loop
@@ -74,7 +85,7 @@ export default function VirtualGalleryGrid({
                   />
                 ) : (
                   <img
-                    src={job.outputs[0]}
+                    src={getDisplayUrl(job, 0)}
                     alt={job.options.prompt}
                     className="w-full h-full object-cover"
                     loading="lazy"

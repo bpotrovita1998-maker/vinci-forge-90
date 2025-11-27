@@ -114,6 +114,7 @@ export type Database = {
         Row: {
           cfg_scale: number | null
           completed_at: string | null
+          compressed_outputs: Json | null
           created_at: string
           current_step: number | null
           duration: number | null
@@ -147,6 +148,7 @@ export type Database = {
         Insert: {
           cfg_scale?: number | null
           completed_at?: string | null
+          compressed_outputs?: Json | null
           created_at?: string
           current_step?: number | null
           duration?: number | null
@@ -180,6 +182,7 @@ export type Database = {
         Update: {
           cfg_scale?: number | null
           completed_at?: string | null
+          compressed_outputs?: Json | null
           created_at?: string
           current_step?: number | null
           duration?: number | null

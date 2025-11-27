@@ -72,6 +72,7 @@ export interface Job {
   status: JobStatus;
   progress: JobProgress;
   outputs: string[]; // URLs to generated files
+  compressed_outputs?: string[]; // URLs to compressed/optimized files for display
   manifest?: JobManifest;
   createdAt: Date;
   startedAt?: Date;
