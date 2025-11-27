@@ -88,7 +88,7 @@ export default function Hero() {
     steps: 20,
     cfgScale: 7.5,
     numImages: 1,
-    duration: 5,
+    duration: 8, // Google Veo 3.1 Fast default
     fps: 60, // Default to 60 fps for videos
     numVideos: 1,
     upscaleVideo: false,

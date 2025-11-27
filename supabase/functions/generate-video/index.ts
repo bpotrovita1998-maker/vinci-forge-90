@@ -39,7 +39,7 @@ const generateVideoSchema = z.object({
   prompt: z.string().min(1).max(2000).transform(sanitizePrompt).optional(),
   predictionId: z.string().optional(),
   jobId: z.string().uuid().optional(),
-  duration: z.number().min(1).max(5).optional(),
+  duration: z.number().min(4).max(8).optional(),
   aspectRatio: z.string().optional(),
   characterReference: z.string().url().optional(),
   styleReference: z.string().url().optional(),
@@ -425,7 +425,7 @@ serve(async (req) => {
           }
         );
       }
-      console.log("Generating single video with Pixverse V5");
+      console.log("Generating single video with Google Veo 3.1 Fast");
       console.log("Prompt:", promptToUse);
     }
     
@@ -434,7 +434,7 @@ serve(async (req) => {
     
     // Add character description if provided for consistency
     if (body.characterDescription) {
-      enhancedPrompt = `Character: ${body.characterDescription}. Scene: ${body.prompt}`;
+      enhancedPrompt = `Character: ${body.characterDescription}. Scene: ${promptToUse}`;
       console.log("Added character description for consistency");
     }
     
@@ -444,40 +444,31 @@ serve(async (req) => {
       console.log("Added style description");
     }
     
-    // Build Pixverse input parameters
-    const pixverseInput: any = {
+    // Build Google Veo 3.1 Fast input parameters
+    const veoInput: any = {
       prompt: enhancedPrompt,
-      duration: 5, // 5 seconds is cheaper ($0.30 vs $0.40 for 8 seconds)
-      quality: "540p", // Good balance of quality and cost
       aspect_ratio: body.aspectRatio || "16:9",
+      duration: body.duration || 8, // Google Veo default 8 seconds
     };
     
-    // Add reference image for character consistency if provided
+    // Add reference image for visual consistency if provided
     if (body.referenceImage) {
-      pixverseInput.image = body.referenceImage;
+      veoInput.image = body.referenceImage;
       console.log("Using reference image for consistency:", body.referenceImage);
-    }
-    
-    // Add negative prompt to avoid deformations and physics issues
-    const negativePrompt = "deformed characters, distorted bodies, broken physics, unnatural movements, morphing faces, impossible poses, anatomical errors, glitchy motion";
-    if (body.negativePrompt) {
-      pixverseInput.negative_prompt = `${body.negativePrompt}, ${negativePrompt}`;
-    } else {
-      pixverseInput.negative_prompt = negativePrompt;
     }
     
     // Use seed for consistency across scenes if provided
     if (body.seed) {
-      pixverseInput.seed = body.seed;
+      veoInput.seed = body.seed;
       console.log("Using seed for consistency:", body.seed);
     }
     
-    console.log("Pixverse input:", JSON.stringify(pixverseInput, null, 2));
+    console.log("Google Veo input:", JSON.stringify(veoInput, null, 2));
     
-    // Start prediction with Pixverse V5 (async)
+    // Start prediction with Google Veo 3.1 Fast (async)
     const prediction = await replicate.predictions.create({
-      model: "pixverse/pixverse-v5",
-      input: pixverseInput
+      model: "google-deepmind/veo-3.1-fast",
+      input: veoInput
     });
 
     console.log("Video prediction started:", prediction.id);
