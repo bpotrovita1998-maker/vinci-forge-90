@@ -90,6 +90,7 @@ export default function Hero() {
     numImages: 1,
     duration: 8, // Google Veo 3.1 Fast default
     fps: 60, // Default to 60 fps for videos
+    aspectRatio: "16:9", // Google Veo 3.1 Fast default
     numVideos: 1,
     upscaleVideo: false,
     upscaleQuality: 4, // Default to 4x balanced quality

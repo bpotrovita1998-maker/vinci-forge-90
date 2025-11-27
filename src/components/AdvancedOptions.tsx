@@ -157,19 +157,22 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
             </div>
 
             <div className="space-y-2">
-              <Label>Video Quality</Label>
-              <Select
-                value={options.upscaleVideo ? 'true' : 'false'}
-                onValueChange={(v) => onChange({ ...options, upscaleVideo: v === 'true' })}
+              <Label>Aspect Ratio</Label>
+              <Select 
+                value={options.aspectRatio || "16:9"} 
+                onValueChange={(value) => onChange({ ...options, aspectRatio: value })}
               >
                 <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="false">Standard (1024p)</SelectItem>
-                  <SelectItem value="true">4K Upscaled (ESRGAN)</SelectItem>
+                  <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
+                  <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Google Veo 3.1 Fast supports 16:9 and 9:16
+              </p>
             </div>
           </>
         )}
