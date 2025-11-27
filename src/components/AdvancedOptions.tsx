@@ -110,12 +110,15 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
                 <Label>Duration (seconds)</Label>
                 <Input
                   type="number"
-                  min="1"
-                  max="5"
-                  value={options.duration || 5}
+                  min="4"
+                  max="8"
+                  value={options.duration || 8}
                   onChange={(e) => onChange({ ...options, duration: parseInt(e.target.value) })}
                   className="bg-background/50"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Google Veo 3.1 Fast: 4-8 seconds
+                </p>
               </div>
 
               <div className="space-y-2">
