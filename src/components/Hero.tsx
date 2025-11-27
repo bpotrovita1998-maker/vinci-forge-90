@@ -88,12 +88,14 @@ export default function Hero() {
     steps: 20,
     cfgScale: 7.5,
     numImages: 1,
-    duration: 8, // Google Veo 3.1 Fast default
-    fps: 60, // Default to 60 fps for videos
-    aspectRatio: "16:9", // Google Veo 3.1 Fast default
+    duration: 8, // Veo 3.1 default
+    fps: 24, // Veo 3.1 default (cinematic)
+    aspectRatio: "16:9", // Veo 3.1 default
+    resolution: '1080p', // Veo 3.1 default
     numVideos: 1,
     upscaleVideo: false,
     upscaleQuality: 4, // Default to 4x balanced quality
+    referenceImages: [],
   });
 
   // Load saved preferences on mount
@@ -310,9 +312,18 @@ export default function Hero() {
         upscaleVideo: options.upscaleVideo,
         videoMode: options.videoMode,
         upscaleQuality: options.upscaleQuality,
+        aspectRatio: options.aspectRatio,
+        resolution: options.resolution,
         imageUrl: uploadedImages[0] || undefined,
         imageUrls: uploadedImages.length > 0 ? uploadedImages : undefined,
         imageFormat,
+        // Veo 3.1 specific options
+        referenceImages: options.type === 'video' && uploadedImages.length > 0 
+          ? uploadedImages.slice(0, 3) // Up to 3 reference images for video
+          : undefined,
+        startFrame: options.startFrame,
+        endFrame: options.endFrame,
+        extendFromVideo: options.extendFromVideo,
       };
 
       const jobId = await submitJob(fullOptions);
@@ -482,6 +493,12 @@ export default function Hero() {
                 </span>
               )}
               
+              {uploadedImages.length > 0 && options.type === 'video' && (
+                <span className="text-sm text-muted-foreground">
+                  🎬 Reference mode: Up to 3 images will guide video appearance, style & character consistency
+                </span>
+              )}
+              
               {uploadedImages.length > 0 && (
                 <ImageComparisonSlider 
                   images={uploadedImages}
@@ -490,7 +507,9 @@ export default function Hero() {
               )}
               
               <p className="text-xs text-muted-foreground">
-                💡 <span className="font-medium">Tip:</span> Upload multiple reference images (PNG/JPEG/WebP) for better results. Use image editing mode to transform existing images.
+                💡 <span className="font-medium">Tip:</span> {options.type === 'video' 
+                  ? 'Upload up to 3 reference images for Veo 3.1 to maintain character consistency and visual style across your video.' 
+                  : 'Upload multiple reference images (PNG/JPEG/WebP) for better results. Use image editing mode to transform existing images.'}
               </p>
             </div>
             

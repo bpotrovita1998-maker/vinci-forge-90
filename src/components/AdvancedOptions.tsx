@@ -108,32 +108,71 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Duration (seconds)</Label>
-                <Input
-                  type="number"
-                  min="4"
-                  max="8"
-                  value={options.duration || 8}
-                  onChange={(e) => onChange({ ...options, duration: parseInt(e.target.value) })}
-                  className="bg-background/50"
-                />
+                <Select
+                  value={options.duration?.toString() || '8'}
+                  onValueChange={(v) => onChange({ ...options, duration: parseInt(v) })}
+                >
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4">4 seconds</SelectItem>
+                    <SelectItem value="6">6 seconds</SelectItem>
+                    <SelectItem value="8">8 seconds</SelectItem>
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
-                  Google Veo 3.1 Fast: 4-8 seconds
+                  Veo 3.1: 4, 6, or 8 seconds per scene
                 </p>
               </div>
 
               <div className="space-y-2">
+                <Label>Resolution</Label>
+                <Select
+                  value={options.resolution || '1080p'}
+                  onValueChange={(v) => onChange({ ...options, resolution: v as '720p' | '1080p' })}
+                >
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="720p">720p (HD)</SelectItem>
+                    <SelectItem value="1080p">1080p (Full HD)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>FPS</Label>
                 <Select
-                  value={options.fps?.toString() || '60'}
+                  value={options.fps?.toString() || '24'}
                   onValueChange={(v) => onChange({ ...options, fps: parseInt(v) })}
                 >
                   <SelectTrigger className="bg-background/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="24">24 fps (Original)</SelectItem>
+                    <SelectItem value="24">24 fps (Cinematic)</SelectItem>
                     <SelectItem value="30">30 fps</SelectItem>
-                    <SelectItem value="60">60 fps (Upscaled)</SelectItem>
+                    <SelectItem value="60">60 fps (Smooth)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Aspect Ratio</Label>
+                <Select 
+                  value={options.aspectRatio || "16:9"} 
+                  onValueChange={(value) => onChange({ ...options, aspectRatio: value })}
+                >
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
+                    <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -154,24 +193,8 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
                   <SelectItem value="3">3 videos</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Aspect Ratio</Label>
-              <Select 
-                value={options.aspectRatio || "16:9"} 
-                onValueChange={(value) => onChange({ ...options, aspectRatio: value })}
-              >
-                <SelectTrigger className="bg-background/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
-                  <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
-                </SelectContent>
-              </Select>
               <p className="text-xs text-muted-foreground">
-                Google Veo 3.1 Fast supports 16:9 and 9:16
+                Multiple videos create longer sequences (15+ seconds)
               </p>
             </div>
           </>
