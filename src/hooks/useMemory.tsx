@@ -88,7 +88,8 @@ export const useMemory = () => {
   const savePreference = async (
     preference_type: string,
     preference_key: string,
-    preference_value: any
+    preference_value: any,
+    silent: boolean = false // Add silent parameter to suppress toast
   ) => {
     try {
       const { error } = await supabase.functions.invoke('manage-memory', {
@@ -100,19 +101,24 @@ export const useMemory = () => {
 
       if (error) throw error;
       
-      toast({
-        title: "Preference saved",
-        description: "Your preference has been saved to memory."
-      });
+      // Only show toast if not silent
+      if (!silent) {
+        toast({
+          title: "Preference saved",
+          description: "Your preference has been saved to memory."
+        });
+      }
 
       await loadPreferences();
     } catch (error) {
       console.error('Error saving preference:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save preference",
-        variant: "destructive"
-      });
+      if (!silent) {
+        toast({
+          title: "Error",
+          description: "Failed to save preference",
+          variant: "destructive"
+        });
+      }
     }
   };
 

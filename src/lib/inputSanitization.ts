@@ -24,7 +24,7 @@ export class InputSanitizer {
   ];
 
   /**
-   * Sanitize text input by removing dangerous patterns
+   * Sanitize text input - DO NOT HTML encode AI prompts
    */
   static sanitizeText(input: string, maxLength: number = 10000): string {
     if (!input || typeof input !== 'string') {
@@ -37,9 +37,7 @@ export class InputSanitizer {
     // Remove null bytes
     sanitized = sanitized.replace(/\0/g, '');
 
-    // HTML encode special characters
-    sanitized = this.htmlEncode(sanitized);
-
+    // Don't HTML encode - let AI handle the raw text
     return sanitized;
   }
 
@@ -73,25 +71,24 @@ export class InputSanitizer {
       }
     }
 
-    // Sanitize the prompt
-    const sanitized = this.sanitizeText(trimmed, 8000);
+    // Sanitize the prompt (without HTML encoding for AI)
+    const sanitized = trimmed.slice(0, 8000);
 
     return { sanitized, isValid: true };
   }
 
   /**
-   * HTML encode only when storing/displaying, not for AI prompts
+   * HTML encode for display purposes only (not used for AI prompts)
    */
-  private static htmlEncode(str: string): string {
-    // Only encode if we detect actual HTML tags
-    if (/<[^>]+>/g.test(str)) {
-      const htmlEntities: Record<string, string> = {
-        '<': '&lt;',
-        '>': '&gt;',
-      };
-      return str.replace(/[<>]/g, (match) => htmlEntities[match]);
-    }
-    return str;
+  static htmlEncodeForDisplay(str: string): string {
+    const htmlEntities: Record<string, string> = {
+      '<': '&lt;',
+      '>': '&gt;',
+      '&': '&amp;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return str.replace(/[<>&"']/g, (match) => htmlEntities[match]);
   }
 
   /**

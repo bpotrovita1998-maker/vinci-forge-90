@@ -255,12 +255,8 @@ export default function Hero() {
         return;
       }
 
-      // Content moderation check
+      // Content moderation check (silent, no toast)
       setIsGenerating(true);
-      toast({
-        title: "Checking content safety...",
-        description: "Verifying your prompt meets content guidelines",
-      });
 
       const moderationResult = await moderationService.moderatePrompt(sanitizationResult.sanitized);
       
@@ -330,10 +326,12 @@ export default function Hero() {
         cfgScale: fullOptions.cfgScale,
       });
       
-      // Save frequently used settings as preferences
-      await savePreference('default_settings', 'width', fullOptions.width);
-      await savePreference('default_settings', 'height', fullOptions.height);
-      await savePreference('default_settings', 'steps', fullOptions.steps);
+      // Save frequently used settings as preferences (silently, no toasts)
+      await Promise.all([
+        savePreference('default_settings', 'width', fullOptions.width, true),
+        savePreference('default_settings', 'height', fullOptions.height, true),
+        savePreference('default_settings', 'steps', fullOptions.steps, true),
+      ]);
       
       // Automatically analyze and learn from this generation (runs in background)
       analyzeAndLearn(sanitizationResult.sanitized, fullOptions.type, {
