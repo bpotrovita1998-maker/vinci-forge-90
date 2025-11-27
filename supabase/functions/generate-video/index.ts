@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Replicate from "https://esm.sh/replicate@0.25.2";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { splitPromptIntoScenes } from "../_shared/promptSplitter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -276,19 +277,51 @@ serve(async (req) => {
           if ((allScenesComplete || needsRestitching) && scenePrompts && scenePrompts.length > 1) {
             console.log(needsRestitching ? "Re-stitching with regenerated scene..." : "All scenes complete, initiating stitching...");
             
-            // Call stitch-videos function
-            const { error: stitchError } = await supabase.functions.invoke(
-              'stitch-videos',
+            // Prepare scene data with prompts for database storage
+            const scenesData = updatedOutputs.map((url, index) => ({
+              videoUrl: url,
+              duration: 8,
+              order: index,
+              prompt: scenePrompts[index] || ''
+            }));
+            
+            // Call create-movie function to stitch and store in database
+            const { data: movieData, error: stitchError } = await supabase.functions.invoke(
+              'create-movie',
               {
                 body: {
-                  videoUrls: updatedOutputs,
-                  jobId: body.jobId
+                  scenes: scenesData,
+                  jobId: body.jobId,
+                  userId: jobData.user_id
                 }
               }
             );
             
             if (stitchError) {
-              console.error("Failed to stitch videos:", stitchError);
+              console.error("Failed to create movie:", stitchError);
+              // Mark job as failed
+              await supabase
+                .from('jobs')
+                .update({
+                  status: 'failed',
+                  error: 'Failed to stitch video scenes together',
+                  completed_at: new Date().toISOString()
+                })
+                .eq('id', body.jobId);
+            } else if (movieData?.success) {
+              console.log("Movie created successfully:", movieData.videoUrl);
+              // Update job with final stitched video
+              await supabase
+                .from('jobs')
+                .update({
+                  outputs: [movieData.videoUrl], // Replace with single stitched video
+                  status: 'completed',
+                  progress_stage: 'completed',
+                  progress_percent: 100,
+                  progress_message: `15-second video created successfully with ${movieData.sceneCount} scenes!`,
+                  completed_at: new Date().toISOString()
+                })
+                .eq('id', body.jobId);
             }
           } else if (allScenesComplete) {
             // Single scene video, mark as completed
@@ -350,7 +383,32 @@ serve(async (req) => {
       .single();
 
     const manifest = jobData?.manifest as any || {};
-    const scenePrompts = body.scenePrompts || manifest.scenePrompts;
+    let scenePrompts = body.scenePrompts || manifest.scenePrompts;
+    
+    // AUTO-SPLIT: If no scene prompts provided, automatically split the prompt into 2 scenes
+    if (!scenePrompts && body.prompt) {
+      console.log('[Auto-Split] Splitting prompt into 2 continuous scenes for 15-second video');
+      const { scene1, scene2, baseContext } = splitPromptIntoScenes(body.prompt);
+      scenePrompts = [scene1, scene2];
+      console.log('[Auto-Split] Scene 1:', scene1);
+      console.log('[Auto-Split] Scene 2:', scene2);
+      console.log('[Auto-Split] Base context:', baseContext);
+      
+      // Save scene prompts to manifest for tracking
+      await supabase
+        .from('jobs')
+        .update({
+          manifest: {
+            ...manifest,
+            scenePrompts,
+            baseContext,
+            autoSplit: true
+          },
+          num_videos: 2
+        })
+        .eq('id', body.jobId);
+    }
+    
     const currentSceneIndex = manifest.currentSceneIndex || 0;
     
     // Determine which prompt to use
