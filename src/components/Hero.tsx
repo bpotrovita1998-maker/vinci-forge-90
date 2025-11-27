@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film } from 'lucide-react';
 import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -78,7 +78,12 @@ export default function Hero() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageFormat, setImageFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
+  const [startFrameImage, setStartFrameImage] = useState<string>('');
+  const [endFrameImage, setEndFrameImage] = useState<string>('');
+  const [showFrameToFrame, setShowFrameToFrame] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const startFrameInputRef = useRef<HTMLInputElement>(null);
+  const endFrameInputRef = useRef<HTMLInputElement>(null);
   
   const [options, setOptions] = useState<Partial<GenerationOptions>>({
     type: 'image',
@@ -222,6 +227,56 @@ export default function Hero() {
     setImageFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleFrameUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'start' | 'end') => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Image exceeds 10MB limit",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const convertedImage = await convertImageFormat(file, imageFormat);
+      
+      if (type === 'start') {
+        setStartFrameImage(convertedImage);
+      } else {
+        setEndFrameImage(convertedImage);
+      }
+      
+      toast({
+        title: `${type === 'start' ? 'Start' : 'End'} frame uploaded`,
+        description: `Frame uploaded as ${imageFormat.toUpperCase()}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: "Failed to process frame image",
+        variant: "destructive",
+      });
+    }
+
+    if (type === 'start' && startFrameInputRef.current) {
+      startFrameInputRef.current.value = '';
+    } else if (type === 'end' && endFrameInputRef.current) {
+      endFrameInputRef.current.value = '';
+    }
+  };
+
   const handleGenerate = async () => {
     try {
       // Validate input
@@ -321,8 +376,8 @@ export default function Hero() {
         referenceImages: options.type === 'video' && uploadedImages.length > 0 
           ? uploadedImages.slice(0, 3) // Up to 3 reference images for video
           : undefined,
-        startFrame: options.startFrame,
-        endFrame: options.endFrame,
+        startFrame: startFrameImage || undefined,
+        endFrame: endFrameImage || undefined,
         extendFromVideo: options.extendFromVideo,
       };
 
@@ -363,6 +418,8 @@ export default function Hero() {
       setPrompt('');
       setUploadedImages([]);
       setImageFiles([]);
+      setStartFrameImage('');
+      setEndFrameImage('');
       
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -598,6 +655,129 @@ export default function Hero() {
               </div>
             </div>
           </div>
+
+          {/* Frame-to-Frame Generation - Show when Video is selected */}
+          {options.type === 'video' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="glass rounded-xl p-6 border border-border/30"
+            >
+              <Collapsible open={showFrameToFrame} onOpenChange={setShowFrameToFrame}>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-between glass border border-border/30 hover:border-primary/30"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Film className="w-4 h-4" />
+                      <span>Frame-to-Frame Generation</span>
+                    </div>
+                    <Sparkles className={`w-4 h-4 transition-transform ${showFrameToFrame ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent className="space-y-4 mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Upload start and end frames to generate smooth transitions between them. Veo 3.1 will create seamless motion connecting your two frames.
+                  </p>
+
+                  {/* Hidden file inputs */}
+                  <input
+                    type="file"
+                    ref={startFrameInputRef}
+                    onChange={(e) => handleFrameUpload(e, 'start')}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <input
+                    type="file"
+                    ref={endFrameInputRef}
+                    onChange={(e) => handleFrameUpload(e, 'end')}
+                    accept="image/*"
+                    className="hidden"
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Start Frame */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Start Frame</label>
+                      <div className="space-y-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => startFrameInputRef.current?.click()}
+                          className="w-full gap-2"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                          {startFrameImage ? 'Change Start Frame' : 'Upload Start Frame'}
+                        </Button>
+                        
+                        {startFrameImage && (
+                          <div className="relative rounded-lg overflow-hidden border border-border/30">
+                            <img 
+                              src={startFrameImage} 
+                              alt="Start frame" 
+                              className="w-full h-40 object-cover"
+                            />
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={() => setStartFrameImage('')}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* End Frame */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">End Frame</label>
+                      <div className="space-y-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => endFrameInputRef.current?.click()}
+                          className="w-full gap-2"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                          {endFrameImage ? 'Change End Frame' : 'Upload End Frame'}
+                        </Button>
+                        
+                        {endFrameImage && (
+                          <div className="relative rounded-lg overflow-hidden border border-border/30">
+                            <img 
+                              src={endFrameImage} 
+                              alt="End frame" 
+                              className="w-full h-40 object-cover"
+                            />
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 h-6 w-6"
+                              onClick={() => setEndFrameImage('')}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(startFrameImage || endFrameImage) && (
+                    <p className="text-xs text-muted-foreground">
+                      🎬 <span className="font-medium">Tip:</span> Upload both start and end frames for best results. Veo 3.1 will generate smooth transitions between them with your prompt guiding the motion and style.
+                    </p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            </motion.div>
+          )}
 
           {/* CAD Templates - Show when CAD is selected */}
           {options.type === 'cad' && (
