@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Replicate from "https://esm.sh/replicate@0.25.2";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,8 +12,9 @@ interface CreateMovieRequest {
     videoUrl: string;
     duration: number;
     order: number;
+    prompt: string;
   }>;
-  storyboardId: string;
+  jobId: string;
   userId: string;
 }
 
@@ -23,7 +24,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('[Create Movie] Request received');
+    console.log('[CreateMovie] Request received');
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -36,10 +37,12 @@ serve(async (req) => {
       throw new Error('REPLICATE_API_KEY is not configured');
     }
 
+    const replicate = new Replicate({ auth: REPLICATE_API_KEY });
     const body = await req.json() as CreateMovieRequest;
-    const { scenes, storyboardId, userId } = body;
+    const { scenes, jobId, userId } = body;
 
-    console.log('[Create Movie] Processing', scenes.length, 'scenes');
+    console.log('[CreateMovie] Stitching video for job:', jobId);
+    console.log('[CreateMovie] Number of scenes:', scenes.length);
 
     if (!scenes || scenes.length === 0) {
       throw new Error('No scenes provided');
@@ -48,119 +51,151 @@ serve(async (req) => {
     // Sort scenes by order
     const sortedScenes = [...scenes].sort((a, b) => a.order - b.order);
 
-    // For single scene, just return it
+    // Store individual scenes in database
+    for (const scene of sortedScenes) {
+      await supabaseClient
+        .from('video_scenes')
+        .upsert({
+          job_id: jobId,
+          user_id: userId,
+          scene_index: scene.order,
+          prompt: scene.prompt,
+          video_url: scene.videoUrl,
+          duration: scene.duration,
+        }, { onConflict: 'job_id,scene_index' });
+    }
+
+    // For single scene, just save it as the final video
     if (sortedScenes.length === 1) {
-      console.log('[Create Movie] Single scene - no stitching needed');
+      console.log('[CreateMovie] Single scene, saving directly');
+      
+      // Get file size
+      const response = await fetch(sortedScenes[0].videoUrl);
+      const blob = await response.blob();
+      const fileSize = blob.size;
+      
+      await supabaseClient
+        .from('long_videos')
+        .upsert({
+          job_id: jobId,
+          user_id: userId,
+          stitched_video_url: sortedScenes[0].videoUrl,
+          total_duration: sortedScenes[0].duration,
+          scene_count: 1,
+          file_size_bytes: fileSize,
+        }, { onConflict: 'job_id' });
+      
       return new Response(
         JSON.stringify({
           success: true,
-          movieUrl: sortedScenes[0].videoUrl,
+          videoUrl: sortedScenes[0].videoUrl,
           duration: sortedScenes[0].duration,
-          sceneCount: 1
+          sceneCount: 1,
         }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
-    // Use Replicate to concatenate videos using ffmpeg
-    const replicate = new Replicate({ auth: REPLICATE_API_KEY });
+    // Use FFmpeg via Replicate to concatenate videos
+    console.log('[CreateMovie] Stitching multiple scenes with FFmpeg...');
     
-    console.log('[Create Movie] Starting video concatenation with Replicate');
-    
-    // Prepare video URLs for concatenation
-    const videoUrls = sortedScenes.map(s => s.videoUrl);
-    const totalDuration = sortedScenes.reduce((acc, s) => acc + s.duration, 0);
-
-    // Use victor-upmaru/ffmpeg model for video concatenation
-    const output = await replicate.run(
-      "victor-upmaru/ffmpeg:88b4c96c2f5b8acac8c7a0d7c6e7d3e5c4f3e2d1",
-      {
-        input: {
-          videos: videoUrls,
-          output_format: "mp4",
-          fps: 24,
-          preset: "medium",
-        }
+    const prediction = await replicate.predictions.create({
+      model: "andreasjansson/ffmpeg",
+      input: {
+        video_urls: sortedScenes.map(s => s.videoUrl),
+        concat_method: "concatenate",
       }
-    ) as string;
+    });
 
-    if (!output) {
-      throw new Error('Failed to create movie - no output from Replicate');
+    // Wait for completion (with timeout)
+    let result = prediction;
+    const maxAttempts = 60;
+    let attempts = 0;
+
+    while (result.status !== 'succeeded' && result.status !== 'failed' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      result = await replicate.predictions.get(prediction.id);
+      attempts++;
+      console.log(`[CreateMovie] Stitching progress: ${result.status}`);
     }
 
-    console.log('[Create Movie] Video concatenation complete:', output);
+    if (result.status !== 'succeeded' || !result.output) {
+      throw new Error(`Video stitching failed: ${result.status}`);
+    }
 
-    // Download and store the stitched video
-    const movieFilename = `${storyboardId}/movie-${Date.now()}.mp4`;
-    
-    const videoResponse = await fetch(output);
+    const stitchedUrl = Array.isArray(result.output) ? result.output[0] : result.output;
+    console.log('[CreateMovie] Video stitched successfully:', stitchedUrl);
+
+    // Download and upload to Supabase storage
+    const videoResponse = await fetch(stitchedUrl);
     if (!videoResponse.ok) {
       throw new Error('Failed to download stitched video');
     }
 
     const videoBlob = await videoResponse.blob();
     const videoBuffer = await videoBlob.arrayBuffer();
+    const fileSize = videoBuffer.byteLength;
 
-    console.log('[Create Movie] Uploading movie to storage...');
-
+    // Upload to storage
+    const fileName = `${userId}/${jobId}/stitched_video.mp4`;
     const { error: uploadError } = await supabaseClient
       .storage
       .from('generated-models')
-      .upload(
-        `${userId}/${movieFilename}`,
-        videoBuffer,
-        {
-          contentType: 'video/mp4',
-          upsert: true
-        }
-      );
+      .upload(fileName, videoBuffer, {
+        contentType: 'video/mp4',
+        upsert: true
+      });
 
     if (uploadError) {
-      console.error('[Create Movie] Upload error:', uploadError);
+      console.error('[CreateMovie] Upload error:', uploadError);
       throw uploadError;
     }
 
     // Get signed URL (7 days)
-    const { data: signedData, error: signError } = await supabaseClient
+    const { data: signedData } = await supabaseClient
       .storage
       .from('generated-models')
-      .createSignedUrl(`${userId}/${movieFilename}`, 604800);
+      .createSignedUrl(fileName, 604800);
 
-    if (signError || !signedData) {
-      throw signError || new Error('Failed to create signed URL');
+    if (!signedData) {
+      throw new Error('Failed to create signed URL');
     }
 
-    console.log('[Create Movie] Movie created successfully');
+    const finalUrl = signedData.signedUrl;
+    const totalDuration = sortedScenes.reduce((acc, s) => acc + s.duration, 0);
+
+    // Save to long_videos table
+    await supabaseClient
+      .from('long_videos')
+      .upsert({
+        job_id: jobId,
+        user_id: userId,
+        stitched_video_url: finalUrl,
+        total_duration: totalDuration,
+        scene_count: sortedScenes.length,
+        file_size_bytes: fileSize,
+      }, { onConflict: 'job_id' });
+
+    console.log('[CreateMovie] Stitched video saved to database');
 
     return new Response(
       JSON.stringify({
         success: true,
-        movieUrl: signedData.signedUrl,
+        videoUrl: finalUrl,
         duration: totalDuration,
         sceneCount: sortedScenes.length,
-        message: `Successfully created movie from ${sortedScenes.length} scenes`
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
 
   } catch (error) {
-    console.error('[Create Movie] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create movie';
+    console.error('[CreateMovie] Error:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: errorMessage
+        error: error instanceof Error ? error.message : 'Failed to create movie'
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });

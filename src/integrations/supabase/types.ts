@@ -215,6 +215,50 @@ export type Database = {
         }
         Relationships: []
       }
+      long_videos: {
+        Row: {
+          created_at: string
+          file_size_bytes: number | null
+          id: string
+          job_id: string
+          scene_count: number
+          stitched_video_url: string
+          total_duration: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_size_bytes?: number | null
+          id?: string
+          job_id: string
+          scene_count: number
+          stitched_video_url: string
+          total_duration: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_size_bytes?: number | null
+          id?: string
+          job_id?: string
+          scene_count?: number
+          stitched_video_url?: string
+          total_duration?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "long_videos_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -529,6 +573,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      video_scenes: {
+        Row: {
+          created_at: string
+          duration: number
+          file_size_bytes: number | null
+          id: string
+          job_id: string
+          prompt: string
+          scene_index: number
+          user_id: string
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: number
+          file_size_bytes?: number | null
+          id?: string
+          job_id: string
+          prompt: string
+          scene_index: number
+          user_id: string
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          duration?: number
+          file_size_bytes?: number | null
+          id?: string
+          job_id?: string
+          prompt?: string
+          scene_index?: number
+          user_id?: string
+          video_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_scenes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
