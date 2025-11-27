@@ -15,6 +15,7 @@ import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 import MovieViewer from "./pages/MovieViewer";
 import Memory from "./pages/Memory";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/movie" element={<MovieViewer />} />
               <Route path="/pricing" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Pricing /></ProtectedRoute>} />
               <Route path="/memory" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Memory /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Settings /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
