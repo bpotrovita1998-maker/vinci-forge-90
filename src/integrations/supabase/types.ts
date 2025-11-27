@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      character_references: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          reference_images: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          reference_images?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          reference_images?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversation_memory: {
         Row: {
           content: string

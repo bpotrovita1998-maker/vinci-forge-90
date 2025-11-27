@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown } from 'lucide-react';
 import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -11,6 +11,7 @@ import CADTemplates from './CADTemplates';
 import PromptEnhancer from './PromptEnhancer';
 import ImageComparisonSlider from './ImageComparisonSlider';
 import { MemoryIndicator } from './MemoryIndicator';
+import { CharacterManager } from './CharacterManager';
 import { z } from 'zod';
 import { useSubscription } from '@/hooks/useSubscription';
 import { moderationService } from '@/services/moderationService';
@@ -21,6 +22,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
 
 const promptSchema = z.string()
   .trim()
@@ -81,9 +89,12 @@ export default function Hero() {
   const [startFrameImage, setStartFrameImage] = useState<string>('');
   const [endFrameImage, setEndFrameImage] = useState<string>('');
   const [showFrameToFrame, setShowFrameToFrame] = useState(false);
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  const [showCharacterSection, setShowCharacterSection] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const startFrameInputRef = useRef<HTMLInputElement>(null);
   const endFrameInputRef = useRef<HTMLInputElement>(null);
+  const referenceInputRef = useRef<HTMLInputElement>(null);
   
   const [options, setOptions] = useState<Partial<GenerationOptions>>({
     type: 'image',
@@ -373,8 +384,8 @@ export default function Hero() {
         imageUrls: uploadedImages.length > 0 ? uploadedImages : undefined,
         imageFormat,
         // Veo 3.1 specific options
-        referenceImages: options.type === 'video' && uploadedImages.length > 0 
-          ? uploadedImages.slice(0, 3) // Up to 3 reference images for video
+        referenceImages: options.type === 'video' && referenceImages.length > 0 
+          ? referenceImages // Up to 3 reference images for video
           : undefined,
         startFrame: startFrameImage || undefined,
         endFrame: endFrameImage || undefined,
@@ -420,6 +431,7 @@ export default function Hero() {
       setImageFiles([]);
       setStartFrameImage('');
       setEndFrameImage('');
+      setReferenceImages([]);
       
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -774,6 +786,155 @@ export default function Hero() {
                       🎬 <span className="font-medium">Tip:</span> Upload both start and end frames for best results. Veo 3.1 will generate smooth transitions between them with your prompt guiding the motion and style.
                     </p>
                   )}
+                </CollapsibleContent>
+              </Collapsible>
+            </motion.div>
+          )}
+
+          {/* Character & Reference Images Section */}
+          {options.type === 'video' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="glass rounded-xl p-6 border border-border/30"
+            >
+              <Collapsible open={showCharacterSection} onOpenChange={setShowCharacterSection}>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-between glass border border-border/30 hover:border-primary/30"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      <span>Character & Style References</span>
+                      {referenceImages.length > 0 && (
+                        <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                          {referenceImages.length} selected
+                        </span>
+                      )}
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showCharacterSection ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent className="space-y-4 mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Upload or select saved characters to maintain consistent appearance, style, and visual continuity across your videos
+                  </p>
+
+                  <Tabs defaultValue="upload" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="upload">Upload Images</TabsTrigger>
+                      <TabsTrigger value="library">Character Library</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="upload" className="space-y-4 mt-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">
+                          Reference Images (up to 3)
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Upload images to guide character appearance, style, and consistency
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => referenceInputRef.current?.click()}
+                            disabled={referenceImages.length >= 3}
+                          >
+                            <Paperclip className="h-4 w-4 mr-2" />
+                            Add Reference
+                          </Button>
+                          {referenceImages.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setReferenceImages([])}
+                            >
+                              Clear All
+                            </Button>
+                          )}
+                        </div>
+                        <input
+                          ref={referenceInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            if (!files || files.length === 0) return;
+                            
+                            const newImages: string[] = [];
+                            const maxFiles = Math.min(files.length, 3 - referenceImages.length);
+                            
+                            for (let i = 0; i < maxFiles; i++) {
+                              const file = files[i];
+                              const reader = new FileReader();
+                              
+                              await new Promise((resolve) => {
+                                reader.onload = (event) => {
+                                  if (event.target?.result) {
+                                    newImages.push(event.target.result as string);
+                                  }
+                                  resolve(null);
+                                };
+                                reader.readAsDataURL(file);
+                              });
+                            }
+                            
+                            setReferenceImages([...referenceImages, ...newImages]);
+                            if (referenceInputRef.current) {
+                              referenceInputRef.current.value = "";
+                            }
+                            
+                            toast({
+                              title: "Reference images added",
+                              description: `${newImages.length} image(s) added for character consistency`,
+                            });
+                          }}
+                        />
+                        {referenceImages.length > 0 && (
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            {referenceImages.map((img, idx) => (
+                              <div key={idx} className="relative aspect-square">
+                                <img
+                                  src={img}
+                                  alt={`Reference ${idx + 1}`}
+                                  className="w-full h-full object-cover rounded border border-border"
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="destructive"
+                                  className="absolute top-1 right-1 h-6 w-6"
+                                  onClick={() => setReferenceImages(referenceImages.filter((_, i) => i !== idx))}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="library" className="mt-4">
+                      <CharacterManager
+                        onSelectCharacter={(images) => {
+                          setReferenceImages(images.slice(0, 3));
+                          toast({
+                            title: "Character selected",
+                            description: "Reference images loaded for consistent character generation",
+                          });
+                        }}
+                      />
+                    </TabsContent>
+                  </Tabs>
                 </CollapsibleContent>
               </Collapsible>
             </motion.div>
