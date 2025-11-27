@@ -467,7 +467,7 @@ serve(async (req) => {
     
     // Start prediction with Google Veo 3.1 Fast (async)
     const prediction = await replicate.predictions.create({
-      model: "google-deepmind/veo-3.1-fast",
+      model: "google/veo-3.1-fast",
       input: veoInput
     });
 
