@@ -108,21 +108,24 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
             <div className="space-y-2">
               <Label>Video Generation Model</Label>
               <Select
-                value={options.videoModel || 'veo'}
-                onValueChange={(v) => onChange({ ...options, videoModel: v as 'veo' | 'zeroscope' })}
+                value={options.videoModel || 'animatediff'}
+                onValueChange={(v) => onChange({ ...options, videoModel: v as 'veo' | 'haiper' | 'animatediff' })}
               >
                 <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="veo">Veo 3.1 (Premium - Best Quality)</SelectItem>
-                  <SelectItem value="zeroscope">Zeroscope v2 XL (Free - Enhanced)</SelectItem>
+                  <SelectItem value="animatediff">AnimateDiff (15 tokens - $0.15)</SelectItem>
+                  <SelectItem value="haiper">Haiper (30 tokens - $0.30)</SelectItem>
+                  <SelectItem value="veo">Veo 3.1 (120 tokens - $1.20)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {options.videoModel === 'zeroscope' 
-                  ? '🎉 Free tier! Auto-enhanced with FFmpeg + ESRGAN to 1080p'
-                  : 'Premium quality with Veo 3.1'}
+                {options.videoModel === 'veo' 
+                  ? '⭐ Best quality, highest cost'
+                  : options.videoModel === 'haiper'
+                  ? '⚡ Good quality, balanced cost'
+                  : '💰 Budget-friendly option'}
               </p>
             </div>
 
