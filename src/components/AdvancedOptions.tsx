@@ -105,6 +105,27 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
         {/* Video-specific options */}
         {isVideo && (
           <>
+            <div className="space-y-2">
+              <Label>Video Generation Model</Label>
+              <Select
+                value={options.videoModel || 'veo'}
+                onValueChange={(v) => onChange({ ...options, videoModel: v as 'veo' | 'zeroscope' })}
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="veo">Veo 3.1 (Premium - Best Quality)</SelectItem>
+                  <SelectItem value="zeroscope">Zeroscope v2 XL (Free - Enhanced)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {options.videoModel === 'zeroscope' 
+                  ? '🎉 Free tier! Auto-enhanced with FFmpeg + ESRGAN to 1080p'
+                  : 'Premium quality with Veo 3.1'}
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Duration (seconds)</Label>

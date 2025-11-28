@@ -50,8 +50,13 @@ serve(async (req) => {
 
         console.log(`Checking status for job ${job.id}, prediction ${predictionId}`);
 
-        // Call generate-video to check status
-        const { data: statusData, error: statusError } = await supabase.functions.invoke('generate-video', {
+        // Determine which edge function to use based on videoModel
+        const videoModel = manifest?.videoModel || 'veo';
+        const functionName = videoModel === 'zeroscope' ? 'generate-free-video' : 'generate-video';
+        console.log(`Using ${functionName} to check status for ${videoModel} model`);
+
+        // Call appropriate function to check status
+        const { data: statusData, error: statusError } = await supabase.functions.invoke(functionName, {
           body: {
             jobId: job.id,
             predictionId: predictionId
@@ -153,8 +158,12 @@ serve(async (req) => {
           console.log(`Calculated aspect ratio for next scene: ${aspectRatio} from ${updatedJob.width}x${updatedJob.height}`);
           
           if (scenePrompts && scenePrompts.length > 0) {
+            // Determine which edge function to use
+            const videoModel = updatedManifest?.videoModel || 'veo';
+            const functionName = videoModel === 'zeroscope' ? 'generate-free-video' : 'generate-video';
+            
             // Trigger next scene generation
-            await supabase.functions.invoke('generate-video', {
+            await supabase.functions.invoke(functionName, {
               body: {
                 jobId: job.id,
                 scenePrompts: scenePrompts,
@@ -164,7 +173,7 @@ serve(async (req) => {
               }
             });
             
-            console.log(`Next scene generation triggered for job ${job.id}`);
+            console.log(`Next scene generation triggered for job ${job.id} using ${functionName}`);
           }
         }
       } catch (error) {

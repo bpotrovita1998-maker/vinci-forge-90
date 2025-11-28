@@ -66,6 +66,12 @@ verify_jwt = true
 [functions.create-movie]
 verify_jwt = false
 
+[functions.regenerate-scene]
+verify_jwt = false
+
+[functions.generate-free-video]
+verify_jwt = false
+
 [functions.manage-memory]
 verify_jwt = true
 

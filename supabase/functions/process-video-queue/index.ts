@@ -137,6 +137,11 @@ serve(async (req) => {
       ? partMatches.map(match => match[1].trim())
       : null;
     
+    // Determine which edge function to call based on videoModel
+    const videoModel = (job.manifest as any)?.videoModel || 'veo'; // Default to Veo 3.1
+    const functionName = videoModel === 'zeroscope' ? 'generate-free-video' : 'generate-video';
+    console.log(`Using video generation model: ${videoModel} (function: ${functionName})`);
+    
     if (scenePrompts && scenePrompts.length > 1) {
       console.log(`Detected multi-part video with ${scenePrompts.length} scenes`);
       console.log('Scene prompts:', JSON.stringify(scenePrompts, null, 2));
@@ -157,7 +162,7 @@ serve(async (req) => {
         .eq('id', job.id);
       
       // Start generating first scene only
-      const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
+      const { data: result, error: invokeError } = await supabase.functions.invoke(functionName, {
         body: {
           jobId: job.id,
           scenePrompts: scenePrompts,
@@ -185,7 +190,7 @@ serve(async (req) => {
         console.log(`Starting generation ${i + 1} of ${numVideos} with seed: ${videoSeed}...`);
         
         try {
-          const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
+          const { data: result, error: invokeError } = await supabase.functions.invoke(functionName, {
             body: {
               jobId: job.id,
               prompt: job.prompt,
@@ -234,7 +239,7 @@ serve(async (req) => {
         .eq('id', job.id);
       
       // Start generating first scene only
-      const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
+      const { data: result, error: invokeError } = await supabase.functions.invoke(functionName, {
         body: {
           jobId: job.id,
           scenePrompts: scenePrompts,
@@ -262,7 +267,7 @@ serve(async (req) => {
         console.log(`Starting generation ${i + 1} of ${numVideos} with seed: ${videoSeed}...`);
         
         try {
-          const { data: result, error: invokeError } = await supabase.functions.invoke('generate-video', {
+          const { data: result, error: invokeError } = await supabase.functions.invoke(functionName, {
             body: {
               jobId: job.id,
               prompt: job.prompt,

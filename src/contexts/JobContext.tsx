@@ -446,7 +446,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     const jobId = crypto.randomUUID();
 
     // Calculate estimated tokens based on generation type
-    // Token costs match exact AI costs: Image = 1, Video = 30, 3D = 10, CAD = 10
+    // Token costs: Image = 1, Video = 30 (FREE for Zeroscope), 3D = 10, CAD = 10
     let estimatedTokens = 0;
     let actionType: 'image_generation' | 'video_generation' | 'vectorization' = 'image_generation';
     
@@ -455,7 +455,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
       actionType = 'image_generation';
     } else if (options.type === 'video') {
       const numVideos = options.numVideos || 1;
-      estimatedTokens = 30 * numVideos; // 30 tokens per video ($0.30)
+      // FREE for Zeroscope, 30 tokens for Veo 3.1
+      if (options.videoModel === 'zeroscope') {
+        estimatedTokens = 0; // Free tier!
+        console.log('Using free Zeroscope model - no tokens deducted');
+      } else {
+        estimatedTokens = 30 * numVideos; // 30 tokens per video ($0.30)
+      }
       actionType = 'video_generation';
     } else if (options.type === '3d') {
       estimatedTokens = 10; // 10 tokens per 3D model ($0.10)
@@ -466,7 +472,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
     }
 
     // Check and deduct tokens before starting generation
-    try {
+    // Skip token deduction for free Zeroscope model
+    const isFreeModel = options.type === 'video' && options.videoModel === 'zeroscope';
+    
+    if (!isFreeModel) {
+      try {
       const { data: tokenData, error: tokenError } = await supabase.functions.invoke(
         'check-and-deduct-tokens',
         {
@@ -526,8 +536,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
       console.error('Error during token check:', error);
       throw error;
     }
+    } else {
+      console.log('Skipping token deduction for free Zeroscope model');
+    }
 
     // Create initial job in database BEFORE starting generation
+    const manifest = options.type === 'video' ? { videoModel: options.videoModel || 'veo' } : undefined;
+    
     const { error: insertError } = await supabase.from('jobs').insert({
       id: jobId,
       user_id: user.id,
@@ -547,6 +562,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       num_images: options.numImages,
       num_videos: options.numVideos,
       upscale_video: options.upscaleVideo,
+      manifest: manifest,
       progress_stage: 'queued',
       progress_percent: 0,
       progress_message: 'Job queued...',
