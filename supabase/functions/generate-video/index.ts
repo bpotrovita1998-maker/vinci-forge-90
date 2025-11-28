@@ -613,7 +613,83 @@ serve(async (req) => {
     
     console.log(`${videoModel} input:`, JSON.stringify(modelInput, null, 2));
     
-    // Start prediction with selected model (async)
+    // AnimateDiff uses replicate.run() instead of predictions API
+    if (videoModel === 'animatediff') {
+      console.log("Using replicate.run() for AnimateDiff");
+      
+      const output = await replicate.run(
+        "zsxkib/animate-diff",
+        {
+          input: modelInput
+        }
+      );
+      
+      console.log("AnimateDiff generation completed:", output);
+      
+      // For AnimateDiff, the output is immediate, so handle it directly
+      if (!output || (Array.isArray(output) && output.length === 0)) {
+        throw new Error("No output received from AnimateDiff");
+      }
+      
+      const videoUrl = Array.isArray(output) ? output[0] : output;
+      
+      // Store video in Supabase Storage
+      const videoResponse = await fetch(videoUrl);
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
+      }
+      
+      const videoBlob = await videoResponse.blob();
+      const fileName = `videos/${body.jobId}/${Date.now()}.mp4`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('user-generations')
+        .upload(fileName, videoBlob, {
+          contentType: 'video/mp4',
+          upsert: false,
+        });
+      
+      if (uploadError) {
+        console.error("Error uploading video to storage:", uploadError);
+        throw uploadError;
+      }
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-generations')
+        .getPublicUrl(fileName);
+      
+      // Update job with completed video
+      const updatedOutputs = [...(manifest.outputs || []), publicUrl];
+      const allScenesComplete = scenePrompts 
+        ? updatedOutputs.length >= scenePrompts.length 
+        : true;
+      
+      await supabase
+        .from('jobs')
+        .update({
+          outputs: updatedOutputs,
+          status: allScenesComplete ? 'completed' : 'running',
+          progress_stage: allScenesComplete ? 'completed' : `Scene ${updatedOutputs.length} complete`,
+          progress_percent: allScenesComplete ? 100 : Math.round((updatedOutputs.length / (scenePrompts?.length || 1)) * 100),
+          completed_at: allScenesComplete ? new Date().toISOString() : undefined,
+          manifest: {
+            ...manifest,
+            outputs: updatedOutputs,
+            currentSceneIndex: allScenesComplete ? undefined : currentSceneIndex + 1,
+          }
+        })
+        .eq('id', body.jobId);
+      
+      return new Response(JSON.stringify({
+        output: publicUrl,
+        allScenesComplete,
+        status: 'succeeded'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // For other models (Haiper, Veo), use predictions API
     const prediction = await replicate.predictions.create({
       model: modelName,
       input: modelInput
