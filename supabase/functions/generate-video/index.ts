@@ -38,11 +38,12 @@ function sanitizePrompt(input: string): string {
 // Input validation schema
 const generateVideoSchema = z.object({
   prompt: z.string().min(1).max(2000).transform(sanitizePrompt).optional(),
+  negativePrompt: z.string().max(1000).transform(sanitizePrompt).optional(),
   predictionId: z.string().optional(),
   jobId: z.string().uuid().optional(),
-  duration: z.number().min(4).max(8).optional(),
+  duration: z.number().min(2).max(8).optional(),
   aspectRatio: z.string().optional(),
-  resolution: z.enum(['720p', '1080p']).optional(),
+  resolution: z.enum(['512p', '720p', '768p', '1080p']).optional(),
   videoModel: z.enum(['veo', 'haiper', 'animatediff']).optional(),
   characterReference: z.string().url().optional(),
   styleReference: z.string().url().optional(),
@@ -52,6 +53,9 @@ const generateVideoSchema = z.object({
   extendFromVideo: z.string().url().optional(),
   scenePrompts: z.array(z.string().min(1).max(2000).transform(sanitizePrompt)).optional(),
   sceneIndex: z.number().optional(),
+  seed: z.number().optional(),
+  characterDescription: z.string().max(500).optional(),
+  styleDescription: z.string().max(500).optional(),
 });
 
 serve(async (req) => {
@@ -518,24 +522,41 @@ serve(async (req) => {
     let modelInput: any;
     
     if (videoModel === 'animatediff') {
-      // AnimateDiff model
+      // AnimateDiff model - supports 512p and 768p
       modelName = "lucataco/animatediff";
+      const resolution = body.resolution || '512p';
+      const width = resolution === '768p' ? 768 : 512;
+      const height = resolution === '768p' ? 768 : 512;
+      
       modelInput = {
         prompt: enhancedPrompt,
-        n_prompt: "worst quality, low quality", // negative prompt
+        n_prompt: body.negativePrompt || "worst quality, low quality",
         steps: 25,
         guidance_scale: 7.5,
+        width: width,
+        height: height,
+        num_frames: body.duration === 8 ? 16 : 8, // AnimateDiff uses frame count
       };
-      console.log("Using AnimateDiff model");
+      console.log(`Using AnimateDiff model with ${resolution} resolution (${width}x${height})`);
     } else if (videoModel === 'haiper') {
-      // Haiper model
+      // Haiper model - supports 720p and 1080p, 2 or 4 seconds
       modelName = "haiper-ai/haiper-video-2";
+      const duration = body.duration && [2, 4].includes(body.duration) ? body.duration : 4;
+      
       modelInput = {
         prompt: enhancedPrompt,
-        duration: 4, // Haiper supports 2 or 4 seconds
-        aspect_ratio: body.aspectRatio === "9:16" ? "9:16" : "16:9",
+        duration: duration,
+        aspect_ratio: body.aspectRatio === "9:16" ? "9:16" : body.aspectRatio === "1:1" ? "1:1" : "16:9",
+        resolution: body.resolution || '720p',
       };
-      console.log("Using Haiper model");
+      
+      // Add reference images if provided
+      if (body.referenceImages && body.referenceImages.length > 0) {
+        modelInput.image = body.referenceImages[0]; // Haiper supports one reference image
+        console.log("Using reference image for Haiper");
+      }
+      
+      console.log(`Using Haiper model with ${duration}s duration`);
     } else {
       // Veo 3.1 (default)
       modelName = "google/veo-3.1-fast";

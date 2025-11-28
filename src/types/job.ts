@@ -13,15 +13,15 @@ export interface GenerationOptions {
   height: number;
   
   // Video options
-  duration?: number; // seconds (4, 6, or 8 for Veo 3.1)
+  duration?: number; // seconds (4, 6, 8 for Veo; 4, 8 for AnimateDiff; 2, 4 for Haiper)
   fps?: number;
   videoMode?: VideoMode;
   videoModel?: 'veo' | 'haiper' | 'animatediff'; // Model selection: premium Veo 3.1, balanced Haiper, or budget AnimateDiff
   numVideos?: number; // for video generation
   upscaleVideo?: boolean; // upscale to 4K with 60fps
   scenePrompts?: string[]; // for multi-part video generation
-  aspectRatio?: string; // aspect ratio for video (16:9, 9:16)
-  resolution?: '720p' | '1080p'; // video resolution (Veo 3.1)
+  aspectRatio?: string; // aspect ratio for video (16:9, 9:16, 1:1)
+  resolution?: '512p' | '720p' | '768p' | '1080p'; // AnimateDiff: 512p/768p, Haiper/Veo: 720p/1080p
   
   // Veo 3.1 specific options
   referenceImages?: string[]; // Up to 3 reference images for video generation
