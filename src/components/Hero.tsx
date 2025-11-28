@@ -109,6 +109,7 @@ export default function Hero() {
     aspectRatio: "16:9", // Veo 3.1 default
     resolution: '1080p', // Veo 3.1 default
     numVideos: 1,
+    videoModel: 'veo', // Default to Veo 3.1 premium model
     upscaleVideo: false,
     upscaleQuality: 4, // Default to 4x balanced quality
     referenceImages: [],

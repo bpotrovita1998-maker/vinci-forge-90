@@ -20,7 +20,13 @@ serve(async (req) => {
       );
     }
 
-    const { videoUrl, targetFps = 60, upscaleTo4K = true } = await req.json();
+    const { 
+      videoUrl, 
+      targetFps = 60, 
+      upscaleTo4K = true,
+      targetResolution, // New: FFmpeg resolution (e.g., "1920x1080")
+      enhanceQuality = false // New: Enable ESRGAN after FFmpeg
+    } = await req.json();
     
     if (!videoUrl) {
       return new Response(
@@ -29,7 +35,88 @@ serve(async (req) => {
       );
     }
 
-    console.log('Starting video upscale:', { videoUrl, targetFps, upscaleTo4K });
+    console.log('Starting video enhancement:', { videoUrl, targetFps, upscaleTo4K, targetResolution, enhanceQuality });
+
+    let processedVideoUrl = videoUrl;
+
+    // Step 1: FFmpeg upscaling (if targetResolution specified)
+    if (targetResolution) {
+      console.log(`Step 1: FFmpeg upscaling to ${targetResolution}...`);
+      
+      const ffmpegResponse = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${REPLICATE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          version: "3e56ce4b57863bd03048b42bc09bdd4db20d427cca5fde9d8ae4dc60e1bb4775",
+          input: {
+            video: videoUrl,
+            operation: "scale",
+            scale: targetResolution // e.g., "1920x1080"
+          }
+        }),
+      });
+
+      if (!ffmpegResponse.ok) {
+        const error = await ffmpegResponse.text();
+        console.error('FFmpeg upscaling failed:', error);
+        throw new Error('FFmpeg upscaling failed');
+      }
+
+      const ffmpegPrediction = await ffmpegResponse.json();
+      console.log('FFmpeg prediction started:', ffmpegPrediction.id);
+
+      // Poll for FFmpeg completion
+      let ffmpegAttempts = 0;
+      const maxFFmpegAttempts = 60;
+      let ffmpegResult = ffmpegPrediction;
+
+      while (ffmpegAttempts < maxFFmpegAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const checkResponse = await fetch(`https://api.replicate.com/v1/predictions/${ffmpegPrediction.id}`, {
+          headers: { 'Authorization': `Bearer ${REPLICATE_API_KEY}` }
+        });
+
+        if (checkResponse.ok) {
+          ffmpegResult = await checkResponse.json();
+          console.log('FFmpeg status:', ffmpegResult.status);
+
+          if (ffmpegResult.status === 'succeeded') {
+            processedVideoUrl = ffmpegResult.output;
+            console.log('FFmpeg upscaling completed:', processedVideoUrl);
+            break;
+          }
+
+          if (ffmpegResult.status === 'failed') {
+            throw new Error('FFmpeg upscaling failed');
+          }
+        }
+        
+        ffmpegAttempts++;
+      }
+
+      if (ffmpegAttempts >= maxFFmpegAttempts) {
+        throw new Error('FFmpeg upscaling timeout');
+      }
+    }
+
+    // Step 2: ESRGAN enhancement (if enhanceQuality enabled)
+    if (!enhanceQuality) {
+      console.log('Skipping ESRGAN, returning FFmpeg result');
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          upscaledVideoUrl: processedVideoUrl,
+          pipeline: 'ffmpeg-only'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Step 2: ESRGAN quality enhancement...');
 
     // Use Replicate's Real-ESRGAN video upscaling model
     const startResponse = await fetch('https://api.replicate.com/v1/predictions', {
@@ -41,7 +128,7 @@ serve(async (req) => {
       body: JSON.stringify({
         version: '3e56ce4b57863bd03048b42bc09bdd4db20d427cca5fde9d8ae4dc60e1bb4775',
         input: {
-          video_path: videoUrl,
+          video_path: processedVideoUrl,
           scale: upscaleTo4K ? 4 : 2, // 4x for 4K, 2x for HD
         }
       }),
@@ -81,11 +168,12 @@ serve(async (req) => {
       console.log('Video upscaling status:', finalPrediction.status, 'progress:', finalPrediction.progress);
 
       if (finalPrediction.status === 'succeeded') {
-        console.log('Video upscaling completed successfully');
+        console.log('ESRGAN enhancement completed successfully');
         return new Response(
           JSON.stringify({ 
             success: true, 
-            upscaledVideoUrl: finalPrediction.output 
+            upscaledVideoUrl: finalPrediction.output,
+            pipeline: targetResolution ? 'ffmpeg+esrgan' : 'esrgan-only'
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

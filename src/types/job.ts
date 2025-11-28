@@ -16,6 +16,7 @@ export interface GenerationOptions {
   duration?: number; // seconds (4, 6, or 8 for Veo 3.1)
   fps?: number;
   videoMode?: VideoMode;
+  videoModel?: 'veo' | 'zeroscope'; // Model selection: premium Veo 3.1 or free Zeroscope
   numVideos?: number; // for video generation
   upscaleVideo?: boolean; // upscale to 4K with 60fps
   scenePrompts?: string[]; // for multi-part video generation
