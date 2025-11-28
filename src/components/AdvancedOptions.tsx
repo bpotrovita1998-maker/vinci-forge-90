@@ -28,10 +28,10 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
   // Model-specific configurations
   const modelConfigs = {
     animatediff: {
-      name: 'AnimateDiff',
-      durations: [2, 4], // 16 frames (2s) and 32 frames (4s) at 8 FPS
+      name: 'VideoCrafter',
+      durations: [2, 4], // 16 frames (2s) and 32 frames (4s)
       resolutions: ['512p', '768p'],
-      fps: [8], // AnimateDiff uses fixed 8 FPS playback
+      fps: [8], // VideoCrafter uses fixed 8 FPS playback
       aspectRatios: ['16:9', '1:1'],
       supportsReferenceImages: false,
       supportsFrameGeneration: false,
@@ -175,7 +175,7 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="animatediff">AnimateDiff (15 tokens - $0.15)</SelectItem>
+                  <SelectItem value="animatediff">VideoCrafter (15 tokens - $0.15)</SelectItem>
                   <SelectItem value="haiper">Haiper (30 tokens - $0.30)</SelectItem>
                   <SelectItem value="veo">Veo 3.1 (120 tokens - $1.20)</SelectItem>
                 </SelectContent>
