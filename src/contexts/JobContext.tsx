@@ -535,7 +535,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     }
 
     // Create initial job in database BEFORE starting generation
-    const manifest = options.type === 'video' ? { videoModel: options.videoModel || 'veo' } : undefined;
+    const manifest = options.type === 'video' ? { videoModel: options.videoModel || 'animatediff' } : undefined;
     
     const { error: insertError } = await supabase.from('jobs').insert({
       id: jobId,
