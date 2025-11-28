@@ -535,7 +535,7 @@ serve(async (req) => {
         guidance_scale: 7.5,
         width: width,
         height: height,
-        frames: body.duration === 8 ? 16 : 8, // AnimateDiff uses frame count (8fps playback)
+        frames: body.duration === 4 ? 32 : 16, // AnimateDiff: 32 frames (4s) or 16 frames (2s) at 8 FPS playback
         seed: body.seed || -1, // -1 for random
       };
       console.log(`Using AnimateDiff model with ${resolution} resolution (${width}x${height})`);
