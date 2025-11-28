@@ -522,8 +522,8 @@ serve(async (req) => {
     let modelInput: any;
     
     if (videoModel === 'animatediff') {
-      // AnimateDiff model - supports 512p and 768p
-      modelName = "zsxkib/animate-diff";
+      // AnimateDiff model replaced with VideoCrafter - supports 512p and 768p
+      modelName = "lucataco/video-crafter";
       const resolution = body.resolution || '512p';
       const width = resolution === '768p' ? 768 : 512;
       const height = resolution === '768p' ? 768 : 512;
@@ -531,14 +531,15 @@ serve(async (req) => {
       modelInput = {
         prompt: enhancedPrompt,
         negative_prompt: body.negativePrompt || "blur, haze, deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, mutated hands and fingers, deformed, distorted, disfigured, poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, disconnected limbs, mutation, mutated, ugly, disgusting, amputation",
-        steps: 25,
-        guidance_scale: 7.5,
+        ddim_steps: 50,
+        ddpm_steps: 1000,
+        unconditional_guidance_scale: 12.0,
         width: width,
         height: height,
-        frames: body.duration === 4 ? 32 : 16, // AnimateDiff: 32 frames (4s) or 16 frames (2s) at 8 FPS playback
-        seed: body.seed || -1, // -1 for random
+        video_length: 16,
+        seed: body.seed && body.seed !== -1 ? body.seed : Math.floor(Math.random() * 1000000),
       };
-      console.log(`Using AnimateDiff model with ${resolution} resolution (${width}x${height})`);
+      console.log(`Using VideoCrafter model with ${resolution} resolution (${width}x${height})`);
     } else if (videoModel === 'haiper') {
       // Haiper model - supports 720p and 1080p, 2 or 4 seconds
       modelName = "haiper-ai/haiper-video-2";
