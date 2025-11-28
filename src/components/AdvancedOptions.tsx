@@ -29,15 +29,15 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
   const modelConfigs = {
     animatediff: {
       name: 'Wan 2.5 T2V Fast',
-      durations: [2, 4], // 16 frames (2s) and 32 frames (4s)
-      resolutions: ['512p', '768p'],
-      fps: [8], // VideoCrafter uses fixed 8 FPS playback
+      durations: [5, 6, 7, 8, 9, 10], // Wan supports 5-10 seconds
+      resolutions: ['720p', '1080p'],
+      fps: [24], // Standard cinematic frame rate
       aspectRatios: ['16:9', '1:1'],
       supportsReferenceImages: false,
       supportsFrameGeneration: false,
-      defaultDuration: 2, // 16 frames at 8 FPS
-      defaultResolution: '512p',
-      defaultFps: 8,
+      defaultDuration: 10, // 10 seconds default
+      defaultResolution: '1080p',
+      defaultFps: 24,
       defaultAspectRatio: '16:9',
     },
     haiper: {

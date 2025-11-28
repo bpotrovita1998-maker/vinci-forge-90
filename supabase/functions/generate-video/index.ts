@@ -522,21 +522,26 @@ serve(async (req) => {
     let modelInput: any;
     
     if (videoModel === 'animatediff') {
-      // AnimateDiff model replaced with VideoCrafter - supports 512p and 768p
+      // Wan 2.5 T2V Fast model - supports 5-10 second videos in Full HD
       modelName = "wan-video/wan-2.5-t2v-fast";
-      const resolution = body.resolution || '512p';
-      const width = resolution === '768p' ? 768 : 512;
-      const height = resolution === '768p' ? 768 : 512;
+      const resolution = body.resolution || '1080p';
+      const duration = body.duration || 10; // Support 5-10 seconds, default 10
+      
+      // Map resolution to width*height format that Wan expects
+      let sizeString = '1920*1080'; // Full HD default
+      if (resolution === '720p') {
+        sizeString = '1280*720';
+      }
       
       modelInput = {
         prompt: enhancedPrompt,
         negative_prompt: body.negativePrompt || "blur, haze, deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, mutated hands and fingers, deformed, distorted, disfigured, poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, disconnected limbs, mutation, mutated, ugly, disgusting, amputation",
         seed: body.seed && body.seed !== -1 ? body.seed : Math.floor(Math.random() * 1000000),
-        width: width,
-        height: height,
-        duration: 5, // Wan supports 5s videos
+        size: sizeString,
+        duration: duration, // Wan supports 5-10 seconds
+        enable_prompt_expansion: true,
       };
-      console.log(`Using Wan 2.5 T2V Fast model with ${resolution} resolution (${width}x${height})`);
+      console.log(`Using Wan 2.5 T2V Fast model with ${resolution} (${sizeString}), duration: ${duration}s`);
     } else if (videoModel === 'haiper') {
       // Haiper model - supports 720p and 1080p, 2 or 4 seconds
       modelName = "haiper-ai/haiper-video-2";
