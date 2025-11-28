@@ -523,19 +523,20 @@ serve(async (req) => {
     
     if (videoModel === 'animatediff') {
       // AnimateDiff model - supports 512p and 768p
-      modelName = "lucataco/animatediff";
+      modelName = "zsxkib/animate-diff";
       const resolution = body.resolution || '512p';
       const width = resolution === '768p' ? 768 : 512;
       const height = resolution === '768p' ? 768 : 512;
       
       modelInput = {
         prompt: enhancedPrompt,
-        n_prompt: body.negativePrompt || "worst quality, low quality",
+        negative_prompt: body.negativePrompt || "blur, haze, deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, mutated hands and fingers, deformed, distorted, disfigured, poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, disconnected limbs, mutation, mutated, ugly, disgusting, amputation",
         steps: 25,
         guidance_scale: 7.5,
         width: width,
         height: height,
-        num_frames: body.duration === 8 ? 16 : 8, // AnimateDiff uses frame count
+        frames: body.duration === 8 ? 16 : 8, // AnimateDiff uses frame count (8fps playback)
+        seed: body.seed || -1, // -1 for random
       };
       console.log(`Using AnimateDiff model with ${resolution} resolution (${width}x${height})`);
     } else if (videoModel === 'haiper') {
