@@ -455,13 +455,14 @@ export function JobProvider({ children }: { children: ReactNode }) {
       actionType = 'image_generation';
     } else if (options.type === 'video') {
       const numVideos = options.numVideos || 1;
-      // FREE for Zeroscope, 30 tokens for Veo 3.1
-      if (options.videoModel === 'zeroscope') {
-        estimatedTokens = 0; // Free tier!
-        console.log('Using free Zeroscope model - no tokens deducted');
-      } else {
-        estimatedTokens = 30 * numVideos; // 30 tokens per video ($0.30)
-      }
+      // Token costs: AnimateDiff (15), Haiper (30), Veo 3.1 (120)
+      const tokenCostPerVideo = 
+        options.videoModel === 'animatediff' ? 15 :
+        options.videoModel === 'haiper' ? 30 :
+        120; // Veo 3.1 default
+      
+      estimatedTokens = tokenCostPerVideo * numVideos;
+      console.log(`Using ${options.videoModel || 'veo'} model - ${estimatedTokens} tokens for ${numVideos} video(s)`);
       actionType = 'video_generation';
     } else if (options.type === '3d') {
       estimatedTokens = 10; // 10 tokens per 3D model ($0.10)
@@ -472,11 +473,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
     }
 
     // Check and deduct tokens before starting generation
-    // Skip token deduction for free Zeroscope model
-    const isFreeModel = options.type === 'video' && options.videoModel === 'zeroscope';
-    
-    if (!isFreeModel) {
-      try {
+    try {
       const { data: tokenData, error: tokenError } = await supabase.functions.invoke(
         'check-and-deduct-tokens',
         {
@@ -535,9 +532,6 @@ export function JobProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error during token check:', error);
       throw error;
-    }
-    } else {
-      console.log('Skipping token deduction for free Zeroscope model');
     }
 
     // Create initial job in database BEFORE starting generation
