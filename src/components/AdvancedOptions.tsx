@@ -28,7 +28,7 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
   // Model-specific configurations
   const modelConfigs = {
     animatediff: {
-      name: 'VideoCrafter',
+      name: 'Wan 2.5 T2V Fast',
       durations: [2, 4], // 16 frames (2s) and 32 frames (4s)
       resolutions: ['512p', '768p'],
       fps: [8], // VideoCrafter uses fixed 8 FPS playback
@@ -175,7 +175,7 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="animatediff">VideoCrafter (15 tokens - $0.15)</SelectItem>
+                  <SelectItem value="animatediff">Wan 2.5 T2V Fast (15 tokens - $0.15)</SelectItem>
                   <SelectItem value="haiper">Haiper (30 tokens - $0.30)</SelectItem>
                   <SelectItem value="veo">Veo 3.1 (120 tokens - $1.20)</SelectItem>
                 </SelectContent>

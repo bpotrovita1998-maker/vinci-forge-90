@@ -523,7 +523,7 @@ serve(async (req) => {
     
     if (videoModel === 'animatediff') {
       // AnimateDiff model replaced with VideoCrafter - supports 512p and 768p
-      modelName = "lucataco/video-crafter";
+      modelName = "wan-video/wan-2.5-t2v-fast";
       const resolution = body.resolution || '512p';
       const width = resolution === '768p' ? 768 : 512;
       const height = resolution === '768p' ? 768 : 512;
@@ -531,15 +531,12 @@ serve(async (req) => {
       modelInput = {
         prompt: enhancedPrompt,
         negative_prompt: body.negativePrompt || "blur, haze, deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, mutated hands and fingers, deformed, distorted, disfigured, poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, disconnected limbs, mutation, mutated, ugly, disgusting, amputation",
-        ddim_steps: 50,
-        ddpm_steps: 1000,
-        unconditional_guidance_scale: 12.0,
+        seed: body.seed && body.seed !== -1 ? body.seed : Math.floor(Math.random() * 1000000),
         width: width,
         height: height,
-        video_length: 16,
-        seed: body.seed && body.seed !== -1 ? body.seed : Math.floor(Math.random() * 1000000),
+        duration: 5, // Wan supports 5s videos
       };
-      console.log(`Using VideoCrafter model with ${resolution} resolution (${width}x${height})`);
+      console.log(`Using Wan 2.5 T2V Fast model with ${resolution} resolution (${width}x${height})`);
     } else if (videoModel === 'haiper') {
       // Haiper model - supports 720p and 1080p, 2 or 4 seconds
       modelName = "haiper-ai/haiper-video-2";
@@ -614,8 +611,45 @@ serve(async (req) => {
     
     console.log(`${videoModel} input:`, JSON.stringify(modelInput, null, 2));
     
-    // AnimateDiff uses replicate.run() instead of predictions API
+    // Wan 2.5 uses replicate.predictions instead of run()
     if (videoModel === 'animatediff') {
+      console.log("Using replicate.predictions.create() for Wan 2.5");
+      
+      const prediction = await replicate.predictions.create({
+        model: modelName,
+        input: modelInput
+      });
+      
+      console.log("Wan 2.5 prediction created:", prediction.id);
+      
+      // Return prediction ID for polling
+      await supabase
+        .from('jobs')
+        .update({
+          progress_stage: 'processing',
+          progress_percent: 10,
+          progress_message: 'Video generation in progress...',
+          manifest: {
+            ...manifest,
+            predictionId: prediction.id,
+            sceneIndex: currentSceneIndex,
+            totalScenes: scenePrompts?.length || 1
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', body.jobId);
+      
+      return new Response(
+        JSON.stringify({ 
+          predictionId: prediction.id,
+          status: 'processing'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Legacy AnimateDiff fallback (shouldn't reach here anymore)
+    if (false) {
       console.log("Using replicate.run() for AnimateDiff");
       
       const output = await replicate.run(
@@ -625,11 +659,11 @@ serve(async (req) => {
         }
       );
       
-      console.log("AnimateDiff generation completed:", output);
+      console.log("Legacy method generation completed:", output);
       
-      // For AnimateDiff, the output is immediate, so handle it directly
+      // For legacy models, the output is immediate, so handle it directly
       if (!output || (Array.isArray(output) && output.length === 0)) {
-        throw new Error("No output received from AnimateDiff");
+        throw new Error("No output received from legacy model");
       }
       
       const videoUrl = Array.isArray(output) ? output[0] : output;

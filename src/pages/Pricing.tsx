@@ -283,7 +283,7 @@ export default function Pricing() {
           </p>
           <div className="bg-muted/30 rounded-lg p-4 mb-8 text-center text-sm space-y-1">
             <div><span className="font-semibold">Token Costs:</span> Image = 1 token ($0.01) • 3D/CAD = 10 tokens ($0.10)</div>
-            <div><span className="font-semibold">Video Costs:</span> VideoCrafter = 15 tokens ($0.15) • Haiper = 30 tokens ($0.30) • Veo 3.1 = 120 tokens ($1.20)</div>
+            <div><span className="font-semibold">Video Costs:</span> Wan 2.5 Fast = 15 tokens ($0.15) • Haiper = 30 tokens ($0.30) • Veo 3.1 = 120 tokens ($1.20)</div>
           </div>
           
           <div className="grid md:grid-cols-3 gap-6">
