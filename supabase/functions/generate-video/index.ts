@@ -619,7 +619,7 @@ serve(async (req) => {
       console.log("Using replicate.run() for AnimateDiff");
       
       const output = await replicate.run(
-        "zsxkib/animate-diff",
+        modelName,
         {
           input: modelInput
         }
