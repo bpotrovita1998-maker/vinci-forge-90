@@ -23,6 +23,52 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
 
   const isVideo = options.type === 'video';
   const isImage = options.type === 'image';
+  const videoModel = options.videoModel || 'animatediff';
+
+  // Model-specific configurations
+  const modelConfigs = {
+    animatediff: {
+      name: 'AnimateDiff',
+      durations: [4, 8],
+      resolutions: ['512p', '768p'],
+      fps: [8, 16, 24],
+      aspectRatios: ['16:9', '1:1'],
+      supportsReferenceImages: false,
+      supportsFrameGeneration: false,
+      defaultDuration: 8,
+      defaultResolution: '512p',
+      defaultFps: 16,
+      defaultAspectRatio: '16:9',
+    },
+    haiper: {
+      name: 'Haiper',
+      durations: [2, 4],
+      resolutions: ['720p', '1080p'],
+      fps: [24, 30],
+      aspectRatios: ['16:9', '9:16', '1:1'],
+      supportsReferenceImages: true,
+      supportsFrameGeneration: false,
+      defaultDuration: 4,
+      defaultResolution: '720p',
+      defaultFps: 24,
+      defaultAspectRatio: '16:9',
+    },
+    veo: {
+      name: 'Veo 3.1',
+      durations: [4, 6, 8],
+      resolutions: ['720p', '1080p'],
+      fps: [24],
+      aspectRatios: ['16:9', '9:16'],
+      supportsReferenceImages: true,
+      supportsFrameGeneration: true,
+      defaultDuration: 8,
+      defaultResolution: '1080p',
+      defaultFps: 24,
+      defaultAspectRatio: '16:9',
+    },
+  };
+
+  const currentModelConfig = modelConfigs[videoModel as keyof typeof modelConfigs];
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-2">
@@ -40,44 +86,46 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
       </CollapsibleTrigger>
 
       <CollapsibleContent className="space-y-4 glass rounded-xl p-6 border border-border/30">
-        {/* Resolution */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Width</Label>
-            <Select
-              value={options.width?.toString() || '1024'}
-              onValueChange={(v) => onChange({ ...options, width: parseInt(v) })}
-            >
-              <SelectTrigger className="bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="512">512px</SelectItem>
-                <SelectItem value="768">768px</SelectItem>
-                <SelectItem value="1024">1024px</SelectItem>
-                <SelectItem value="1920">1920px (HD)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Resolution - Only show for images or hide for video (handled by model-specific resolution) */}
+        {isImage && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Width</Label>
+              <Select
+                value={options.width?.toString() || '1024'}
+                onValueChange={(v) => onChange({ ...options, width: parseInt(v) })}
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="512">512px</SelectItem>
+                  <SelectItem value="768">768px</SelectItem>
+                  <SelectItem value="1024">1024px</SelectItem>
+                  <SelectItem value="1920">1920px (HD)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label>Height</Label>
-            <Select
-              value={options.height?.toString() || '1024'}
-              onValueChange={(v) => onChange({ ...options, height: parseInt(v) })}
-            >
-              <SelectTrigger className="bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="512">512px</SelectItem>
-                <SelectItem value="768">768px</SelectItem>
-                <SelectItem value="1024">1024px</SelectItem>
-                <SelectItem value="1080">1080px (HD)</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label>Height</Label>
+              <Select
+                value={options.height?.toString() || '1024'}
+                onValueChange={(v) => onChange({ ...options, height: parseInt(v) })}
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="512">512px</SelectItem>
+                  <SelectItem value="768">768px</SelectItem>
+                  <SelectItem value="1024">1024px</SelectItem>
+                  <SelectItem value="1080">1080px (HD)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Upscale Quality - Only for images larger than 1024 */}
         {isImage && (options.width! > 1024 || options.height! > 1024) && (
@@ -108,8 +156,20 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
             <div className="space-y-2">
               <Label>Video Generation Model</Label>
               <Select
-                value={options.videoModel || 'animatediff'}
-                onValueChange={(v) => onChange({ ...options, videoModel: v as 'veo' | 'haiper' | 'animatediff' })}
+                value={videoModel}
+                onValueChange={(v) => {
+                  const newModel = v as 'veo' | 'haiper' | 'animatediff';
+                  const config = modelConfigs[newModel];
+                  // Reset to model defaults when switching
+                  onChange({ 
+                    ...options, 
+                    videoModel: newModel,
+                    duration: config.defaultDuration,
+                    resolution: config.defaultResolution as '720p' | '1080p',
+                    fps: config.defaultFps,
+                    aspectRatio: config.defaultAspectRatio,
+                  });
+                }}
               >
                 <SelectTrigger className="bg-background/50">
                   <SelectValue />
@@ -121,9 +181,9 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {options.videoModel === 'veo' 
+                {videoModel === 'veo' 
                   ? '⭐ Best quality, highest cost'
-                  : options.videoModel === 'haiper'
+                  : videoModel === 'haiper'
                   ? '⚡ Good quality, balanced cost'
                   : '💰 Budget-friendly option'}
               </p>
@@ -133,35 +193,41 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
               <div className="space-y-2">
                 <Label>Duration (seconds)</Label>
                 <Select
-                  value={options.duration?.toString() || '8'}
+                  value={options.duration?.toString() || currentModelConfig.defaultDuration.toString()}
                   onValueChange={(v) => onChange({ ...options, duration: parseInt(v) })}
                 >
                   <SelectTrigger className="bg-background/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="4">4 seconds</SelectItem>
-                    <SelectItem value="6">6 seconds</SelectItem>
-                    <SelectItem value="8">8 seconds</SelectItem>
+                    {currentModelConfig.durations.map(d => (
+                      <SelectItem key={d} value={d.toString()}>{d} seconds</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Veo 3.1: 4, 6, or 8 seconds per scene
+                  {currentModelConfig.name}: {currentModelConfig.durations.join(', ')} seconds
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label>Resolution</Label>
                 <Select
-                  value={options.resolution || '1080p'}
-                  onValueChange={(v) => onChange({ ...options, resolution: v as '720p' | '1080p' })}
+                  value={options.resolution || currentModelConfig.defaultResolution}
+                  onValueChange={(v) => onChange({ ...options, resolution: v as '512p' | '720p' | '768p' | '1080p' })}
                 >
                   <SelectTrigger className="bg-background/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="720p">720p (HD)</SelectItem>
-                    <SelectItem value="1080p">1080p (Full HD)</SelectItem>
+                    {currentModelConfig.resolutions.map(r => (
+                      <SelectItem key={r} value={r}>
+                        {r === '512p' ? '512p (SD)' : 
+                         r === '768p' ? '768p (HD Ready)' :
+                         r === '720p' ? '720p (HD)' : 
+                         '1080p (Full HD)'}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -171,16 +237,18 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
               <div className="space-y-2">
                 <Label>FPS</Label>
                 <Select
-                  value={options.fps?.toString() || '24'}
+                  value={options.fps?.toString() || currentModelConfig.defaultFps.toString()}
                   onValueChange={(v) => onChange({ ...options, fps: parseInt(v) })}
                 >
                   <SelectTrigger className="bg-background/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="24">24 fps (Cinematic)</SelectItem>
-                    <SelectItem value="30">30 fps</SelectItem>
-                    <SelectItem value="60">60 fps (Smooth)</SelectItem>
+                    {currentModelConfig.fps.map(f => (
+                      <SelectItem key={f} value={f.toString()}>
+                        {f} fps{f === 24 ? ' (Cinematic)' : f === 30 ? ' (Standard)' : f === 16 ? ' (Smooth)' : f === 8 ? ' (Basic)' : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -188,15 +256,20 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
               <div className="space-y-2">
                 <Label>Aspect Ratio</Label>
                 <Select 
-                  value={options.aspectRatio || "16:9"} 
+                  value={options.aspectRatio || currentModelConfig.defaultAspectRatio} 
                   onValueChange={(value) => onChange({ ...options, aspectRatio: value })}
                 >
                   <SelectTrigger className="bg-background/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
-                    <SelectItem value="9:16">9:16 (Portrait)</SelectItem>
+                    {currentModelConfig.aspectRatios.map(ar => (
+                      <SelectItem key={ar} value={ar}>
+                        {ar === '16:9' ? '16:9 (Landscape)' : 
+                         ar === '9:16' ? '9:16 (Portrait)' : 
+                         '1:1 (Square)'}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
