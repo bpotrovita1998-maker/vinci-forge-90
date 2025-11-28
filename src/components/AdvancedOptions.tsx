@@ -29,15 +29,15 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
   const modelConfigs = {
     animatediff: {
       name: 'AnimateDiff',
-      durations: [4, 8],
+      durations: [2, 4], // 16 frames (2s) and 32 frames (4s) at 8 FPS
       resolutions: ['512p', '768p'],
-      fps: [8, 16, 24],
+      fps: [8], // AnimateDiff uses fixed 8 FPS playback
       aspectRatios: ['16:9', '1:1'],
       supportsReferenceImages: false,
       supportsFrameGeneration: false,
-      defaultDuration: 8,
+      defaultDuration: 2, // 16 frames at 8 FPS
       defaultResolution: '512p',
-      defaultFps: 16,
+      defaultFps: 8,
       defaultAspectRatio: '16:9',
     },
     haiper: {
