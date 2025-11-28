@@ -43,6 +43,7 @@ const generateVideoSchema = z.object({
   duration: z.number().min(4).max(8).optional(),
   aspectRatio: z.string().optional(),
   resolution: z.enum(['720p', '1080p']).optional(),
+  videoModel: z.enum(['veo', 'haiper', 'animatediff']).optional(),
   characterReference: z.string().url().optional(),
   styleReference: z.string().url().optional(),
   referenceImages: z.array(z.string().url()).max(3).optional(),
@@ -488,9 +489,14 @@ serve(async (req) => {
           }
         );
       }
-      console.log("Generating single video with Google Veo 3.1 Fast");
+      const videoModel = body.videoModel || 'animatediff';
+      console.log(`Generating single video with ${videoModel} model`);
       console.log("Prompt:", promptToUse);
     }
+    
+    // Determine which model to use
+    const videoModel = body.videoModel || 'animatediff';
+    console.log(`Using video model: ${videoModel}`);
     
     // Build enhanced prompt with character/scene consistency
     let enhancedPrompt = promptToUse;
@@ -507,60 +513,88 @@ serve(async (req) => {
       console.log("Added style description");
     }
     
-    // Build Google Veo 3.1 input parameters
-    // Google Veo 3.1 supports 16:9 and 9:16 aspect ratios, 720p and 1080p resolution
-    let aspectRatio = body.aspectRatio || "16:9";
-    if (aspectRatio !== "16:9" && aspectRatio !== "9:16") {
-      aspectRatio = "16:9"; // Fallback to 16:9 for unsupported ratios
+    // Build model-specific input parameters
+    let modelName: string;
+    let modelInput: any;
+    
+    if (videoModel === 'animatediff') {
+      // AnimateDiff model
+      modelName = "lucataco/animatediff";
+      modelInput = {
+        prompt: enhancedPrompt,
+        n_prompt: "worst quality, low quality", // negative prompt
+        steps: 25,
+        guidance_scale: 7.5,
+      };
+      console.log("Using AnimateDiff model");
+    } else if (videoModel === 'haiper') {
+      // Haiper model
+      modelName = "haiper-ai/haiper-video-2";
+      modelInput = {
+        prompt: enhancedPrompt,
+        duration: 4, // Haiper supports 2 or 4 seconds
+        aspect_ratio: body.aspectRatio === "9:16" ? "9:16" : "16:9",
+      };
+      console.log("Using Haiper model");
+    } else {
+      // Veo 3.1 (default)
+      modelName = "google/veo-3.1-fast";
+      let aspectRatio = body.aspectRatio || "16:9";
+      if (aspectRatio !== "16:9" && aspectRatio !== "9:16") {
+        aspectRatio = "16:9";
+      }
+      
+      const resolution = body.resolution || '1080p';
+      
+      modelInput = {
+        prompt: enhancedPrompt,
+        aspect_ratio: aspectRatio,
+        duration: body.duration || 8,
+        resolution: resolution,
+      };
+      console.log("Using Veo 3.1 model");
     }
     
-    // Determine resolution (Veo 3.1 supports 720p and 1080p at 24 FPS)
-    const resolution = body.resolution || '1080p';
-    
-    const veoInput: any = {
-      prompt: enhancedPrompt,
-      aspect_ratio: aspectRatio,
-      duration: body.duration || 8, // Veo 3.1: 4, 6, or 8 seconds
-      resolution: resolution, // 720p or 1080p
-    };
-    
-    // Add reference images for visual consistency (up to 3)
-    if (body.referenceImages && body.referenceImages.length > 0) {
-      veoInput.reference_images = body.referenceImages.slice(0, 3);
-      console.log("Using reference images for consistency:", body.referenceImages.length);
-    }
-    
-    // Frame-to-frame generation
-    if (body.startFrame && body.endFrame) {
-      veoInput.start_frame = body.startFrame;
-      veoInput.end_frame = body.endFrame;
-      console.log("Frame-to-frame generation enabled");
-    }
-    
-    // Scene extension (extend from previous video)
-    if (body.extendFromVideo) {
-      veoInput.extend_from = body.extendFromVideo;
-      console.log("Extending from video:", body.extendFromVideo);
-    }
-    
-    // Add reference image for visual consistency if provided (legacy support)
-    if (body.referenceImage && !body.referenceImages) {
-      veoInput.image = body.referenceImage;
-      console.log("Using reference image for consistency:", body.referenceImage);
+    // Add advanced features for Veo 3.1 only
+    if (videoModel === 'veo') {
+      // Add reference images for visual consistency (up to 3)
+      if (body.referenceImages && body.referenceImages.length > 0) {
+        modelInput.reference_images = body.referenceImages.slice(0, 3);
+        console.log("Using reference images for consistency:", body.referenceImages.length);
+      }
+      
+      // Frame-to-frame generation
+      if (body.startFrame && body.endFrame) {
+        modelInput.start_frame = body.startFrame;
+        modelInput.end_frame = body.endFrame;
+        console.log("Frame-to-frame generation enabled");
+      }
+      
+      // Scene extension (extend from previous video)
+      if (body.extendFromVideo) {
+        modelInput.extend_from = body.extendFromVideo;
+        console.log("Extending from video:", body.extendFromVideo);
+      }
+      
+      // Add reference image for visual consistency if provided (legacy support)
+      if (body.referenceImage && !body.referenceImages) {
+        modelInput.image = body.referenceImage;
+        console.log("Using reference image for consistency:", body.referenceImage);
+      }
     }
     
     // Use seed for consistency across scenes if provided
     if (body.seed) {
-      veoInput.seed = body.seed;
+      modelInput.seed = body.seed;
       console.log("Using seed for consistency:", body.seed);
     }
     
-    console.log("Google Veo 3.1 input:", JSON.stringify(veoInput, null, 2));
+    console.log(`${videoModel} input:`, JSON.stringify(modelInput, null, 2));
     
-    // Start prediction with Google Veo 3.1 Fast (async)
+    // Start prediction with selected model (async)
     const prediction = await replicate.predictions.create({
-      model: "google/veo-3.1-fast",
-      input: veoInput
+      model: modelName,
+      input: modelInput
     });
 
     console.log("Video prediction started:", prediction.id);

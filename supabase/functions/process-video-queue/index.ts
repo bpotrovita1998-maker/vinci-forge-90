@@ -138,8 +138,9 @@ serve(async (req) => {
       : null;
     
     // Determine which edge function to call based on videoModel
-    const videoModel = (job.manifest as any)?.videoModel || 'veo'; // Default to Veo 3.1
-    const functionName = videoModel === 'zeroscope' ? 'generate-free-video' : 'generate-video';
+    const videoModel = (job.manifest as any)?.videoModel || 'animatediff'; // Default to AnimateDiff (cheapest)
+    // Zeroscope uses separate free function, all paid models use generate-video
+    const functionName = 'generate-video';
     console.log(`Using video generation model: ${videoModel} (function: ${functionName})`);
     
     if (scenePrompts && scenePrompts.length > 1) {
@@ -168,6 +169,7 @@ serve(async (req) => {
           scenePrompts: scenePrompts,
           duration: job.duration,
           aspectRatio: aspectRatio,
+          videoModel: videoModel,
           characterDescription,
           styleDescription,
           referenceImage,
@@ -196,6 +198,7 @@ serve(async (req) => {
               prompt: job.prompt,
               duration: job.duration,
               aspectRatio: aspectRatio,
+              videoModel: videoModel,
               characterDescription,
               styleDescription,
               referenceImage,
