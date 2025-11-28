@@ -30,6 +30,7 @@ import VideoThumbnailGrid from './VideoThumbnailGrid';
 import VideoComparisonSlider from './VideoComparisonSlider';
 import SceneRegenerator from './SceneRegenerator';
 import SceneEditor from './SceneEditor';
+import VideoRemix from './VideoRemix';
 import { SceneConfig } from '@/types/sceneConfig';
 import { stitchVideosWithScenes } from '@/services/videoStitchingService';
 import { supabase } from '@/integrations/supabase/client';
@@ -988,6 +989,35 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                   />
                 ) : videoViewMode === 'fullvideo' && hasStitchedVideo ? (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3 p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Film className="w-4 h-4 text-primary" />
+                        <span className="font-medium">Final Video</span>
+                      </div>
+                      <VideoRemix
+                        videoUrl={localOutputs[stitchedVideoIndex]}
+                        originalPrompt={job.options.prompt}
+                        jobId={job.id}
+                        duration={job.options.duration || 5}
+                        onRemixStart={() => {
+                          toast({
+                            title: "Remix in Progress",
+                            description: "Your extended video will appear in the gallery when ready",
+                          });
+                        }}
+                      />
+                    </div>
+                    <video
+                      src={getDisplayUrl(stitchedVideoIndex)}
+                      controls
+                      className="w-full h-auto max-h-[600px] rounded-lg"
+                      autoPlay
+                      loop
+                      playsInline
+                    />
+                  </div>
+                ) : videoViewMode === 'fullvideo' && hasStitchedVideo ? (
+                  <div className="space-y-3">
                     <video
                       src={getDisplayUrl(stitchedVideoIndex)}
                       controls
@@ -1092,36 +1122,74 @@ export default function OutputViewer({ job, onClose }: OutputViewerProps) {
                     originalLabel={`Video 1 ${job.options.fps === 24 ? '(24 fps)' : ''}`}
                     upscaledLabel={`Video 2 ${job.options.fps === 60 ? '(60 fps)' : ''}`}
                   />
-                ) : (
-                  <div className="space-y-3">
-                    <video
-                      src={getDisplayUrl(currentVideoIndex)}
-                      controls
-                      className="w-full h-auto max-h-[600px]"
-                      autoPlay
-                      loop
-                      playsInline
-                    />
-                    {localOutputs.length > 1 && (
-                      <VideoThumbnailGrid
-                        videos={localOutputs}
-                        selectedIndex={currentVideoIndex}
-                        onVideoClick={setCurrentVideoIndex}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <video
-                src={job.outputs[0]}
-                controls
-                className="w-full h-auto max-h-[600px]"
-                autoPlay
-                loop
-                playsInline
-              />
-            )}
+                 ) : (
+                   <div className="space-y-3">
+                     <div className="flex items-center justify-between gap-3 p-3 bg-muted/30 rounded-lg">
+                       <div className="flex items-center gap-2 text-sm">
+                         <Film className="w-4 h-4 text-primary" />
+                         <span className="font-medium">Video {currentVideoIndex + 1}</span>
+                       </div>
+                       <VideoRemix
+                         videoUrl={localOutputs[currentVideoIndex]}
+                         originalPrompt={job.options.prompt}
+                         jobId={job.id}
+                         duration={job.options.duration || 5}
+                         onRemixStart={() => {
+                           toast({
+                             title: "Remix in Progress",
+                             description: "Your extended video will appear in the gallery when ready",
+                           });
+                         }}
+                       />
+                     </div>
+                     <video
+                       src={getDisplayUrl(currentVideoIndex)}
+                       controls
+                       className="w-full h-auto max-h-[600px]"
+                       autoPlay
+                       loop
+                       playsInline
+                     />
+                     {localOutputs.length > 1 && (
+                       <VideoThumbnailGrid
+                         videos={localOutputs}
+                         selectedIndex={currentVideoIndex}
+                         onVideoClick={setCurrentVideoIndex}
+                       />
+                     )}
+                   </div>
+                 )}
+               </div>
+             ) : (
+               <div className="space-y-3">
+                 <div className="flex items-center justify-between gap-3 p-3 bg-muted/30 rounded-lg">
+                   <div className="flex items-center gap-2 text-sm">
+                     <Film className="w-4 h-4 text-primary" />
+                     <span className="font-medium">Your Video</span>
+                   </div>
+                   <VideoRemix
+                     videoUrl={job.outputs[0]}
+                     originalPrompt={job.options.prompt}
+                     jobId={job.id}
+                     duration={job.options.duration || 5}
+                     onRemixStart={() => {
+                       toast({
+                         title: "Remix in Progress",
+                         description: "Your extended video will appear in the gallery when ready",
+                       });
+                     }}
+                   />
+                 </div>
+                 <video
+                   src={job.outputs[0]}
+                   controls
+                   className="w-full h-auto max-h-[600px]"
+                   autoPlay
+                   loop
+                   playsInline
+                 />
+               </div>
+             )}
           </div>
 
           {/* Actions */}
