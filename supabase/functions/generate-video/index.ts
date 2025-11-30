@@ -395,29 +395,9 @@ serve(async (req) => {
     const manifest = jobData?.manifest as any || {};
     let scenePrompts = body.scenePrompts || manifest.scenePrompts;
     
-    // AUTO-SPLIT: If no scene prompts provided, automatically split the prompt into 2 scenes
-    if (!scenePrompts && body.prompt) {
-      console.log('[Auto-Split] Splitting prompt into 2 continuous scenes for 15-second video');
-      const { scene1, scene2, baseContext } = splitPromptIntoScenes(body.prompt);
-      scenePrompts = [scene1, scene2];
-      console.log('[Auto-Split] Scene 1:', scene1);
-      console.log('[Auto-Split] Scene 2:', scene2);
-      console.log('[Auto-Split] Base context:', baseContext);
-      
-      // Save scene prompts to manifest for tracking
-      await supabase
-        .from('jobs')
-        .update({
-          manifest: {
-            ...manifest,
-            scenePrompts,
-            baseContext,
-            autoSplit: true
-          },
-          num_videos: 2
-        })
-        .eq('id', body.jobId);
-    }
+    // AUTO-SPLIT: Disabled for single scene generation
+    // Only split if explicitly requested via scenePrompts parameter
+    // Users can generate individual scenes or multi-scene videos intentionally
     
     const currentSceneIndex = manifest.currentSceneIndex || 0;
     
