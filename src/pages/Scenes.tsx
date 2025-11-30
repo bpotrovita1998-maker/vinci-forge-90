@@ -806,6 +806,60 @@ export default function Scenes() {
     });
   };
 
+  const cancelSceneGeneration = async (scene: Scene) => {
+    if (!scene.jobId) return;
+
+    try {
+      // Update job status to failed
+      const { error } = await supabase
+        .from('jobs')
+        .update({
+          status: 'failed',
+          error: 'Cancelled by user',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', scene.jobId);
+
+      if (error) throw error;
+
+      // Update scene status
+      await updateScene(scene.id, {
+        status: 'draft',
+        generationProgress: 0,
+        jobId: undefined
+      });
+
+      toast({
+        title: "Generation Cancelled",
+        description: `"${scene.title}" generation has been cancelled`
+      });
+    } catch (error) {
+      console.error('Cancel error:', error);
+      toast({
+        title: "Cancel Failed",
+        description: "Could not cancel generation",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const retrySceneGeneration = async (scene: Scene) => {
+    // Cancel current job first
+    if (scene.jobId) {
+      await cancelSceneGeneration(scene);
+    }
+
+    // Wait a moment for cancellation to process
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Retry based on scene type
+    if (scene.type === 'video') {
+      await generateSceneVideo(scene.id);
+    } else {
+      await generateSceneImage(scene.id);
+    }
+  };
+
   const exportToGallery = async (scene: Scene) => {
     if (!user) return;
     
@@ -2299,26 +2353,38 @@ export default function Scenes() {
                                         </Button>
                                       )}
                                     </>
-                                  ) : (
+                                   ) : scene.status === 'generating' ? (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => cancelSceneGeneration(scene)}
+                                        className="gap-2"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => retrySceneGeneration(scene)}
+                                        className="flex-1 gap-2"
+                                      >
+                                        <RefreshCw className="w-4 h-4" />
+                                        Retry
+                                      </Button>
+                                    </>
+                                   ) : (
                                     <Button
                                       size="sm"
                                       onClick={() => scene.type === 'video' ? generateSceneVideo(scene.id) : generateSceneImage(scene.id)}
-                                      disabled={scene.status === 'generating' || !scene.description}
+                                      disabled={!scene.description}
                                       className="flex-1 gap-2"
                                     >
-                                      {scene.status === 'generating' ? (
-                                        <>
-                                          <Sparkles className="w-4 h-4 animate-spin" />
-                                          Generating...
-                                        </>
-                                      ) : (
-                                        <>
-                                          {scene.type === 'video' ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
-                                          Generate {scene.type === 'video' ? 'Video' : 'Image'}
-                                        </>
-                                      )}
+                                      {scene.type === 'video' ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                                      Generate {scene.type === 'video' ? 'Video' : 'Image'}
                                     </Button>
-                                  )}
+                                   )}
                                   <Button
                                     size="sm"
                                     variant="ghost"
