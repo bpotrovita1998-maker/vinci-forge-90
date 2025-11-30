@@ -752,7 +752,7 @@ export default function Scenes() {
       title: `Scene ${scenes.length + 1}`,
       description: '',
       status: 'draft',
-      duration: 3, // default 3 seconds
+      duration: 5, // default 5 seconds (Wan 2.5 supports 5 or 10)
       type: 'image' // default to image
     };
     setScenes([...scenes, newScene]);
@@ -1091,7 +1091,7 @@ export default function Scenes() {
           prompt: finalPrompt,
           width: 1024,
           height: 576,
-          duration: scene.duration,
+          duration: scene.duration >= 10 ? 10 : 5, // Ensure valid duration for Wan 2.5 (5 or 10 only)
           fps: 24,
           status: 'queued',
           progress_stage: 'Initializing',
