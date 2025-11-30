@@ -78,5 +78,8 @@ verify_jwt = true
 [functions.analyze-and-learn]
 verify_jwt = true
 
+[functions.import-replicate-video]
+verify_jwt = true
+
 
 
