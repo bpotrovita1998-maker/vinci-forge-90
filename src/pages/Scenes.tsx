@@ -137,6 +137,9 @@ export default function Scenes() {
   const [isImporting, setIsImporting] = useState(false);
   // Disable autosave to prevent UI flicker; manual save only
   const AUTOSAVE = false;
+  
+  // Track polling intervals to clear them on cancel
+  const pollingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Load storyboards on mount
   useEffect(() => {
@@ -810,6 +813,13 @@ export default function Scenes() {
     if (!scene.jobId) return;
 
     try {
+      // Clear polling interval if exists
+      const intervalId = pollingIntervalsRef.current.get(scene.jobId);
+      if (intervalId) {
+        clearInterval(intervalId);
+        pollingIntervalsRef.current.delete(scene.jobId);
+      }
+
       // Update job status to failed
       const { error } = await supabase
         .from('jobs')
@@ -1059,6 +1069,10 @@ export default function Scenes() {
           });
           return true;
         } else if (jobData.status === 'failed' || jobData.error) {
+          // Don't show toast for cancelled jobs
+          if (jobData.error === 'Cancelled by user') {
+            return true; // Exit polling silently
+          }
           throw new Error(jobData.error || 'Generation failed');
         }
 
@@ -1070,12 +1084,17 @@ export default function Scenes() {
         const isDone = await checkJobStatus();
         if (isDone) {
           clearInterval(pollInterval);
+          pollingIntervalsRef.current.delete(jobId);
         }
       }, 2000);
+      
+      // Store interval ID for cancellation
+      pollingIntervalsRef.current.set(jobId, pollInterval);
 
       // Set timeout after 5 minutes
       setTimeout(() => {
         clearInterval(pollInterval);
+        pollingIntervalsRef.current.delete(jobId);
         updateScene(sceneId, { status: 'draft' });
         toast({
           title: "Timeout",
@@ -1089,6 +1108,12 @@ export default function Scenes() {
       updateScene(sceneId, { status: 'draft' });
       
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
+      
+      // Don't show toast for cancelled jobs
+      if (errorMessage === 'Cancelled by user') {
+        return;
+      }
+      
       let userMessage = errorMessage;
       
       if (errorMessage.includes('safety filters') || errorMessage.includes('SAFETY_FILTER')) {
@@ -1218,6 +1243,10 @@ export default function Scenes() {
           });
           return true;
         } else if (jobData.status === 'failed' || jobData.error) {
+          // Don't show toast for cancelled jobs
+          if (jobData.error === 'Cancelled by user') {
+            return true; // Exit polling silently
+          }
           throw new Error(jobData.error || 'Generation failed');
         }
 
@@ -1229,12 +1258,17 @@ export default function Scenes() {
         const isDone = await checkJobStatus();
         if (isDone) {
           clearInterval(pollInterval);
+          pollingIntervalsRef.current.delete(jobId);
         }
       }, 3000);
+      
+      // Store interval ID for cancellation
+      pollingIntervalsRef.current.set(jobId, pollInterval);
 
       // Set timeout after 10 minutes
       setTimeout(() => {
         clearInterval(pollInterval);
+        pollingIntervalsRef.current.delete(jobId);
         updateScene(sceneId, { status: 'draft' });
         toast({
           title: "Timeout",
@@ -1248,6 +1282,11 @@ export default function Scenes() {
       updateScene(sceneId, { status: 'draft' });
       
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
+      
+      // Don't show toast for cancelled jobs
+      if (errorMessage === 'Cancelled by user') {
+        return;
+      }
       
       toast({
         title: "Generation Failed",
