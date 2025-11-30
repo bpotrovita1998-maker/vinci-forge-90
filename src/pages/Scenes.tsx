@@ -2164,7 +2164,7 @@ export default function Scenes() {
                                       <SelectItem value="video">
                                         <div className="flex items-center gap-2">
                                           <Video className="w-4 h-4" />
-                                          Video (Minimax - 6 sec)
+                                          Video (Wan 2.5 - 5 or 10 sec)
                                         </div>
                                       </SelectItem>
                                     </SelectContent>
@@ -2172,7 +2172,7 @@ export default function Scenes() {
                                   {scene.type === 'video' && (
                                     <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                                       <DollarSign className="w-3 h-3" />
-                                      Cost: ~$0.40 per 6-second video via Minimax AI
+                                      Cost: 15 tokens ($0.15) per video via Wan 2.5 T2V Fast
                                     </p>
                                   )}
                                 </div>
