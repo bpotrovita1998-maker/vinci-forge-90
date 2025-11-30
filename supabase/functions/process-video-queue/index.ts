@@ -209,95 +209,18 @@ serve(async (req) => {
           if (invokeError) {
             console.error(`Error invoking generate-video for video ${i + 1}:`, JSON.stringify(invokeError));
           } else {
-            console.log(`Video ${i + 1} generation started successfully:`, JSON.stringify(result));
-          }
-        } catch (error) {
-          console.error(`Exception calling generate-video for video ${i + 1}:`, error);
+      console.log(`Video ${i + 1} generation started successfully:`, JSON.stringify(result));
         }
-        
-        if (i < numVideos - 1) {
-          console.log(`Waiting 1 second before starting video ${i + 2}...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+      } catch (error) {
+        console.error(`Exception calling generate-video for video ${i + 1}:`, error);
+      }
+      
+      if (i < numVideos - 1) {
+        console.log(`Waiting 1 second before starting video ${i + 2}...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
-    
-    if (scenePrompts && scenePrompts.length > 1) {
-      console.log(`Detected multi-part video with ${scenePrompts.length} scenes`);
-      console.log('Scene prompts:', JSON.stringify(scenePrompts, null, 2));
-      
-      // Initialize manifest with scene prompts
-      const updatedManifest = {
-        ...manifest,
-        scenePrompts,
-        currentSceneIndex: 0
-      };
-      
-      await supabase
-        .from('jobs')
-        .update({
-          manifest: updatedManifest,
-          num_videos: scenePrompts.length // Update to reflect total scenes
-        })
-        .eq('id', job.id);
-      
-      // Start generating first scene only
-      const { data: result, error: invokeError } = await supabase.functions.invoke(functionName, {
-        body: {
-          jobId: job.id,
-          scenePrompts: scenePrompts,
-          duration: job.duration,
-          aspectRatio: aspectRatio,
-          characterDescription,
-          styleDescription,
-          referenceImage,
-          seed
-        }
-      });
-
-      if (invokeError) {
-        console.error(`Error invoking generate-video for scene 1:`, JSON.stringify(invokeError));
-        throw invokeError;
-      }
-      
-      console.log(`Scene 1 generation started successfully:`, JSON.stringify(result));
-    } else {
-      // Single video or multiple copies with same prompt
-      console.log(`Generating ${numVideos} video(s) for job ${job.id}`);
-      
-      for (let i = 0; i < numVideos; i++) {
-        const videoSeed = seed ? seed + i : undefined;
-        console.log(`Starting generation ${i + 1} of ${numVideos} with seed: ${videoSeed}...`);
-        
-        try {
-          const { data: result, error: invokeError } = await supabase.functions.invoke(functionName, {
-            body: {
-              jobId: job.id,
-              prompt: job.prompt,
-              duration: job.duration,
-              aspectRatio: aspectRatio,
-              characterDescription,
-              styleDescription,
-              referenceImage,
-              seed: videoSeed
-            }
-          });
-
-          if (invokeError) {
-            console.error(`Error invoking generate-video for video ${i + 1}:`, JSON.stringify(invokeError));
-          } else {
-            console.log(`Video ${i + 1} generation started successfully:`, JSON.stringify(result));
-          }
-        } catch (error) {
-          console.error(`Exception calling generate-video for video ${i + 1}:`, error);
-        }
-        
-        if (i < numVideos - 1) {
-          console.log(`Waiting 1 second before starting video ${i + 2}...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    }
+  }
 
     console.log(`Finished processing queue for job ${job.id}`);
 
