@@ -27,7 +27,8 @@ import {
   Edit,
   DollarSign,
   Timer,
-  Film
+  Film,
+  Check
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ParticleBackground from '@/components/ParticleBackground';
@@ -878,6 +879,37 @@ export default function Scenes() {
       await generateSceneVideo(scene.id);
     } else {
       await generateSceneImage(scene.id);
+    }
+  };
+
+  const markSceneAsReady = async (scene: Scene) => {
+    // Manual status fix for scenes that have outputs but wrong status
+    if (!scene.videoUrl && !scene.imageUrl) {
+      toast({
+        title: "No Output",
+        description: "This scene doesn't have any generated output yet",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await updateScene(scene.id, {
+        status: 'ready',
+        generationProgress: 100
+      });
+
+      toast({
+        title: "Status Updated",
+        description: "Scene marked as ready"
+      });
+    } catch (error) {
+      console.error('Error marking scene as ready:', error);
+      toast({
+        title: "Update Failed",
+        description: "Could not update scene status",
+        variant: "destructive"
+      });
     }
   };
 
@@ -2439,15 +2471,28 @@ export default function Scenes() {
                                       </Button>
                                     </>
                                    ) : (
-                                    <Button
-                                      size="sm"
-                                      onClick={() => scene.type === 'video' ? generateSceneVideo(scene.id) : generateSceneImage(scene.id)}
-                                      disabled={!scene.description}
-                                      className="flex-1 gap-2"
-                                    >
-                                      {scene.type === 'video' ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
-                                      Generate {scene.type === 'video' ? 'Video' : 'Image'}
-                                    </Button>
+                                    <>
+                                      {(scene.videoUrl || scene.imageUrl) && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => markSceneAsReady(scene)}
+                                          variant="default"
+                                          className="flex-1 gap-2"
+                                        >
+                                          <Check className="w-4 h-4" />
+                                          Mark as Ready
+                                        </Button>
+                                      )}
+                                      <Button
+                                        size="sm"
+                                        onClick={() => scene.type === 'video' ? generateSceneVideo(scene.id) : generateSceneImage(scene.id)}
+                                        disabled={!scene.description}
+                                        className="flex-1 gap-2"
+                                      >
+                                        {scene.type === 'video' ? <Video className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                                        Generate {scene.type === 'video' ? 'Video' : 'Image'}
+                                      </Button>
+                                    </>
                                    )}
                                   <Button
                                     size="sm"
