@@ -29,7 +29,7 @@ export default function AdvancedOptions({ options, onChange }: AdvancedOptionsPr
   const modelConfigs = {
     animatediff: {
       name: 'Wan 2.5 T2V Fast',
-      durations: [5, 6, 7, 8, 9, 10], // Wan supports 5-10 seconds
+      durations: [5, 10], // Wan only supports 5 or 10 seconds
       resolutions: ['720p', '1080p'],
       fps: [24], // Standard cinematic frame rate
       aspectRatios: ['16:9', '1:1'],
