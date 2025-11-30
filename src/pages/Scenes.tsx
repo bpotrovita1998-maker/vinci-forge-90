@@ -787,6 +787,8 @@ export default function Scenes() {
       if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
 
       if (Object.keys(dbUpdates).length > 0) {
+        console.log('Updating scene in database:', { id, dbUpdates });
+        
         const { error } = await supabase
           .from('storyboard_scenes')
           .update(dbUpdates)
@@ -794,12 +796,21 @@ export default function Scenes() {
         
         if (error) {
           console.error('Failed to update scene in database:', error);
+          toast({
+            title: "Database Error",
+            description: "Failed to save scene changes. Please try again.",
+            variant: "destructive"
+          });
+          throw error;
         }
+        
+        console.log('Scene updated successfully in database');
       }
     } catch (error) {
       console.error('Error updating scene:', error);
+      throw error;
     }
-  }; 
+  };
 
   const deleteScene = (id: string) => {
     setScenes(prev => prev.filter(scene => scene.id !== id));
@@ -1057,11 +1068,18 @@ export default function Scenes() {
           const outputs = Array.isArray(jobData.outputs) ? jobData.outputs : [jobData.outputs];
           const imageUrl = typeof outputs[0] === 'string' ? outputs[0] : String(outputs[0]);
           
-          await updateScene(sceneId, {
-            status: 'ready',
-            imageUrl: imageUrl,
-            generationProgress: 100
-          });
+          console.log('Image generation completed, updating scene status to ready:', { sceneId, imageUrl });
+          
+          try {
+            await updateScene(sceneId, {
+              status: 'ready',
+              imageUrl: imageUrl,
+              generationProgress: 100
+            });
+            console.log('Scene status updated successfully to ready');
+          } catch (updateError) {
+            console.error('Failed to update scene status:', updateError);
+          }
           
           toast({
             title: "Image Generated!",
@@ -1230,12 +1248,19 @@ export default function Scenes() {
           const outputs = Array.isArray(jobData.outputs) ? jobData.outputs : [jobData.outputs];
           const videoUrl = typeof outputs[0] === 'string' ? outputs[0] : String(outputs[0]);
           
-          await updateScene(sceneId, {
-            status: 'ready',
-            videoUrl: videoUrl,
-            generationProgress: 100,
-            estimatedTimeRemaining: 0
-          });
+          console.log('Video generation completed, updating scene status to ready:', { sceneId, videoUrl });
+          
+          try {
+            await updateScene(sceneId, {
+              status: 'ready',
+              videoUrl: videoUrl,
+              generationProgress: 100,
+              estimatedTimeRemaining: 0
+            });
+            console.log('Scene status updated successfully to ready');
+          } catch (updateError) {
+            console.error('Failed to update scene status:', updateError);
+          }
           
           toast({
             title: "Video Generated!",
