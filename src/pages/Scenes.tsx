@@ -131,6 +131,10 @@ export default function Scenes() {
   const saveQueuedToastRef = useRef<boolean>(false);
   const savedStatusTimeoutRef = useRef<number | null>(null);
   const [showSavedStatus, setShowSavedStatus] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPredictionId, setImportPredictionId] = useState('');
+  const [importSceneId, setImportSceneId] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   // Disable autosave to prevent UI flicker; manual save only
   const AUTOSAVE = false;
 
@@ -1199,6 +1203,58 @@ export default function Scenes() {
     }
   };
 
+  const importReplicateVideo = async () => {
+    if (!importPredictionId || !importSceneId) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a prediction ID",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsImporting(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('import-replicate-video', {
+        body: {
+          predictionId: importPredictionId,
+          sceneId: importSceneId
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Video Imported!",
+        description: "Successfully imported video from Replicate"
+      });
+
+      // Reload scenes to show the imported video
+      if (currentStoryboard) {
+        await loadScenes(currentStoryboard.id);
+      }
+
+      setImportDialogOpen(false);
+      setImportPredictionId('');
+      setImportSceneId(null);
+    } catch (error) {
+      console.error('Error importing video:', error);
+      toast({
+        title: "Import Failed",
+        description: error instanceof Error ? error.message : "Failed to import video",
+        variant: "destructive"
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const openImportDialog = (sceneId: string) => {
+    setImportSceneId(sceneId);
+    setImportDialogOpen(true);
+  };
+
   const stitchVideos = async () => {
     if (!user) return;
 
@@ -2221,15 +2277,28 @@ export default function Scenes() {
                                     </Button>
                                   )}
                                   {scene.status === 'ready' ? (
-                                    <Button
-                                      size="sm"
-                                      onClick={() => regenerateScene(scene.id)}
-                                      className="flex-1 gap-2"
-                                      variant="secondary"
-                                    >
-                                      <RefreshCw className="w-4 h-4" />
-                                      Regenerate
-                                    </Button>
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => regenerateScene(scene.id)}
+                                        className="flex-1 gap-2"
+                                        variant="secondary"
+                                      >
+                                        <RefreshCw className="w-4 h-4" />
+                                        Regenerate
+                                      </Button>
+                                      {scene.type === 'video' && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => openImportDialog(scene.id)}
+                                          className="gap-2"
+                                          variant="outline"
+                                        >
+                                          <Download className="w-4 h-4" />
+                                          Import
+                                        </Button>
+                                      )}
+                                    </>
                                   ) : (
                                     <Button
                                       size="sm"
@@ -2678,6 +2747,47 @@ export default function Scenes() {
               setConsistencyAnalysis(null);
             }}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import from Replicate Dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Video from Replicate</DialogTitle>
+            <DialogDescription>
+              Enter the Replicate prediction ID to import an existing video
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="predictionId">Prediction ID</Label>
+              <Input
+                id="predictionId"
+                placeholder="e.g., c8dbczng19rmc0cttt39fjpd8r"
+                value={importPredictionId}
+                onChange={(e) => setImportPredictionId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Find this in your Replicate dashboard or URL
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setImportDialogOpen(false)}
+              disabled={isImporting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={importReplicateVideo}
+              disabled={!importPredictionId || isImporting}
+            >
+              {isImporting ? 'Importing...' : 'Import Video'}
             </Button>
           </DialogFooter>
         </DialogContent>
