@@ -54,8 +54,8 @@ const generateVideoSchema = z.object({
   scenePrompts: z.array(z.string().min(1).max(2000).transform(sanitizePrompt)).optional(),
   sceneIndex: z.number().optional(),
   seed: z.number().optional(),
-  characterDescription: z.string().max(500).optional(),
-  styleDescription: z.string().max(500).optional(),
+  characterDescription: z.string().max(2000).optional(),
+  styleDescription: z.string().max(2000).optional(),
 });
 
 serve(async (req) => {
