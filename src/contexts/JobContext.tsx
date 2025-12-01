@@ -217,7 +217,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
               toast.success('Generation complete! Click the job to view your result.');
               websocketService.unsubscribeFromJob(job.id);
             } else if (data.status === 'failed') {
-              toast.error(`Generation failed: ${data.error || 'Unknown error'}`);
+              // Don't show toast for timeout errors - they're expected and auto-handled
+              const isTimeout = data.error?.includes('Timeout');
+              if (!isTimeout) {
+                toast.error(`Generation failed: ${data.error || 'Unknown error'}`);
+              }
               websocketService.unsubscribeFromJob(job.id);
             }
           }
@@ -598,7 +602,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
       if (updatedJob.status === 'completed' && updatedJob.outputs.length > 0) {
         toast.success('Generation complete! Click "View Output" to see your result.');
       } else if (updatedJob.status === 'failed') {
-        toast.error(`Generation failed: ${updatedJob.error || 'Unknown error'}`);
+        // Don't show toast for timeout errors - they're expected and auto-handled
+        const isTimeout = updatedJob.error?.includes('Timeout');
+        if (!isTimeout) {
+          toast.error(`Generation failed: ${updatedJob.error || 'Unknown error'}`);
+        }
       }
       
       // Update job in database
@@ -737,7 +745,11 @@ export function JobProvider({ children }: { children: ReactNode }) {
             });
           }, 1000);
         } else if (partialJob.status === 'failed') {
-          toast.error(`Generation failed: ${partialJob.error || 'Unknown error'}`);
+          // Don't show toast for timeout errors - they're expected and auto-handled
+          const isTimeout = partialJob.error?.includes('Timeout');
+          if (!isTimeout) {
+            toast.error(`Generation failed: ${partialJob.error || 'Unknown error'}`);
+          }
           websocketService.unsubscribeFromJob(jobId);
         }
       });
