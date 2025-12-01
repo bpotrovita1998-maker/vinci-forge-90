@@ -48,6 +48,17 @@ interface SceneItem {
   type: 'image' | 'video';
 }
 
+interface LongVideo {
+  id: string;
+  created_at: string;
+  stitched_video_url: string;
+  scene_count: number;
+  total_duration: number;
+  file_size_bytes: number | null;
+  job_id: string;
+  user_id: string;
+}
+
 export default function Gallery() {
   const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore, loadError, retryLoadJobs, refreshJobs } = useJobs();
   const { user } = useAuth();
@@ -77,6 +88,9 @@ export default function Gallery() {
   const [sceneTypeFilter, setSceneTypeFilter] = useState<'all' | 'image' | 'video'>('all');
   const [storyboards, setStoryboards] = useState<Array<{id: string, title: string}>>([]);
   
+  // Long videos state
+  const [longVideos, setLongVideos] = useState<LongVideo[]>([]);
+  
   // Helper function to get the display video URL (stitched if available, otherwise first)
   const getDisplayVideoUrl = (job: Job): string => {
     const manifest = job.manifest as any;
@@ -93,7 +107,40 @@ export default function Gallery() {
 
   const completedJobs = jobs.filter(job => job.status === 'completed' && job.outputs.length > 0);
 
-  const filteredJobs = completedJobs.filter(job => {
+  // Convert long videos to Job-like format for display
+  const longVideoJobs: Job[] = longVideos.map(lv => {
+    const linkedJob = jobs.find(j => j.id === lv.job_id);
+    return {
+      id: lv.id,
+      userId: lv.user_id,
+      status: 'completed' as const,
+      outputs: [lv.stitched_video_url],
+      options: {
+        type: 'video' as const,
+        prompt: linkedJob?.options.prompt || `Composite video (${lv.scene_count} scenes)`,
+        width: 1920,
+        height: 1080,
+        threeDMode: 'none' as const,
+      },
+      progress: {
+        stage: 'completed' as const,
+        progress: 100,
+      },
+      createdAt: new Date(lv.created_at),
+      completedAt: new Date(lv.created_at),
+      manifest: {
+        isLongVideo: true,
+        sceneCount: lv.scene_count,
+        totalDuration: lv.total_duration,
+        fileSizeBytes: lv.file_size_bytes
+      } as any
+    } as Job;
+  });
+
+  // Combine regular jobs with long video jobs
+  const allJobs = [...completedJobs, ...longVideoJobs];
+
+  const filteredJobs = allJobs.filter(job => {
     const matchesType = selectedType === 'all' || job.options.type === selectedType;
     const matchesSearch = job.options.prompt.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesType && matchesSearch;
@@ -192,7 +239,24 @@ export default function Gallery() {
   useEffect(() => {
     if (!user) return;
     syncCompletedJobs();
+    loadLongVideos();
   }, [user]);
+
+  const loadLongVideos = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('long_videos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setLongVideos(data || []);
+    } catch (error) {
+      console.error('Error loading long videos:', error);
+    }
+  };
 
   const syncCompletedJobs = async () => {
     if (!user) return;
@@ -509,11 +573,11 @@ export default function Gallery() {
 
   const getTypeCounts = () => {
     return {
-      all: completedJobs.length,
-      image: completedJobs.filter(j => j.options.type === 'image').length,
-      video: completedJobs.filter(j => j.options.type === 'video').length,
-      '3d': completedJobs.filter(j => j.options.type === '3d').length,
-      cad: completedJobs.filter(j => j.options.type === 'cad').length,
+      all: allJobs.length,
+      image: allJobs.filter(j => j.options.type === 'image').length,
+      video: allJobs.filter(j => j.options.type === 'video').length,
+      '3d': allJobs.filter(j => j.options.type === '3d').length,
+      cad: allJobs.filter(j => j.options.type === 'cad').length,
     };
   };
 
