@@ -1120,7 +1120,7 @@ export default function Scenes() {
           return true;
         } else if (jobData.status === 'failed' || jobData.error) {
           // Don't show toast for cancelled jobs
-          if (jobData.error === 'Cancelled by user') {
+          if (jobData.error && jobData.error.includes('Cancelled by user')) {
             return true; // Exit polling silently
           }
           throw new Error(jobData.error || 'Generation failed');
@@ -1160,7 +1160,7 @@ export default function Scenes() {
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
       
       // Don't show toast for cancelled jobs
-      if (errorMessage === 'Cancelled by user') {
+      if (errorMessage.includes('Cancelled by user')) {
         return;
       }
       
@@ -1301,7 +1301,7 @@ export default function Scenes() {
           return true;
         } else if (jobData.status === 'failed' || jobData.error) {
           // Don't show toast for cancelled jobs
-          if (jobData.error === 'Cancelled by user') {
+          if (jobData.error && jobData.error.includes('Cancelled by user')) {
             return true; // Exit polling silently
           }
           throw new Error(jobData.error || 'Generation failed');
@@ -1341,7 +1341,7 @@ export default function Scenes() {
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
       
       // Don't show toast for cancelled jobs
-      if (errorMessage === 'Cancelled by user') {
+      if (errorMessage.includes('Cancelled by user')) {
         return;
       }
       
