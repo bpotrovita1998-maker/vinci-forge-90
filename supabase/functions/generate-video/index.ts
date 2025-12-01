@@ -64,6 +64,11 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  console.log("=== GENERATE-VIDEO FUNCTION START ===");
+  console.log("Request method:", req.method);
+  console.log("Request URL:", req.url);
+  console.log("Timestamp:", new Date().toISOString());
+
   let body: any = {};
   
   try {
@@ -102,10 +107,12 @@ serve(async (req) => {
 
     // Parse and validate request body
     const requestBody = await req.json();
+    console.log("Raw request body received:", JSON.stringify(requestBody));
+    
     const validationResult = generateVideoSchema.safeParse(requestBody);
     
     if (!validationResult.success) {
-      console.error('Validation error:', validationResult.error.issues);
+      console.error('❌ Validation error:', validationResult.error.issues);
       return new Response(
         JSON.stringify({ 
           error: 'Invalid input parameters', 
@@ -116,7 +123,7 @@ serve(async (req) => {
     }
 
     body = validationResult.data;
-    console.log("Request body:", JSON.stringify(body, null, 2));
+    console.log("✅ Validated request body:", JSON.stringify(body, null, 2));
 
     // Check if this is a status check request
     if (body.predictionId) {
@@ -386,11 +393,18 @@ serve(async (req) => {
     }
 
     // Check if this is multi-scene generation
-    const { data: jobData } = await supabase
+    console.log("🔍 Fetching job data for jobId:", body.jobId);
+    const { data: jobData, error: jobFetchError } = await supabase
       .from('jobs')
       .select('manifest, num_videos')
       .eq('id', body.jobId)
       .single();
+
+    if (jobFetchError) {
+      console.error("❌ Failed to fetch job data:", jobFetchError);
+    } else {
+      console.log("✅ Job data fetched:", JSON.stringify(jobData));
+    }
 
     const manifest = jobData?.manifest as any || {};
     let scenePrompts = body.scenePrompts || manifest.scenePrompts;
@@ -480,7 +494,7 @@ serve(async (req) => {
     
     // Determine which model to use
     const videoModel = body.videoModel || 'animatediff';
-    console.log(`Using video model: ${videoModel}`);
+    console.log(`🎬 Using video model: ${videoModel}`);
     
     // Build enhanced prompt with character/scene consistency
     let enhancedPrompt = promptToUse;
@@ -594,43 +608,62 @@ serve(async (req) => {
       console.log("Using seed for consistency:", body.seed);
     }
     
-    console.log(`${videoModel} input:`, JSON.stringify(modelInput, null, 2));
+    console.log(`📝 Final ${videoModel} input:`, JSON.stringify(modelInput, null, 2));
     
     // Wan 2.5 uses replicate.predictions instead of run()
     if (videoModel === 'animatediff') {
-      console.log("Using replicate.predictions.create() for Wan 2.5");
+      console.log("🚀 Creating prediction for Wan 2.5 model...");
+      console.log("Model name:", modelName);
+      console.log("Job ID:", body.jobId);
       
-      const prediction = await replicate.predictions.create({
-        model: modelName,
-        input: modelInput
-      });
-      
-      console.log("Wan 2.5 prediction created:", prediction.id);
-      
-      // Return prediction ID for polling
-      await supabase
-        .from('jobs')
-        .update({
-          progress_stage: 'processing',
-          progress_percent: 10,
-          progress_message: 'Video generation in progress...',
-          manifest: {
-            ...manifest,
+      try {
+        const prediction = await replicate.predictions.create({
+          model: modelName,
+          input: modelInput
+        });
+        
+        console.log("✅ Wan 2.5 prediction created successfully!");
+        console.log("Prediction ID:", prediction.id);
+        console.log("Prediction status:", prediction.status);
+        console.log("Prediction URLs:", prediction.urls);
+        
+        // Update job with prediction ID
+        console.log("💾 Updating job with prediction ID...");
+        const { error: updateError } = await supabase
+          .from('jobs')
+          .update({
+            progress_stage: 'processing',
+            progress_percent: 10,
+            progress_message: 'Video generation in progress...',
+            manifest: {
+              ...manifest,
+              predictionId: prediction.id,
+              sceneIndex: currentSceneIndex,
+              totalScenes: scenePrompts?.length || 1,
+              videoModel: videoModel
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', body.jobId);
+        
+        if (updateError) {
+          console.error("❌ Failed to update job with prediction ID:", updateError);
+        } else {
+          console.log("✅ Job updated with prediction ID successfully");
+        }
+        
+        return new Response(
+          JSON.stringify({ 
             predictionId: prediction.id,
-            sceneIndex: currentSceneIndex,
-            totalScenes: scenePrompts?.length || 1
-          },
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', body.jobId);
-      
-      return new Response(
-        JSON.stringify({ 
-          predictionId: prediction.id,
-          status: 'processing'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+            status: 'processing'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (replicateError) {
+        console.error("❌ Replicate API error:", replicateError);
+        console.error("Error details:", JSON.stringify(replicateError, null, 2));
+        throw replicateError;
+      }
     }
     
     // Legacy AnimateDiff fallback (shouldn't reach here anymore)
@@ -710,41 +743,63 @@ serve(async (req) => {
     }
     
     // For other models (Haiper, Veo), use predictions API
-    const prediction = await replicate.predictions.create({
-      model: modelName,
-      input: modelInput
-    });
-
-    console.log("Video prediction started:", prediction.id);
+    console.log("🚀 Creating prediction for", videoModel, "model...");
+    console.log("Model name:", modelName);
+    console.log("Job ID:", body.jobId);
     
-    // Update job with prediction ID and mark as running
-    const { error: updateError } = await supabase
-      .from('jobs')
-      .update({
-        manifest: {
-          ...manifest,
-          predictionId: prediction.id,
-          currentSceneIndex: currentSceneIndex,
-        },
-        status: 'running',
-        progress_stage: scenePrompts ? `Generating scene ${currentSceneIndex + 1}` : 'Generating video',
-        started_at: currentSceneIndex === 0 ? new Date().toISOString() : undefined,
-      })
-      .eq('id', body.jobId);
+    try {
+      const prediction = await replicate.predictions.create({
+        model: modelName,
+        input: modelInput
+      });
 
-    if (updateError) {
-      console.error("Error updating job with predictionId:", updateError);
+      console.log("✅ Prediction created successfully!");
+      console.log("Prediction ID:", prediction.id);
+      console.log("Prediction status:", prediction.status);
+      console.log("Prediction URLs:", prediction.urls);
+      
+      // Update job with prediction ID and mark as running
+      console.log("💾 Updating job with prediction ID...");
+      const { error: updateError } = await supabase
+        .from('jobs')
+        .update({
+          manifest: {
+            ...manifest,
+            predictionId: prediction.id,
+            currentSceneIndex: currentSceneIndex,
+            videoModel: videoModel
+          },
+          status: 'running',
+          progress_stage: scenePrompts ? `Generating scene ${currentSceneIndex + 1}` : 'Generating video',
+          started_at: currentSceneIndex === 0 ? new Date().toISOString() : undefined,
+        })
+        .eq('id', body.jobId);
+
+      if (updateError) {
+        console.error("❌ Error updating job with predictionId:", updateError);
+      } else {
+        console.log("✅ Job updated with prediction ID successfully");
+      }
+      
+      return new Response(JSON.stringify({ 
+        predictionId: prediction.id,
+        status: prediction.status 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    } catch (replicateError) {
+      console.error("❌ Replicate API error:", replicateError);
+      console.error("Error details:", JSON.stringify(replicateError, null, 2));
+      throw replicateError;
     }
-    
-    return new Response(JSON.stringify({ 
-      predictionId: prediction.id,
-      status: prediction.status 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
   } catch (error) {
-    console.error("Error in generate-video function:", error);
+    console.error("❌ GENERATE-VIDEO ERROR:", error);
+    console.error("Error type:", typeof error);
+    console.error("Error name:", error instanceof Error ? error.name : 'unknown');
+    console.error("Error message:", error instanceof Error ? error.message : String(error));
+    console.error("Error stack:", error instanceof Error ? error.stack : 'no stack');
+    
     const errorMessage = error instanceof Error ? error.message : "Failed to generate video";
     
     // Check for specific Replicate errors and provide user-friendly messages

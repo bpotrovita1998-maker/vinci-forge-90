@@ -18,6 +18,9 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  console.log("=== REGENERATE-SCENE FUNCTION START ===");
+  console.log("Timestamp:", new Date().toISOString());
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -25,9 +28,12 @@ serve(async (req) => {
 
     // Parse and validate request
     const body = await req.json();
+    console.log("Raw request body:", JSON.stringify(body));
+    
     const validationResult = regenerateSchema.safeParse(body);
     
     if (!validationResult.success) {
+      console.error("❌ Validation failed:", validationResult.error.issues);
       return new Response(
         JSON.stringify({ 
           error: 'Invalid parameters', 
@@ -39,9 +45,11 @@ serve(async (req) => {
 
     const { jobId, sceneIndex, scenePrompt } = validationResult.data;
 
-    console.log(`Regenerating scene ${sceneIndex} for job ${jobId}`);
+    console.log(`🔄 Regenerating scene ${sceneIndex} for job ${jobId}`);
+    console.log("Scene prompt:", scenePrompt);
 
     // Get job details
+    console.log("🔍 Fetching job details...");
     const { data: job, error: jobError } = await supabase
       .from('jobs')
       .select('*')
@@ -49,8 +57,18 @@ serve(async (req) => {
       .single();
 
     if (jobError || !job) {
+      console.error("❌ Job not found:", jobError);
       throw new Error('Job not found');
     }
+    
+    console.log("✅ Job found:", {
+      id: job.id,
+      status: job.status,
+      type: job.type,
+      width: job.width,
+      height: job.height,
+      manifest: job.manifest
+    });
 
     const manifest = job.manifest as any || {};
     const scenePrompts = manifest.scenePrompts as string[] || [];
@@ -100,9 +118,38 @@ serve(async (req) => {
     };
     
     const aspectRatio = calculateAspectRatio(job.width, job.height);
-    console.log(`Calculated aspect ratio for regeneration: ${aspectRatio} from ${job.width}x${job.height}`);
+    console.log(`📐 Calculated aspect ratio: ${aspectRatio} from ${job.width}x${job.height}`);
+    
+    // Update job status
+    console.log("💾 Updating job status for regeneration...");
+    const { error: updateError } = await supabase
+      .from('jobs')
+      .update({
+        status: 'running',
+        progress_stage: `Regenerating scene ${sceneIndex + 1}`,
+        progress_percent: 10,
+        progress_message: `Regenerating scene ${sceneIndex + 1} of ${scenePrompts.length}...`,
+        manifest: updatedManifest
+      })
+      .eq('id', jobId);
+    
+    if (updateError) {
+      console.error("❌ Failed to update job:", updateError);
+    } else {
+      console.log("✅ Job updated successfully");
+    }
     
     // Start scene generation
+    console.log("🚀 Starting scene generation...");
+    console.log("Parameters:", {
+      jobId,
+      scenePrompts: scenePrompts.length,
+      duration: job.duration || 5,
+      aspectRatio: aspectRatio,
+      negativePrompt: job.negative_prompt,
+      seed: job.seed
+    });
+    
     const { error: generateError } = await supabase.functions.invoke('generate-video', {
       body: {
         jobId,
@@ -115,11 +162,12 @@ serve(async (req) => {
     });
 
     if (generateError) {
-      console.error('Error starting generation:', generateError);
+      console.error('❌ Error starting generation:', generateError);
+      console.error('Error details:', JSON.stringify(generateError, null, 2));
       throw generateError;
     }
 
-    console.log(`Scene ${sceneIndex} regeneration started successfully`);
+    console.log(`✅ Scene ${sceneIndex} regeneration started successfully`);
 
     return new Response(
       JSON.stringify({ 
@@ -130,7 +178,11 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in regenerate-scene:', error);
+    console.error('❌ REGENERATE-SCENE ERROR:', error);
+    console.error("Error type:", typeof error);
+    console.error("Error message:", error instanceof Error ? error.message : String(error));
+    console.error("Error stack:", error instanceof Error ? error.stack : 'no stack');
+    
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Failed to regenerate scene' 
