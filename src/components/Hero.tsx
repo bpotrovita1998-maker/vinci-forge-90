@@ -378,6 +378,7 @@ export default function Hero() {
         numVideos: options.numVideos,
         upscaleVideo: options.upscaleVideo,
         videoMode: options.videoMode,
+        videoModel: options.videoModel, // Pass video model selection
         upscaleQuality: options.upscaleQuality,
         aspectRatio: options.aspectRatio,
         resolution: options.resolution,
