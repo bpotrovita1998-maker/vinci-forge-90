@@ -136,6 +136,7 @@ export default function Scenes() {
   const [importPredictionId, setImportPredictionId] = useState('');
   const [importSceneId, setImportSceneId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [cancelConfirmScene, setCancelConfirmScene] = useState<Scene | null>(null);
   // Disable autosave to prevent UI flicker; manual save only
   const AUTOSAVE = false;
   
@@ -2453,10 +2454,10 @@ export default function Scenes() {
                                     </>
                                    ) : scene.status === 'generating' ? (
                                     <>
-                                      <Button
+                                       <Button
                                         size="sm"
                                         variant="destructive"
-                                        onClick={() => cancelSceneGeneration(scene)}
+                                        onClick={() => setCancelConfirmScene(scene)}
                                         className="gap-2"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -2969,6 +2970,33 @@ export default function Scenes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={!!cancelConfirmScene} onOpenChange={(open) => !open && setCancelConfirmScene(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Scene Generation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel the generation for "{cancelConfirmScene?.title}"? 
+              This action cannot be undone and any progress will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Generating</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (cancelConfirmScene) {
+                  cancelSceneGeneration(cancelConfirmScene);
+                  setCancelConfirmScene(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Cancel Generation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
