@@ -129,6 +129,7 @@ serve(async (req) => {
     if (body.predictionId) {
       console.log("Checking status for prediction:", body.predictionId);
       const prediction = await replicate.predictions.get(body.predictionId);
+      console.log("Prediction full response:", JSON.stringify(prediction, null, 2));
       console.log("Prediction status:", prediction.status);
       
       // If completed, persist the video to storage
