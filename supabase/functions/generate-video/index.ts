@@ -37,8 +37,8 @@ function sanitizePrompt(input: string): string {
 
 // Input validation schema
 const generateVideoSchema = z.object({
-  prompt: z.string().min(1).max(2000).transform(sanitizePrompt).optional(),
-  negativePrompt: z.string().max(1000).transform(sanitizePrompt).optional(),
+  prompt: z.string().min(1).max(5000).transform(sanitizePrompt).optional(),
+  negativePrompt: z.string().max(2000).transform(sanitizePrompt).optional(),
   predictionId: z.string().optional(),
   jobId: z.string().uuid().optional(),
   duration: z.number().min(2).max(8).optional(),
@@ -51,11 +51,11 @@ const generateVideoSchema = z.object({
   startFrame: z.string().url().optional(),
   endFrame: z.string().url().optional(),
   extendFromVideo: z.string().url().optional(),
-  scenePrompts: z.array(z.string().min(1).max(2000).transform(sanitizePrompt)).optional(),
+  scenePrompts: z.array(z.string().min(1).max(5000).transform(sanitizePrompt)).optional(),
   sceneIndex: z.number().optional(),
   seed: z.number().optional(),
-  characterDescription: z.string().max(2000).optional(),
-  styleDescription: z.string().max(2000).optional(),
+  characterDescription: z.string().max(3000).optional(),
+  styleDescription: z.string().max(3000).optional(),
 });
 
 serve(async (req) => {
