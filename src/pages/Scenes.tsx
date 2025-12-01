@@ -1155,14 +1155,15 @@ export default function Scenes() {
 
     } catch (error) {
       console.error('Error generating image:', error);
-      updateScene(sceneId, { status: 'draft' });
       
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate image';
       
-      // Don't show toast for cancelled jobs
+      // Don't update status or show toast for cancelled jobs
       if (errorMessage.includes('Cancelled by user')) {
         return;
       }
+      
+      updateScene(sceneId, { status: 'draft' });
       
       let userMessage = errorMessage;
       
@@ -1336,14 +1337,15 @@ export default function Scenes() {
 
     } catch (error) {
       console.error('Error generating video:', error);
-      updateScene(sceneId, { status: 'draft' });
       
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
       
-      // Don't show toast for cancelled jobs
+      // Don't update status or show toast for cancelled jobs
       if (errorMessage.includes('Cancelled by user')) {
         return;
       }
+      
+      updateScene(sceneId, { status: 'draft' });
       
       toast({
         title: "Generation Failed",
