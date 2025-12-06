@@ -193,7 +193,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
     }
   };
 
-  // Try to construct Supabase storage URL for models
+  // Try to construct Supabase storage URL for models - with pre-flight validation
   useEffect(() => {
     const checkAndSetUrl = async () => {
       retryCount.current = 0; // Reset retry count for new URL
@@ -223,11 +223,42 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           }
         }
         
-        // If we couldn't find the model in storage and the Replicate URL is dead, show error
-        console.warn('Model not found in Supabase storage and original URL may be expired');
+        // Check if Replicate URL is still valid before using it
+        try {
+          const replicateResponse = await fetch(normalizedUrl, { method: 'HEAD' });
+          if (!replicateResponse.ok) {
+            console.warn('Replicate URL expired and model not in storage');
+            setLoadError(true);
+            setIsLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.warn('Failed to validate Replicate URL:', error);
+          setLoadError(true);
+          setIsLoading(false);
+          return;
+        }
       }
       
-      // Use the original URL (will show error if expired)
+      // Validate URL before setting it
+      if (normalizedUrl) {
+        try {
+          const response = await fetch(normalizedUrl, { method: 'HEAD' });
+          if (!response.ok) {
+            console.warn('Model URL is not accessible:', normalizedUrl);
+            setLoadError(true);
+            setIsLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.warn('Failed to validate model URL:', error);
+          setLoadError(true);
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      // Use the original URL (validated as accessible)
       setActiveUrl(normalizedUrl);
     };
     
