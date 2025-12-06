@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown, FolderUp, Loader2 } from 'lucide-react';
 import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -92,9 +92,12 @@ export default function Hero() {
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showCharacterSection, setShowCharacterSection] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const startFrameInputRef = useRef<HTMLInputElement>(null);
   const endFrameInputRef = useRef<HTMLInputElement>(null);
   const referenceInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingFolder, setIsProcessingFolder] = useState(false);
+  const [folderProcessingStatus, setFolderProcessingStatus] = useState<string>('');
   
   const [options, setOptions] = useState<Partial<GenerationOptions>>({
     type: 'image',
@@ -237,6 +240,102 @@ export default function Hero() {
   const handleRemoveImage = (index: number) => {
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
     setImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleFolderUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    // Filter for image files only
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length === 0) {
+      toast({
+        title: "No images found",
+        description: "The folder doesn't contain any image files",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check total size (5MB limit)
+    const totalSize = imageFiles.reduce((acc, file) => acc + file.size, 0);
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    
+    if (totalSize > maxSize) {
+      toast({
+        title: "Folder too large",
+        description: `Total size ${(totalSize / 1024 / 1024).toFixed(2)}MB exceeds 5MB limit`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessingFolder(true);
+    setFolderProcessingStatus(`Processing ${imageFiles.length} images...`);
+
+    try {
+      // Convert all images to base64
+      const convertedImages: string[] = [];
+      for (let i = 0; i < imageFiles.length; i++) {
+        setFolderProcessingStatus(`Converting image ${i + 1}/${imageFiles.length}...`);
+        const converted = await convertImageFormat(imageFiles[i], imageFormat);
+        convertedImages.push(converted);
+      }
+
+      setFolderProcessingStatus(`Analyzing ${imageFiles.length} images with AI...`);
+
+      // Call the batch enhancement API
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enhance-images-batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          images: convertedImages,
+          prompt: prompt || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Processing failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.enhancedImage) {
+        // Add the enhanced image to the uploaded images
+        setUploadedImages(prev => [...prev, result.enhancedImage]);
+        
+        toast({
+          title: "Folder processed successfully!",
+          description: `Analyzed ${result.processedCount} images and created enhanced replica`,
+        });
+        
+        // Optionally update the prompt with the analysis
+        if (result.analysis && !prompt) {
+          setPrompt(`Enhanced replica based on ${result.processedCount} reference images: ${result.description || ''}`);
+        }
+      } else {
+        throw new Error("No enhanced image generated");
+      }
+
+    } catch (error: any) {
+      console.error('Folder processing error:', error);
+      toast({
+        title: "Folder processing failed",
+        description: error.message || "Failed to process folder images",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingFolder(false);
+      setFolderProcessingStatus('');
+      if (folderInputRef.current) {
+        folderInputRef.current.value = '';
+      }
+    }
   };
 
   const handleFrameUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'start' | 'end') => {
@@ -529,7 +628,21 @@ export default function Hero() {
                 className="hidden"
               />
               
-              <div className="flex items-center gap-3">
+              {/* Hidden folder input */}
+              <input
+                type="file"
+                ref={folderInputRef}
+                onChange={handleFolderUpload}
+                accept="image/*"
+                multiple
+                // @ts-ignore - webkitdirectory is not in React types
+                webkitdirectory=""
+                // @ts-ignore
+                directory=""
+                className="hidden"
+              />
+              
+              <div className="flex items-center gap-3 flex-wrap">
                 <Button
                   type="button"
                   variant="outline"
@@ -539,6 +652,22 @@ export default function Hero() {
                 >
                   <Paperclip className="h-4 w-4" />
                   Add Images
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => folderInputRef.current?.click()}
+                  disabled={isProcessingFolder}
+                  className="gap-2"
+                >
+                  {isProcessingFolder ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FolderUp className="h-4 w-4" />
+                  )}
+                  {isProcessingFolder ? 'Processing...' : 'Upload Folder'}
                 </Button>
                 
                 <select
@@ -557,6 +686,13 @@ export default function Hero() {
                   </span>
                 )}
               </div>
+              
+              {isProcessingFolder && folderProcessingStatus && (
+                <div className="flex items-center gap-2 text-sm text-primary">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {folderProcessingStatus}
+                </div>
+              )}
               
               {uploadedImages.length > 0 && options.type === 'image' && (
                 <span className="text-sm text-muted-foreground">
@@ -580,7 +716,7 @@ export default function Hero() {
               <p className="text-xs text-muted-foreground">
                 💡 <span className="font-medium">Tip:</span> {options.type === 'video' 
                   ? 'Upload up to 3 reference images for Veo 3.1 to maintain character consistency and visual style across your video.' 
-                  : 'Upload multiple reference images (PNG/JPEG/WebP) for better results. Use image editing mode to transform existing images.'}
+                  : 'Upload a folder (up to 5MB) with multiple images to create an AI-enhanced replica with improved quality, or add individual images for editing.'}
               </p>
             </div>
             
