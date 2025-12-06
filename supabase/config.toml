@@ -81,5 +81,5 @@ verify_jwt = true
 [functions.import-replicate-video]
 verify_jwt = true
 
-
-
+[functions.enhance-images-batch]
+verify_jwt = false
