@@ -102,6 +102,7 @@ function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) 
 export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransform, isUnityModel }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
+  const [isUrlValidated, setIsUrlValidated] = useState(false);
   const [canvasKey, setCanvasKey] = useState(0);
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -196,10 +197,11 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   // Try to construct Supabase storage URL for models - with pre-flight validation
   useEffect(() => {
     const checkAndSetUrl = async () => {
-      retryCount.current = 0; // Reset retry count for new URL
+      retryCount.current = 0;
       setLoadError(false);
+      setIsUrlValidated(false);
+      setActiveUrl('');
       
-      // If we have a cached poster, don't show loading indicator
       if (!cachedPosterUrl) {
         setIsLoading(true);
       }
@@ -216,6 +218,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
             if (response.ok) {
               console.log('Thumbnail: Found model in Supabase storage');
               setActiveUrl(supabaseUrl);
+              setIsUrlValidated(true);
               return;
             }
           } catch (error) {
@@ -223,24 +226,30 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           }
         }
         
-        // Check if Replicate URL is still valid before using it
+        // Check if Replicate URL is still valid
         try {
           const replicateResponse = await fetch(normalizedUrl, { method: 'HEAD' });
           if (!replicateResponse.ok) {
             console.warn('Replicate URL expired and model not in storage');
             setLoadError(true);
             setIsLoading(false);
+            setIsUrlValidated(true);
             return;
           }
+          // Replicate URL is valid
+          setActiveUrl(normalizedUrl);
+          setIsUrlValidated(true);
+          return;
         } catch (error) {
           console.warn('Failed to validate Replicate URL:', error);
           setLoadError(true);
           setIsLoading(false);
+          setIsUrlValidated(true);
           return;
         }
       }
       
-      // Validate URL before setting it
+      // Validate non-Replicate URL before setting it
       if (normalizedUrl) {
         try {
           const response = await fetch(normalizedUrl, { method: 'HEAD' });
@@ -248,22 +257,26 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
             console.warn('Model URL is not accessible:', normalizedUrl);
             setLoadError(true);
             setIsLoading(false);
+            setIsUrlValidated(true);
             return;
           }
+          setActiveUrl(normalizedUrl);
+          setIsUrlValidated(true);
         } catch (error) {
           console.warn('Failed to validate model URL:', error);
           setLoadError(true);
           setIsLoading(false);
-          return;
+          setIsUrlValidated(true);
         }
+      } else {
+        setIsUrlValidated(true);
       }
-      
-      // Use the original URL (validated as accessible)
-      setActiveUrl(normalizedUrl);
     };
     
     if (normalizedUrl) {
       checkAndSetUrl();
+    } else {
+      setIsUrlValidated(true);
     }
   }, [normalizedUrl, jobId, userId, cachedPosterUrl]);
 
@@ -289,13 +302,19 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
     };
   }, [posterUrl]);
 
-  // If no valid URL or error, show fallback
-  if (!activeUrl || loadError) {
+  // If no valid URL, error, or still validating, show fallback
+  if (!isUrlValidated || !activeUrl || loadError) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-card">
         <div className="text-center">
-          <Package className="w-12 h-12 text-primary mx-auto mb-2" />
-          <p className="text-xs text-muted-foreground">3D Model</p>
+          {!isUrlValidated && !loadError ? (
+            <Loader2 className="w-8 h-8 text-primary mx-auto animate-spin" />
+          ) : (
+            <>
+              <Package className="w-12 h-12 text-primary mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">{loadError ? 'Model expired' : '3D Model'}</p>
+            </>
+          )}
         </div>
       </div>
     );

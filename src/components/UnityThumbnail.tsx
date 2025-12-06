@@ -63,7 +63,43 @@ export default function UnityThumbnail({ modelUrl, transform, jobId }: UnityThum
   const [posterUrl, setPosterUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [validatedUrl, setValidatedUrl] = useState<string>('');
+  const [isValidating, setIsValidating] = useState(true);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  // Pre-validate URL before rendering
+  useEffect(() => {
+    const validateUrl = async () => {
+      setIsValidating(true);
+      setLoadError(false);
+      setValidatedUrl('');
+      
+      if (!modelUrl) {
+        setLoadError(true);
+        setIsValidating(false);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(modelUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          console.warn('Unity thumbnail: Model URL not accessible');
+          setLoadError(true);
+          setIsLoading(false);
+        } else {
+          setValidatedUrl(modelUrl);
+        }
+      } catch (error) {
+        console.warn('Unity thumbnail: Failed to validate URL:', error);
+        setLoadError(true);
+        setIsLoading(false);
+      }
+      setIsValidating(false);
+    };
+
+    validateUrl();
+  }, [modelUrl]);
 
   // Cleanup WebGL resources on unmount
   useEffect(() => {
@@ -84,13 +120,7 @@ export default function UnityThumbnail({ modelUrl, transform, jobId }: UnityThum
     setIsLoading(false);
   };
 
-  const handleError = () => {
-    console.error('Failed to load Unity thumbnail');
-    setLoadError(true);
-    setIsLoading(false);
-  };
-
-  // Show cached poster while loading
+  // Show cached poster
   if (posterUrl) {
     return (
       <div className="relative w-full h-full flex items-center justify-center bg-[#3a3a3a] rounded-lg overflow-hidden">
@@ -103,12 +133,19 @@ export default function UnityThumbnail({ modelUrl, transform, jobId }: UnityThum
     );
   }
 
-  if (loadError) {
+  // Show loading or error state
+  if (isValidating || loadError || !validatedUrl) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-muted/30 rounded-lg">
         <div className="text-center text-muted-foreground">
-          <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p className="text-xs">Unable to load preview</p>
+          {isValidating ? (
+            <Loader2 className="w-8 h-8 mx-auto animate-spin" />
+          ) : (
+            <>
+              <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">{loadError ? 'Model expired' : 'Unable to load preview'}</p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -134,7 +171,7 @@ export default function UnityThumbnail({ modelUrl, transform, jobId }: UnityThum
         <directionalLight position={[-5, 5, -5]} intensity={0.3} />
         
         <Suspense fallback={null}>
-          <Model url={modelUrl} transform={transform} />
+          <Model url={validatedUrl} transform={transform} />
           
           <Grid
             args={[20, 20]}
