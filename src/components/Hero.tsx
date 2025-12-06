@@ -275,7 +275,7 @@ export default function Hero() {
     setFolderProcessingStatus(`Loading ${folderImages.length} images...`);
 
     try {
-      // Convert all images to base64 and add as references
+      // Convert all images to base64
       const convertedImages: string[] = [];
       for (let i = 0; i < folderImages.length; i++) {
         setFolderProcessingStatus(`Converting image ${i + 1}/${folderImages.length}...`);
@@ -283,20 +283,77 @@ export default function Hero() {
         convertedImages.push(converted);
       }
 
-      // Add all images as reference images
-      setUploadedImages(prev => [...prev, ...convertedImages]);
-      setImageFiles(prev => [...prev, ...folderImages]);
-      
-      toast({
-        title: "Folder uploaded",
-        description: `${folderImages.length} images added as references`,
+      setFolderProcessingStatus(`Generating ${folderImages.length} replicas with AI...`);
+
+      // Call the batch enhancement API with batch-replicate mode
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enhance-images-batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          images: convertedImages,
+          prompt: prompt || 'Create a perfect high-quality replica of this image with enhanced details',
+          mode: 'batch-replicate',
+        }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Processing failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.enhancedImages && result.enhancedImages.length > 0) {
+        setFolderProcessingStatus(`Creating ZIP with ${result.enhancedImages.length} images...`);
+        
+        // Import JSZip dynamically
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+        
+        // Add each enhanced image to the ZIP
+        for (let i = 0; i < result.enhancedImages.length; i++) {
+          const img = result.enhancedImages[i];
+          // Extract base64 data from data URL
+          const base64Data = img.enhanced.split(',')[1];
+          const fileName = `replica_${String(i + 1).padStart(3, '0')}.png`;
+          zip.file(fileName, base64Data, { base64: true });
+        }
+        
+        // Generate and download ZIP
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `replicas_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast({
+          title: "Replicas generated!",
+          description: `${result.successCount} of ${result.totalProcessed} images processed. ZIP downloaded.`,
+        });
+        
+        if (result.errorCount > 0) {
+          toast({
+            title: "Some images failed",
+            description: `${result.errorCount} images could not be processed`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        throw new Error("No enhanced images generated");
+      }
+
     } catch (error: any) {
-      console.error('Folder upload error:', error);
+      console.error('Folder processing error:', error);
       toast({
-        title: "Folder upload failed",
-        description: error.message || "Failed to load folder images",
+        title: "Folder processing failed",
+        description: error.message || "Failed to process folder images",
         variant: "destructive",
       });
     } finally {
