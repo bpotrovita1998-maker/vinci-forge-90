@@ -247,9 +247,9 @@ export default function Hero() {
     if (files.length === 0) return;
 
     // Filter for image files only
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    const folderImages = files.filter(file => file.type.startsWith('image/'));
     
-    if (imageFiles.length === 0) {
+    if (folderImages.length === 0) {
       toast({
         title: "No images found",
         description: "The folder doesn't contain any image files",
@@ -259,7 +259,7 @@ export default function Hero() {
     }
 
     // Check total size (5MB limit)
-    const totalSize = imageFiles.reduce((acc, file) => acc + file.size, 0);
+    const totalSize = folderImages.reduce((acc, file) => acc + file.size, 0);
     const maxSize = 5 * 1024 * 1024; // 5MB
     
     if (totalSize > maxSize) {
@@ -272,61 +272,31 @@ export default function Hero() {
     }
 
     setIsProcessingFolder(true);
-    setFolderProcessingStatus(`Processing ${imageFiles.length} images...`);
+    setFolderProcessingStatus(`Loading ${folderImages.length} images...`);
 
     try {
-      // Convert all images to base64
+      // Convert all images to base64 and add as references
       const convertedImages: string[] = [];
-      for (let i = 0; i < imageFiles.length; i++) {
-        setFolderProcessingStatus(`Converting image ${i + 1}/${imageFiles.length}...`);
-        const converted = await convertImageFormat(imageFiles[i], imageFormat);
+      for (let i = 0; i < folderImages.length; i++) {
+        setFolderProcessingStatus(`Converting image ${i + 1}/${folderImages.length}...`);
+        const converted = await convertImageFormat(folderImages[i], imageFormat);
         convertedImages.push(converted);
       }
 
-      setFolderProcessingStatus(`Analyzing ${imageFiles.length} images with AI...`);
-
-      // Call the batch enhancement API
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enhance-images-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          images: convertedImages,
-          prompt: prompt || undefined,
-        }),
+      // Add all images as reference images
+      setUploadedImages(prev => [...prev, ...convertedImages]);
+      setImageFiles(prev => [...prev, ...folderImages]);
+      
+      toast({
+        title: "Folder uploaded",
+        description: `${folderImages.length} images added as references`,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Processing failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.enhancedImage) {
-        // Add the enhanced image to the uploaded images
-        setUploadedImages(prev => [...prev, result.enhancedImage]);
-        
-        toast({
-          title: "Folder processed successfully!",
-          description: `Analyzed ${result.processedCount} images and created enhanced replica`,
-        });
-        
-        // Optionally update the prompt with the analysis
-        if (result.analysis && !prompt) {
-          setPrompt(`Enhanced replica based on ${result.processedCount} reference images: ${result.description || ''}`);
-        }
-      } else {
-        throw new Error("No enhanced image generated");
-      }
-
     } catch (error: any) {
-      console.error('Folder processing error:', error);
+      console.error('Folder upload error:', error);
       toast({
-        title: "Folder processing failed",
-        description: error.message || "Failed to process folder images",
+        title: "Folder upload failed",
+        description: error.message || "Failed to load folder images",
         variant: "destructive",
       });
     } finally {
