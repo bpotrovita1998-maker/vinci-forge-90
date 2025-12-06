@@ -44,12 +44,38 @@ export default function UnityThreeDViewer({ modelUrl, transform }: UnityThreeDVi
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [validatedUrl, setValidatedUrl] = useState<string>('');
+  const [isValidating, setIsValidating] = useState(true);
 
-  const handleError = useCallback((err: Error) => {
-    console.error('Unity viewer error:', err);
-    setError(err.message);
-    setIsLoading(false);
-  }, []);
+  // Pre-validate URL before rendering
+  useEffect(() => {
+    const validateUrl = async () => {
+      setIsValidating(true);
+      setError(null);
+      setValidatedUrl('');
+      
+      if (!modelUrl) {
+        setError('No model URL provided');
+        setIsValidating(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(modelUrl, { method: 'HEAD' });
+        if (!response.ok) {
+          setError('Model file is no longer available (expired)');
+          setIsValidating(false);
+          return;
+        }
+        setValidatedUrl(modelUrl);
+      } catch (err) {
+        setError('Failed to access model file');
+      }
+      setIsValidating(false);
+    };
+
+    validateUrl();
+  }, [modelUrl, retryCount]);
 
   const handleRetry = () => {
     setError(null);
@@ -57,7 +83,15 @@ export default function UnityThreeDViewer({ modelUrl, transform }: UnityThreeDVi
     setRetryCount(prev => prev + 1);
   };
 
-  if (error) {
+  if (isValidating) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-[#2d2d2d]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#5294e2]" />
+      </div>
+    );
+  }
+
+  if (error || !validatedUrl) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-[#2d2d2d] text-[#cccccc]">
         <div className="text-center space-y-4">
@@ -102,7 +136,7 @@ export default function UnityThreeDViewer({ modelUrl, transform }: UnityThreeDVi
         <directionalLight position={[-5, 5, -5]} intensity={0.3} />
         
         <Suspense fallback={null}>
-          <Model url={modelUrl} transform={transform} />
+          <Model url={validatedUrl} transform={transform} />
           
           {/* Unity-style grid */}
           <Grid
