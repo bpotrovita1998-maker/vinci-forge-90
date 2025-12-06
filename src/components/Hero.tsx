@@ -272,57 +272,77 @@ export default function Hero() {
     }
 
     setIsProcessingFolder(true);
-    setFolderProcessingStatus(`Loading ${folderImages.length} images...`);
-
+    
     try {
-      // Convert all images to base64
-      const convertedImages: string[] = [];
-      for (let i = 0; i < folderImages.length; i++) {
-        setFolderProcessingStatus(`Converting image ${i + 1}/${folderImages.length}...`);
-        const converted = await convertImageFormat(folderImages[i], imageFormat);
-        convertedImages.push(converted);
-      }
-
-      setFolderProcessingStatus(`Generating ${folderImages.length} replicas with AI...`);
-
-      // Call the batch enhancement API with batch-replicate mode
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enhance-images-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          images: convertedImages,
-          prompt: prompt || 'Create a perfect high-quality replica of this image with enhanced details',
-          mode: 'batch-replicate',
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Processing failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.enhancedImages && result.enhancedImages.length > 0) {
-        setFolderProcessingStatus(`Creating ZIP with ${result.enhancedImages.length} images...`);
+      // Import JSZip at the start
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      
+      let successCount = 0;
+      let errorCount = 0;
+      const chunkSize = 5; // Process 5 images at a time
+      
+      for (let i = 0; i < folderImages.length; i += chunkSize) {
+        const chunk = folderImages.slice(i, i + chunkSize);
+        setFolderProcessingStatus(`Processing images ${i + 1}-${Math.min(i + chunkSize, folderImages.length)} of ${folderImages.length}...`);
         
-        // Import JSZip dynamically
-        const JSZip = (await import('jszip')).default;
-        const zip = new JSZip();
-        
-        // Add each enhanced image to the ZIP
-        for (let i = 0; i < result.enhancedImages.length; i++) {
-          const img = result.enhancedImages[i];
-          // Extract base64 data from data URL
-          const base64Data = img.enhanced.split(',')[1];
-          const fileName = `replica_${String(i + 1).padStart(3, '0')}.png`;
-          zip.file(fileName, base64Data, { base64: true });
+        // Convert chunk to base64
+        const convertedChunk: string[] = [];
+        for (const file of chunk) {
+          const converted = await convertImageFormat(file, 'jpeg'); // Use JPEG for smaller size
+          convertedChunk.push(converted);
         }
         
-        // Generate and download ZIP
+        try {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enhance-images-batch`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              images: convertedChunk,
+              prompt: prompt || 'Create a perfect high-quality replica of this image with enhanced details',
+              mode: 'batch-replicate',
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Chunk processing error:', errorData);
+            errorCount += chunk.length;
+            continue;
+          }
+
+          const result = await response.json();
+          
+          if (result.enhancedImages) {
+            for (const img of result.enhancedImages) {
+              const globalIndex = i + img.index;
+              const base64Data = img.enhanced.split(',')[1];
+              const fileName = `replica_${String(globalIndex + 1).padStart(3, '0')}.png`;
+              zip.file(fileName, base64Data, { base64: true });
+              successCount++;
+            }
+          }
+          
+          if (result.errors) {
+            errorCount += result.errors.length;
+          }
+        } catch (chunkError) {
+          console.error('Chunk error:', chunkError);
+          errorCount += chunk.length;
+        }
+        
+        // Small delay between chunks
+        if (i + chunkSize < folderImages.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+      
+      if (successCount > 0) {
+        setFolderProcessingStatus(`Creating ZIP with ${successCount} images...`);
+        
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
@@ -335,18 +355,18 @@ export default function Hero() {
         
         toast({
           title: "Replicas generated!",
-          description: `${result.successCount} of ${result.totalProcessed} images processed. ZIP downloaded.`,
+          description: `${successCount} of ${folderImages.length} images processed. ZIP downloaded.`,
         });
-        
-        if (result.errorCount > 0) {
-          toast({
-            title: "Some images failed",
-            description: `${result.errorCount} images could not be processed`,
-            variant: "destructive",
-          });
-        }
       } else {
-        throw new Error("No enhanced images generated");
+        throw new Error("No images could be processed");
+      }
+      
+      if (errorCount > 0) {
+        toast({
+          title: "Some images failed",
+          description: `${errorCount} images could not be processed`,
+          variant: "destructive",
+        });
       }
 
     } catch (error: any) {
