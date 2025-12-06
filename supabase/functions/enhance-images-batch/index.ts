@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { images, prompt } = await req.json();
+    const { images, prompt, mode } = await req.json();
     
     if (!images || !Array.isArray(images) || images.length === 0) {
       return new Response(
@@ -20,14 +20,127 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Processing ${images.length} images for enhancement`);
+    console.log(`Processing ${images.length} images, mode: ${mode || 'batch-replicate'}`);
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // First, analyze all images to understand common patterns, style, and subjects
+    // Mode: batch-replicate - create enhanced replica of each image individually
+    if (mode === 'batch-replicate') {
+      const enhancedImages: { original: string; enhanced: string; index: number }[] = [];
+      const errors: { index: number; error: string }[] = [];
+      
+      // Process images in batches of 5 to avoid rate limits
+      const batchSize = 5;
+      for (let i = 0; i < images.length; i += batchSize) {
+        const batch = images.slice(i, i + batchSize);
+        
+        const batchPromises = batch.map(async (imageUrl: string, batchIndex: number) => {
+          const globalIndex = i + batchIndex;
+          
+          try {
+            const replicaPrompt = `${prompt || 'Create a high-quality enhanced replica of this image'}. 
+            
+Analyze this reference image carefully and generate a new version that:
+- Preserves all visual elements, subjects, colors, and composition exactly
+- Improves overall image quality, clarity, and detail
+- Maintains the exact same style and aesthetic
+- Enhances lighting and sharpness
+
+Generate an ultra high resolution perfected version.`;
+
+            const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash-image-preview",
+                messages: [
+                  {
+                    role: "user",
+                    content: [
+                      { type: "text", text: replicaPrompt },
+                      {
+                        type: "image_url",
+                        image_url: { url: imageUrl }
+                      }
+                    ]
+                  }
+                ],
+                modalities: ["image", "text"]
+              }),
+            });
+
+            if (!response.ok) {
+              if (response.status === 429) {
+                throw new Error("Rate limit exceeded");
+              }
+              if (response.status === 402) {
+                throw new Error("Payment required");
+              }
+              throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const generatedImage = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+            if (!generatedImage) {
+              throw new Error("No image generated");
+            }
+
+            return {
+              original: imageUrl,
+              enhanced: generatedImage,
+              index: globalIndex
+            };
+          } catch (error) {
+            console.error(`Error processing image ${globalIndex}:`, error);
+            return {
+              index: globalIndex,
+              error: error instanceof Error ? error.message : "Unknown error"
+            };
+          }
+        });
+
+        const results = await Promise.all(batchPromises);
+        
+        for (const result of results) {
+          if ('enhanced' in result && result.enhanced) {
+            enhancedImages.push(result as { original: string; enhanced: string; index: number });
+          } else if ('error' in result) {
+            errors.push(result as { index: number; error: string });
+          }
+        }
+
+        // Small delay between batches to avoid rate limits
+        if (i + batchSize < images.length) {
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+
+      console.log(`Batch processing complete: ${enhancedImages.length} success, ${errors.length} errors`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: 'batch-replicate',
+          enhancedImages: enhancedImages.sort((a, b) => a.index - b.index),
+          errors,
+          totalProcessed: images.length,
+          successCount: enhancedImages.length,
+          errorCount: errors.length
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Default mode: analyze all and create single enhanced replica
+    console.log("Using default mode: analyze and enhance");
+    
     const analysisPrompt = `Analyze these ${images.length} reference images carefully. Identify:
 1. Common visual elements (subjects, objects, characters)
 2. Consistent style patterns (colors, lighting, composition)
@@ -49,8 +162,6 @@ Then provide a concise description of what an improved, higher-quality version o
       }
     ];
 
-    console.log("Analyzing images to understand patterns...");
-    
     const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -76,29 +187,22 @@ Then provide a concise description of what an improved, higher-quality version o
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await analysisResponse.text();
-      console.error("Analysis API error:", analysisResponse.status, errorText);
       throw new Error(`Analysis failed: ${analysisResponse.status}`);
     }
 
     const analysisData = await analysisResponse.json();
     const analysis = analysisData.choices?.[0]?.message?.content || "";
-    
-    console.log("Image analysis complete:", analysis.substring(0, 200) + "...");
 
-    // Now generate an enhanced replica using the image generation model
-    const userEnhancement = prompt ? `. User requested improvements: ${prompt}` : "";
-    const enhancementPrompt = `Based on my analysis of ${images.length} reference images: ${analysis}
+    const userEnhancement = prompt ? `. User requested: ${prompt}` : "";
+    const enhancementPrompt = `Based on analysis of ${images.length} reference images: ${analysis}
 
-Create a single high-quality enhanced replica that:
-- Preserves all the key visual elements and subjects from the originals
+Create a high-quality enhanced replica that:
+- Preserves all key visual elements and subjects
 - Improves image quality, clarity, and detail
 - Maintains consistent style and color palette
 - Enhances lighting and composition${userEnhancement}
 
-Generate a perfected, ultra high resolution version that captures the essence of all reference images combined.`;
-
-    console.log("Generating enhanced replica...");
+Generate a perfected, ultra high resolution version.`;
 
     const generationResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -113,7 +217,6 @@ Generate a perfected, ultra high resolution version that captures the essence of
             role: "user",
             content: [
               { type: "text", text: enhancementPrompt },
-              // Include a few reference images to guide generation
               ...images.slice(0, 3).map((imageUrl: string) => ({
                 type: "image_url",
                 image_url: { url: imageUrl }
@@ -128,18 +231,16 @@ Generate a perfected, ultra high resolution version that captures the essence of
     if (!generationResponse.ok) {
       if (generationResponse.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded during generation. Please try again later." }),
+          JSON.stringify({ error: "Rate limit exceeded during generation." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (generationResponse.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Payment required. Please add credits to continue." }),
+          JSON.stringify({ error: "Payment required." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await generationResponse.text();
-      console.error("Generation API error:", generationResponse.status, errorText);
       throw new Error(`Generation failed: ${generationResponse.status}`);
     }
 
@@ -148,15 +249,13 @@ Generate a perfected, ultra high resolution version that captures the essence of
     const generationDescription = generationData.choices?.[0]?.message?.content || "";
 
     if (!generatedImage) {
-      console.error("No image in response:", JSON.stringify(generationData));
       throw new Error("Failed to generate enhanced image");
     }
-
-    console.log("Enhanced image generated successfully");
 
     return new Response(
       JSON.stringify({
         success: true,
+        mode: 'single-enhanced',
         analysis,
         enhancedImage: generatedImage,
         description: generationDescription,
