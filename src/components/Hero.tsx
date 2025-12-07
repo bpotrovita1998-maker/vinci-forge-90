@@ -258,18 +258,27 @@ export default function Hero() {
       return;
     }
 
-    // Check total size (5MB limit)
+    // Check total size (50MB limit for larger folders)
     const totalSize = folderImages.reduce((acc, file) => acc + file.size, 0);
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 50 * 1024 * 1024; // 50MB to support 120+ images
     
     if (totalSize > maxSize) {
       toast({
         title: "Folder too large",
-        description: `Total size ${(totalSize / 1024 / 1024).toFixed(2)}MB exceeds 5MB limit`,
+        description: `Total size ${(totalSize / 1024 / 1024).toFixed(2)}MB exceeds 50MB limit`,
         variant: "destructive",
       });
       return;
     }
+    
+    // Filter only PNG files as requested
+    const pngImages = folderImages.filter(file => file.type === 'image/png' || file.name.toLowerCase().endsWith('.png'));
+    const imagesToProcess = pngImages.length > 0 ? pngImages : folderImages;
+    
+    toast({
+      title: "Starting folder processing",
+      description: `Found ${imagesToProcess.length} images to process. This may take a while...`,
+    });
 
     setIsProcessingFolder(true);
     
@@ -282,14 +291,14 @@ export default function Hero() {
       let errorCount = 0;
       const chunkSize = 5; // Process 5 images at a time
       
-      for (let i = 0; i < folderImages.length; i += chunkSize) {
-        const chunk = folderImages.slice(i, i + chunkSize);
-        setFolderProcessingStatus(`Processing images ${i + 1}-${Math.min(i + chunkSize, folderImages.length)} of ${folderImages.length}...`);
+      for (let i = 0; i < imagesToProcess.length; i += chunkSize) {
+        const chunk = imagesToProcess.slice(i, i + chunkSize);
+        setFolderProcessingStatus(`Processing images ${i + 1}-${Math.min(i + chunkSize, imagesToProcess.length)} of ${imagesToProcess.length}...`);
         
         // Convert chunk to base64
         const convertedChunk: string[] = [];
         for (const file of chunk) {
-          const converted = await convertImageFormat(file, 'jpeg'); // Use JPEG for smaller size
+          const converted = await convertImageFormat(file, 'png'); // Keep PNG format
           convertedChunk.push(converted);
         }
         
@@ -302,7 +311,7 @@ export default function Hero() {
             },
             body: JSON.stringify({
               images: convertedChunk,
-              prompt: prompt || 'Create a perfect high-quality replica of this image with enhanced details',
+              prompt: prompt || 'Create a perfect high-quality replica of this card image with enhanced details, sharper edges, and vibrant colors',
               mode: 'batch-replicate',
             }),
           });
@@ -334,9 +343,9 @@ export default function Hero() {
           errorCount += chunk.length;
         }
         
-        // Small delay between chunks
-        if (i + chunkSize < folderImages.length) {
-          await new Promise(r => setTimeout(r, 500));
+        // Delay between chunks to avoid rate limiting
+        if (i + chunkSize < imagesToProcess.length) {
+          await new Promise(r => setTimeout(r, 1000));
         }
       }
       
@@ -355,7 +364,7 @@ export default function Hero() {
         
         toast({
           title: "Replicas generated!",
-          description: `${successCount} of ${folderImages.length} images processed. ZIP downloaded.`,
+          description: `${successCount} of ${imagesToProcess.length} images processed. ZIP downloaded.`,
         });
       } else {
         throw new Error("No images could be processed");
