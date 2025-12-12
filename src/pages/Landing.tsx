@@ -3,6 +3,7 @@ import { UseCasesCarousel } from '@/components/landing/UseCasesCarousel';
 import { BenefitsSection } from '@/components/landing/BenefitsSection';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { FeatureShowcase } from '@/components/landing/FeatureShowcase';
+import { GalleryShowcase } from '@/components/landing/GalleryShowcase';
 import { CommunityShowcase } from '@/components/landing/CommunityShowcase';
 import { CTASection } from '@/components/landing/CTASection';
 import { Footer } from '@/components/landing/Footer';
@@ -15,6 +16,7 @@ export default function Landing() {
       <BenefitsSection />
       <HowItWorks />
       <FeatureShowcase />
+      <GalleryShowcase />
       <CommunityShowcase />
       <CTASection />
       <Footer />
