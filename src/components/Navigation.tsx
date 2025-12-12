@@ -47,7 +47,7 @@ export default function Navigation() {
             {user && (
               <>
                 <NavLink
-                  to="/"
+                  to="/create"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                   activeClassName="text-primary"
                 >

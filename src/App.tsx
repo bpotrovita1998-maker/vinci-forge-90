@@ -8,6 +8,7 @@ import { JobProvider } from "@/contexts/JobContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navigation from "./components/Navigation";
 import Index from "./pages/Index";
+import Landing from "./pages/Landing";
 import Gallery from "./pages/Gallery";
 import Scenes from "./pages/Scenes";
 import Auth from "./pages/Auth";
@@ -30,7 +31,8 @@ const App = () => (
             <Navigation />
             <Routes>
               <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<ProtectedRoute requireTokens><Index /></ProtectedRoute>} />
+              <Route path="/" element={<Landing />} />
+              <Route path="/create" element={<ProtectedRoute requireTokens><Index /></ProtectedRoute>} />
               <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
               <Route path="/scenes" element={<ProtectedRoute><Scenes /></ProtectedRoute>} />
               <Route path="/movie" element={<MovieViewer />} />
