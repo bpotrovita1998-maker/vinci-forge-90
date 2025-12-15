@@ -231,6 +231,10 @@ serve(async (req) => {
       if (width > height) aspectRatio = '16:9';
       else if (height > width) aspectRatio = '9:16';
 
+      // Replicate flux-schnell only supports max 4 outputs
+      const replicateNumOutputs = Math.min(numImages, 4);
+      console.log(`Replicate will generate ${replicateNumOutputs} images (requested: ${numImages}, max: 4)`);
+
       // Kick off prediction
       const start = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
@@ -244,7 +248,7 @@ serve(async (req) => {
             prompt: prompt,
             go_fast: true,
             megapixels: '1',
-            num_outputs: numImages,
+            num_outputs: replicateNumOutputs,
             aspect_ratio: aspectRatio,
             output_format: 'webp',
             output_quality: 80,
