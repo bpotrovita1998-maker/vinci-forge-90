@@ -35,6 +35,22 @@ function sanitizePrompt(input: string): string {
   return sanitized;
 }
 
+// Character consistency options schema
+const characterConsistencySchema = z.object({
+  enabled: z.boolean(),
+  characterReferenceImages: z.array(z.string()).max(3).optional(),
+  characterId: z.string().optional(),
+  referenceMatchingEnabled: z.boolean().optional(),
+  referenceMatchingStrength: z.number().min(0).max(1).optional(),
+  styleTransferEnabled: z.boolean().optional(),
+  styleStrength: z.number().min(0).max(1).optional(),
+  controlNetEnabled: z.boolean().optional(),
+  controlNetType: z.enum(['pose', 'depth', 'canny', 'openpose']).optional(),
+  controlNetStrength: z.number().min(0).max(1).optional(),
+  poseReferenceImage: z.string().optional(),
+  depthReferenceImage: z.string().optional(),
+}).optional();
+
 // Input validation schema
 const generateImageSchema = z.object({
   prompt: z.string().min(1).max(8000).transform(sanitizePrompt),
@@ -43,6 +59,7 @@ const generateImageSchema = z.object({
   numImages: z.number().min(1).max(8).optional().default(1),
   upscaleQuality: z.number().min(2).max(8).optional().default(4),
   jobId: z.string().uuid().optional(),
+  characterConsistency: characterConsistencySchema,
 });
 
 serve(async (req) => {
@@ -93,7 +110,7 @@ serve(async (req) => {
       );
     }
 
-    const { prompt, width, height, numImages, upscaleQuality, jobId } = validationResult.data;
+    const { prompt, width, height, numImages, upscaleQuality, jobId, characterConsistency } = validationResult.data;
     const userId = user.id; // Derive from authenticated user
     
     // Initialize Supabase client with service role for database operations
@@ -109,10 +126,34 @@ serve(async (req) => {
       );
     }
 
-    console.log('Generating image with Lovable AI:', { prompt, width, height, numImages });
+    console.log('Generating image with Lovable AI:', { prompt, width, height, numImages, hasCharacterConsistency: !!characterConsistency?.enabled });
+
+    // Build enhanced prompt with character consistency instructions
+    let enhancedPrompt = prompt;
+    if (characterConsistency?.enabled) {
+      const consistencyParts: string[] = [];
+      
+      if (characterConsistency.referenceMatchingEnabled && characterConsistency.referenceMatchingStrength) {
+        const strength = characterConsistency.referenceMatchingStrength > 0.8 ? 'exactly' : characterConsistency.referenceMatchingStrength > 0.5 ? 'closely' : 'loosely';
+        consistencyParts.push(`Match character appearance ${strength} to reference images`);
+      }
+      
+      if (characterConsistency.styleTransferEnabled && characterConsistency.styleStrength) {
+        const styleLevel = characterConsistency.styleStrength > 0.8 ? 'strongly' : characterConsistency.styleStrength > 0.5 ? 'moderately' : 'subtly';
+        consistencyParts.push(`Apply visual style ${styleLevel} from references`);
+      }
+      
+      if (characterConsistency.controlNetEnabled && characterConsistency.controlNetType) {
+        consistencyParts.push(`Maintain ${characterConsistency.controlNetType} consistency from reference`);
+      }
+      
+      if (consistencyParts.length > 0) {
+        enhancedPrompt = `${consistencyParts.join('. ')}. ${enhancedPrompt}`;
+      }
+    }
 
     // Enhance prompt for high quality image generation
-    const imagePrompt = `Generate a high-quality, detailed, sharp image of: ${prompt}. Ultra high resolution, 4K quality, highly detailed.`;
+    const imagePrompt = `Generate a high-quality, detailed, sharp image of: ${enhancedPrompt}. Ultra high resolution, 4K quality, highly detailed.`;
 
     // Define fallback models in order of preference (cost-effective to powerful)
     const imageModels = [
