@@ -19,12 +19,12 @@ const footerLinks = {
   Company: [
     { label: 'About', href: '#' },
     { label: 'Pricing', href: '/pricing' },
+    { label: 'Contact', href: '/contact' },
     { label: 'Careers', href: '#' },
-    { label: 'Contact', href: '#' },
     { label: 'Press', href: '#' },
   ],
   Legal: [
-    { label: 'Terms of Service', href: '#' },
+    { label: 'Terms of Service', href: '/terms' },
     { label: 'Privacy Policy', href: '/privacy' },
     { label: 'Cookie Policy', href: '/privacy#cookies' },
     { label: 'GDPR', href: '/privacy#gdpr' },
@@ -96,7 +96,7 @@ export function Footer() {
             © {new Date().getFullYear()} VinciAI. All rights reserved.
           </p>
           <div className="flex gap-6">
-            <Link to="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            <Link to="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors">
               Terms
             </Link>
             <Link to="/privacy" className="text-sm text-muted-foreground hover:text-primary transition-colors">

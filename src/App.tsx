@@ -19,6 +19,8 @@ import MovieViewer from "./pages/MovieViewer";
 import Memory from "./pages/Memory";
 import Settings from "./pages/Settings";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import Contact from "./pages/Contact";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,8 @@ const App = () => (
               <Route path="/memory" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Memory /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Settings /></ProtectedRoute>} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/contact" element={<Contact />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
