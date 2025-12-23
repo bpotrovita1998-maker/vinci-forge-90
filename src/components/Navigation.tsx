@@ -14,6 +14,7 @@ import {
 } from './ui/dropdown-menu';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
+import { LanguageTranslator } from './LanguageTranslator';
 
 export default function Navigation() {
   const { user, signOut } = useAuth();
@@ -97,7 +98,8 @@ export default function Navigation() {
                   </Button>
                 </NavLink>
 
-                {/* Token Balance */}
+                {/* Language Translator */}
+                <LanguageTranslator />
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 border border-primary/20">
                   <Coins className="w-4 h-4 text-primary" />
                   <span className="text-sm font-semibold text-foreground">
