@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
-import { X } from 'lucide-react';
 
 interface AdBannerProps {
   adSlot?: string;
@@ -9,18 +8,18 @@ interface AdBannerProps {
 }
 
 export default function AdBanner({ 
-  adSlot = '1234567890', // Replace with your actual ad slot
+  adSlot = '1234567890',
   format = 'horizontal',
   className = '' 
 }: AdBannerProps) {
   const { isAdmin, subscription } = useSubscription();
   const adRef = useRef<HTMLDivElement>(null);
   const isPro = isAdmin || subscription?.status === 'active';
-  
-  // Don't show ads for PRO users
-  if (isPro) return null;
 
   useEffect(() => {
+    // Don't load ads for PRO users
+    if (isPro) return;
+    
     // Load AdSense script if not already loaded
     if (!document.querySelector('script[src*="pagead2.googlesyndication.com"]')) {
       const script = document.createElement('script');
@@ -37,7 +36,10 @@ export default function AdBanner({
     } catch (e) {
       console.error('AdSense error:', e);
     }
-  }, []);
+  }, [isPro]);
+
+  // Don't show ads for PRO users
+  if (isPro) return null;
 
   const sizeStyles = {
     horizontal: { minHeight: '90px', maxWidth: '728px' },
