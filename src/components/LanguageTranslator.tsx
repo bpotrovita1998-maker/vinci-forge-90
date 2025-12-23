@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Globe, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,25 +9,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-
-declare global {
-  interface Window {
-    googleTranslateElementInit?: () => void;
-    google?: {
-      translate: {
-        TranslateElement: new (
-          options: {
-            pageLanguage: string;
-            includedLanguages?: string;
-            layout?: number;
-            autoDisplay?: boolean;
-          },
-          elementId: string
-        ) => void;
-      };
-    };
-  }
-}
 
 const LANGUAGE_STORAGE_KEY = 'vinci-language-preference';
 
@@ -75,8 +56,9 @@ const POPULAR_LANGUAGES = [
 ];
 
 export function LanguageTranslator() {
-  const [isLoaded, setIsLoaded] = useState(false);
   const [currentLang, setCurrentLang] = useState<typeof POPULAR_LANGUAGES[0]>(POPULAR_LANGUAGES[0]);
+  const translateContainerRef = useRef<HTMLDivElement>(null);
+  const isInitializedRef = useRef(false);
 
   // Load saved language preference on mount
   useEffect(() => {
@@ -89,23 +71,69 @@ export function LanguageTranslator() {
     }
   }, []);
 
-  useEffect(() => {
-    // Check if script already exists
-    if (document.getElementById('google-translate-script')) {
-      setIsLoaded(true);
+  // Apply translation via cookie (doesn't require Google Translate widget)
+  const applyTranslation = useCallback((langCode: string) => {
+    if (langCode === 'en') {
+      // Reset to English - remove translation cookies
+      document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = `googtrans=; path=/; domain=${window.location.hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      // Reload to reset translations
+      window.location.reload();
       return;
     }
 
-    // Add Google Translate script
+    // Set cookies for Google Translate
+    const cookieValue = `/en/${langCode}`;
+    document.cookie = `googtrans=${cookieValue}; path=/`;
+    document.cookie = `googtrans=${cookieValue}; path=/; domain=${window.location.hostname}`;
+    
+    // Reload to apply translation
+    window.location.reload();
+  }, []);
+
+  // Initialize Google Translate script only once
+  useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
+    // Add styles to hide Google Translate UI elements
+    const style = document.createElement('style');
+    style.id = 'google-translate-styles';
+    style.textContent = `
+      .goog-te-banner-frame,
+      .goog-te-balloon-frame,
+      #goog-gt-tt,
+      .goog-te-spinner-pos,
+      .goog-tooltip,
+      .goog-tooltip:hover,
+      .goog-text-highlight,
+      .skiptranslate,
+      .goog-te-gadget,
+      #google_translate_element {
+        display: none !important;
+      }
+      body {
+        top: 0 !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Create a container outside React's control for Google Translate
+    const container = document.createElement('div');
+    container.id = 'google_translate_element';
+    container.style.display = 'none';
+    document.body.appendChild(container);
+
+    // Load Google Translate script
     const script = document.createElement('script');
     script.id = 'google-translate-script';
     script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
     script.async = true;
     
-    // Initialize Google Translate
-    window.googleTranslateElementInit = () => {
-      if (window.google?.translate) {
-        new window.google.translate.TranslateElement(
+    // Define init function globally
+    (window as any).googleTranslateElementInit = () => {
+      if ((window as any).google?.translate) {
+        new (window as any).google.translate.TranslateElement(
           {
             pageLanguage: 'en',
             includedLanguages: POPULAR_LANGUAGES.map(l => l.code).join(','),
@@ -113,51 +141,21 @@ export function LanguageTranslator() {
           },
           'google_translate_element'
         );
-        setIsLoaded(true);
-        
-        // Apply saved language preference after initialization
-        const savedLangCode = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-        if (savedLangCode && savedLangCode !== 'en') {
-          setTimeout(() => {
-            applyTranslation(savedLangCode);
-          }, 500);
-        }
       }
     };
 
     document.body.appendChild(script);
 
-    return () => {
-      // Cleanup
-      const existingScript = document.getElementById('google-translate-script');
-      if (existingScript) {
-        existingScript.remove();
-      }
-    };
+    // Cleanup on unmount - but don't remove the translate elements
+    // as they need to persist for translation to work
   }, []);
-
-  const applyTranslation = (langCode: string) => {
-    // Set cookies for Google Translate
-    const cookieValue = langCode === 'en' ? '' : `/en/${langCode}`;
-    document.cookie = `googtrans=${cookieValue}; path=/`;
-    document.cookie = `googtrans=${cookieValue}; path=/; domain=${window.location.hostname}`;
-    
-    // Force the Google Translate widget to update
-    const select = document.querySelector('.goog-te-combo') as HTMLSelectElement;
-    if (select) {
-      select.value = langCode;
-      select.dispatchEvent(new Event('change'));
-    }
-  };
 
   const translateTo = (langCode: string) => {
     const lang = POPULAR_LANGUAGES.find(l => l.code === langCode);
     if (lang) {
       setCurrentLang(lang);
-      // Save preference to localStorage
       localStorage.setItem(LANGUAGE_STORAGE_KEY, langCode);
     }
-
     applyTranslation(langCode);
   };
 
@@ -167,99 +165,71 @@ export function LanguageTranslator() {
   const asiaLangs = POPULAR_LANGUAGES.filter(l => l.region === 'asia');
 
   return (
-    <>
-      {/* Hidden Google Translate element */}
-      <div id="google_translate_element" className="hidden" />
-      
-      {/* Custom dropdown UI */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="gap-2 text-muted-foreground hover:text-foreground"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <Globe className="w-4 h-4" />
+          <span className="hidden sm:inline">{currentLang.flag} {currentLang.name}</span>
+          <span className="sm:hidden">{currentLang.flag}</span>
+          <ChevronDown className="w-3 h-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto w-48 bg-popover border border-border z-50">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Popular</DropdownMenuLabel>
+        {popularLangs.map((lang) => (
+          <DropdownMenuItem
+            key={lang.code}
+            onClick={() => translateTo(lang.code)}
+            className="gap-2 cursor-pointer"
           >
-            <Globe className="w-4 h-4" />
-            <span className="hidden sm:inline">{currentLang.flag} {currentLang.name}</span>
-            <span className="sm:hidden">{currentLang.flag}</span>
-            <ChevronDown className="w-3 h-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto w-48 bg-popover border border-border z-50">
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Popular</DropdownMenuLabel>
-          {popularLangs.map((lang) => (
-            <DropdownMenuItem
-              key={lang.code}
-              onClick={() => translateTo(lang.code)}
-              className="gap-2 cursor-pointer"
-            >
-              <span>{lang.flag}</span>
-              <span>{lang.name}</span>
-            </DropdownMenuItem>
-          ))}
-          
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Nordic</DropdownMenuLabel>
-          {nordicLangs.map((lang) => (
-            <DropdownMenuItem
-              key={lang.code}
-              onClick={() => translateTo(lang.code)}
-              className="gap-2 cursor-pointer"
-            >
-              <span>{lang.flag}</span>
-              <span>{lang.name}</span>
-            </DropdownMenuItem>
-          ))}
-          
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Europe</DropdownMenuLabel>
-          {europeLangs.map((lang) => (
-            <DropdownMenuItem
-              key={lang.code}
-              onClick={() => translateTo(lang.code)}
-              className="gap-2 cursor-pointer"
-            >
-              <span>{lang.flag}</span>
-              <span>{lang.name}</span>
-            </DropdownMenuItem>
-          ))}
-          
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="text-xs text-muted-foreground">Asia & Middle East</DropdownMenuLabel>
-          {asiaLangs.map((lang) => (
-            <DropdownMenuItem
-              key={lang.code}
-              onClick={() => translateTo(lang.code)}
-              className="gap-2 cursor-pointer"
-            >
-              <span>{lang.flag}</span>
-              <span>{lang.name}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {/* Hide Google Translate banner */}
-      <style>{`
-        .goog-te-banner-frame,
-        .goog-te-balloon-frame,
-        #goog-gt-tt,
-        .goog-te-spinner-pos,
-        .goog-tooltip,
-        .goog-tooltip:hover,
-        .goog-text-highlight {
-          display: none !important;
-        }
-        body {
-          top: 0 !important;
-        }
-        .skiptranslate {
-          display: none !important;
-        }
-        .goog-te-gadget {
-          display: none !important;
-        }
-      `}</style>
-    </>
+            <span>{lang.flag}</span>
+            <span>{lang.name}</span>
+          </DropdownMenuItem>
+        ))}
+        
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Nordic</DropdownMenuLabel>
+        {nordicLangs.map((lang) => (
+          <DropdownMenuItem
+            key={lang.code}
+            onClick={() => translateTo(lang.code)}
+            className="gap-2 cursor-pointer"
+          >
+            <span>{lang.flag}</span>
+            <span>{lang.name}</span>
+          </DropdownMenuItem>
+        ))}
+        
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Europe</DropdownMenuLabel>
+        {europeLangs.map((lang) => (
+          <DropdownMenuItem
+            key={lang.code}
+            onClick={() => translateTo(lang.code)}
+            className="gap-2 cursor-pointer"
+          >
+            <span>{lang.flag}</span>
+            <span>{lang.name}</span>
+          </DropdownMenuItem>
+        ))}
+        
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Asia & Middle East</DropdownMenuLabel>
+        {asiaLangs.map((lang) => (
+          <DropdownMenuItem
+            key={lang.code}
+            onClick={() => translateTo(lang.code)}
+            className="gap-2 cursor-pointer"
+          >
+            <span>{lang.flag}</span>
+            <span>{lang.name}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
