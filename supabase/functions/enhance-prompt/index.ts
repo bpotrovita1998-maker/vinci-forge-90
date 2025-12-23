@@ -160,6 +160,17 @@ CRITICAL: Never remove dimensions, materials, or technical specifications. Focus
 
     const systemPrompt = systemPrompts[type as string] || systemPrompts.image;
 
+    // Enhanced multilingual system prompt
+    const multilingualPrefix = `IMPORTANT: The user may write in ANY language. You MUST:
+1. Detect the language of the user's input
+2. Respond in the SAME language as the user's input
+3. If the input is in English, respond in English
+4. If the input is in Spanish, respond in Spanish
+5. If the input is in Japanese, respond in Japanese
+6. And so on for any other language
+
+`;
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -171,11 +182,11 @@ CRITICAL: Never remove dimensions, materials, or technical specifications. Focus
         messages: [
           {
             role: "system",
-            content: systemPrompt
+            content: multilingualPrefix + systemPrompt
           },
           {
             role: "user",
-            content: `Enhance this ${type} generation prompt: "${idea}"\n\nProvide ONLY the enhanced prompt, nothing else. No explanations or additional text.`
+            content: `Enhance this ${type} generation prompt: "${idea}"\n\nProvide ONLY the enhanced prompt in the SAME LANGUAGE as my input, nothing else. No explanations or additional text.`
           }
         ],
       }),
