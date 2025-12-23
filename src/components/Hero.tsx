@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
 import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown, FolderUp, Loader2, Play } from 'lucide-react';
-import { GenerationOptions, JobType } from '@/types/job';
+import { GenerationOptions, JobType, CharacterConsistencyOptions as ConsistencyOptions } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
 import AdvancedOptions from './AdvancedOptions';
@@ -12,6 +12,7 @@ import PromptEnhancer from './PromptEnhancer';
 import ImageComparisonSlider from './ImageComparisonSlider';
 import { MemoryIndicator } from './MemoryIndicator';
 import { CharacterManager } from './CharacterManager';
+import { CharacterConsistencyOptions } from './CharacterConsistencyOptions';
 import { z } from 'zod';
 import { useSubscription } from '@/hooks/useSubscription';
 import { moderationService } from '@/services/moderationService';
@@ -97,6 +98,16 @@ export default function Hero() {
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showCharacterSection, setShowCharacterSection] = useState(false);
   const [pendingGeneration, setPendingGeneration] = useState(false);
+  const [characterConsistency, setCharacterConsistency] = useState<ConsistencyOptions>({
+    enabled: false,
+    referenceMatchingEnabled: false,
+    referenceMatchingStrength: 0.7,
+    styleTransferEnabled: false,
+    styleStrength: 0.5,
+    controlNetEnabled: false,
+    controlNetType: 'pose',
+    controlNetStrength: 0.7,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const startFrameInputRef = useRef<HTMLInputElement>(null);
@@ -608,10 +619,14 @@ export default function Hero() {
         // Veo 3.1 specific options
         referenceImages: options.type === 'video' && referenceImages.length > 0 
           ? referenceImages // Up to 3 reference images for video
-          : undefined,
+          : (characterConsistency.enabled && characterConsistency.characterReferenceImages?.length 
+              ? characterConsistency.characterReferenceImages
+              : undefined),
         startFrame: startFrameImage || undefined,
         endFrame: endFrameImage || undefined,
         extendFromVideo: options.extendFromVideo,
+        // Character consistency options
+        characterConsistency: characterConsistency.enabled ? characterConsistency : undefined,
       };
 
       const jobId = await submitJob(fullOptions);
@@ -1235,6 +1250,21 @@ export default function Hero() {
                   </Tabs>
                 </CollapsibleContent>
               </Collapsible>
+            </motion.div>
+          )}
+
+          {/* Character Consistency Options - Show for image and video types */}
+          {(options.type === 'image' || options.type === 'video') && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CharacterConsistencyOptions
+                options={characterConsistency}
+                onChange={setCharacterConsistency}
+                type={options.type}
+              />
             </motion.div>
           )}
 

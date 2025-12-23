@@ -3,6 +3,28 @@ export type JobStatus = 'queued' | 'running' | 'upscaling' | 'encoding' | 'compl
 export type VideoMode = 'short' | 'long';
 export type ThreeDMode = 'none' | 'stereoscopic' | 'object';
 
+// Character consistency options for maintaining visual coherence
+export interface CharacterConsistencyOptions {
+  enabled: boolean;
+  characterReferenceImages?: string[]; // Reference images for the character
+  characterId?: string; // ID of saved character from library
+  
+  // Reference matching options
+  referenceMatchingEnabled?: boolean;
+  referenceMatchingStrength?: number; // 0-1, how strongly to match reference
+  
+  // Style transfer options
+  styleTransferEnabled?: boolean;
+  styleStrength?: number; // 0-1, how strongly to apply style
+  
+  // ControlNet options
+  controlNetEnabled?: boolean;
+  controlNetType?: 'pose' | 'depth' | 'canny' | 'openpose';
+  controlNetStrength?: number; // 0-1, how strongly to apply control
+  poseReferenceImage?: string; // Image to extract pose from
+  depthReferenceImage?: string; // Image to extract depth from
+}
+
 export interface GenerationOptions {
   prompt: string;
   negativePrompt?: string;
@@ -28,6 +50,9 @@ export interface GenerationOptions {
   startFrame?: string; // Starting frame for frame-to-frame generation
   endFrame?: string; // Ending frame for frame-to-frame generation
   extendFromVideo?: string; // Video URL to extend from
+  
+  // Character consistency options
+  characterConsistency?: CharacterConsistencyOptions;
   
   // 3D options
   threeDMode: ThreeDMode;
