@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import ParticleBackground from '@/components/ParticleBackground';
 import { StorageUsage } from '@/components/StorageUsage';
+import { FreeUserExpirationBanner } from '@/components/FreeUserExpirationBanner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -595,6 +596,7 @@ export default function Gallery() {
           </motion.div>
 
           <div className="mb-6 space-y-4">
+            <FreeUserExpirationBanner />
             <StorageUsage />
             
             {/* Bulk Regeneration Button */}
