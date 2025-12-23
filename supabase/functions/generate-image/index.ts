@@ -515,6 +515,50 @@ serve(async (req) => {
         }
       }
       
+      // Check if user has active subscription (PRO) or is admin
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('user_id', userId)
+        .single();
+      
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .single();
+      
+      const isPro = subData?.status === 'active' || !!roleData;
+      console.log('User subscription status:', { isPro, status: subData?.status });
+      
+      // Set expiration: null for PRO, 24 hours for free users
+      const expiresAt = isPro ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      
+      // Track files in user_files table for storage management
+      for (let i = 0; i < finalUrls.length; i++) {
+        const fileUrl = finalUrls[i];
+        // Estimate file size (average ~500KB per image)
+        const estimatedSize = 500 * 1024;
+        
+        const { error: fileTrackError } = await supabase
+          .from('user_files')
+          .insert({
+            user_id: userId,
+            job_id: jobId,
+            file_url: fileUrl,
+            file_type: 'image',
+            file_size_bytes: estimatedSize,
+            expires_at: expiresAt
+          });
+        
+        if (fileTrackError) {
+          console.error('Error tracking file:', fileTrackError);
+        } else {
+          console.log('File tracked:', { url: fileUrl.substring(0, 50), expiresAt });
+        }
+      }
+      
       // Update job status to completed
       const { error: updateError } = await supabase
         .from('jobs')
