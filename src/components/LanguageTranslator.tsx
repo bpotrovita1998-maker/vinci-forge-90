@@ -71,24 +71,51 @@ export function LanguageTranslator() {
     }
   }, []);
 
-  // Apply translation via cookie (doesn't require Google Translate widget)
+  // Apply translation via cookie with smooth transition
   const applyTranslation = useCallback((langCode: string) => {
-    if (langCode === 'en') {
-      // Reset to English - remove translation cookies
-      document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      document.cookie = `googtrans=; path=/; domain=${window.location.hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-      // Reload to reset translations
-      window.location.reload();
-      return;
-    }
-
-    // Set cookies for Google Translate
-    const cookieValue = `/en/${langCode}`;
-    document.cookie = `googtrans=${cookieValue}; path=/`;
-    document.cookie = `googtrans=${cookieValue}; path=/; domain=${window.location.hostname}`;
+    // Create overlay for smooth transition
+    const overlay = document.createElement('div');
+    overlay.id = 'language-transition-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: hsl(var(--background));
+      z-index: 99999;
+      opacity: 0;
+      transition: opacity 0.3s ease-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+    overlay.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+        <div style="width: 40px; height: 40px; border: 3px solid hsl(var(--primary) / 0.3); border-top-color: hsl(var(--primary)); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+        <span style="color: hsl(var(--foreground)); font-size: 14px; opacity: 0.8;">Translating...</span>
+      </div>
+      <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+    `;
+    document.body.appendChild(overlay);
     
-    // Reload to apply translation
-    window.location.reload();
+    // Trigger fade-in
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+    });
+
+    // Wait for animation, then reload
+    setTimeout(() => {
+      if (langCode === 'en') {
+        // Reset to English - remove translation cookies
+        document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = `googtrans=; path=/; domain=${window.location.hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      } else {
+        // Set cookies for Google Translate
+        const cookieValue = `/en/${langCode}`;
+        document.cookie = `googtrans=${cookieValue}; path=/`;
+        document.cookie = `googtrans=${cookieValue}; path=/; domain=${window.location.hostname}`;
+      }
+      
+      window.location.reload();
+    }, 350);
   }, []);
 
   // Initialize Google Translate script only once
