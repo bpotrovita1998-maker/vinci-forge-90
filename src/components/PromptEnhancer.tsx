@@ -120,7 +120,8 @@ export default function PromptEnhancer({ type, onPromptGenerated }: PromptEnhanc
           AI Prompt Assistant
         </CardTitle>
         <CardDescription>
-          Describe your idea and let AI create the perfect prompt for {type} generation
+          <span className="block">Describe your idea in any language and let AI create the perfect prompt for {type} generation</span>
+          <span className="block text-xs text-primary/70 mt-1">🌍 Supports all languages: English, Spanish, French, German, Japanese, Chinese, Arabic, and more!</span>
           <div className="mt-2 p-2 bg-orange-500/10 border border-orange-500/20 rounded text-xs text-orange-600 dark:text-orange-400">
             ⚠️ Avoid: Violence, weapons, gore, adult content, hate symbols, or other sensitive topics
           </div>

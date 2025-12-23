@@ -834,60 +834,80 @@ export default function Hero() {
                 </CollapsibleContent>
               </Collapsible>
               
-              <div className="grid grid-cols-4 gap-2">
-                <Button
-                  variant={options.type === 'image' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setOptions(prev => ({ ...prev, type: 'image' }))}
-                  className={`${
-                    options.type === 'image' 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
-                  }`}
-                >
-                  <Image className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Image</span>
-                </Button>
-                <Button
-                  variant={options.type === 'video' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setOptions(prev => ({ ...prev, type: 'video' }))}
-                  className={`${
-                    options.type === 'video' 
-                      ? 'bg-accent text-accent-foreground' 
-                      : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
-                  }`}
-                >
-                  <Video className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">Video</span>
-                </Button>
-                <Button
-                  variant={options.type === '3d' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setOptions(prev => ({ ...prev, type: '3d' }))}
-                  className={`${
-                    options.type === '3d' 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
-                  }`}
-                >
-                  <Box className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">3D</span>
-                </Button>
-                <Button
-                  variant={options.type === 'cad' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setOptions(prev => ({ ...prev, type: 'cad' }))}
-                  className={`${
-                    options.type === 'cad' 
-                      ? 'bg-accent text-accent-foreground' 
-                      : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
-                  }`}
-                >
-                  <Cuboid className="w-5 h-5 sm:mr-2" />
-                  <span className="hidden sm:inline">CAD</span>
-                </Button>
-              </div>
+              {/* Generation type tabs - Video, 3D, CAD only for PRO users */}
+              {(isAdmin || subscription?.status === 'active') ? (
+                <div className="grid grid-cols-4 gap-2">
+                  <Button
+                    variant={options.type === 'image' ? 'default' : 'outline'}
+                    size="lg"
+                    onClick={() => setOptions(prev => ({ ...prev, type: 'image' }))}
+                    className={`${
+                      options.type === 'image' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
+                    }`}
+                  >
+                    <Image className="w-5 h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">Image</span>
+                  </Button>
+                  <Button
+                    variant={options.type === 'video' ? 'default' : 'outline'}
+                    size="lg"
+                    onClick={() => setOptions(prev => ({ ...prev, type: 'video' }))}
+                    className={`${
+                      options.type === 'video' 
+                        ? 'bg-accent text-accent-foreground' 
+                        : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
+                    }`}
+                  >
+                    <Video className="w-5 h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">Video</span>
+                  </Button>
+                  <Button
+                    variant={options.type === '3d' ? 'default' : 'outline'}
+                    size="lg"
+                    onClick={() => setOptions(prev => ({ ...prev, type: '3d' }))}
+                    className={`${
+                      options.type === '3d' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'glass border-primary/20 hover:bg-primary/10 hover:border-primary/30'
+                    }`}
+                  >
+                    <Box className="w-5 h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">3D</span>
+                  </Button>
+                  <Button
+                    variant={options.type === 'cad' ? 'default' : 'outline'}
+                    size="lg"
+                    onClick={() => setOptions(prev => ({ ...prev, type: 'cad' }))}
+                    className={`${
+                      options.type === 'cad' 
+                        ? 'bg-accent text-accent-foreground' 
+                        : 'glass border-accent/20 hover:bg-accent/10 hover:border-accent/30'
+                    }`}
+                  >
+                    <Cuboid className="w-5 h-5 sm:mr-2" />
+                    <span className="hidden sm:inline">CAD</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center">
+                    <Button
+                      variant="default"
+                      size="lg"
+                      className="bg-primary text-primary-foreground w-full max-w-xs"
+                      disabled
+                    >
+                      <Image className="w-5 h-5 mr-2" />
+                      Image Generation
+                    </Button>
+                  </div>
+                  <p className="text-xs text-center text-muted-foreground">
+                    🔒 Upgrade to PRO to unlock Video, 3D, and CAD generation
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
