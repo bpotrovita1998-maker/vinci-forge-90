@@ -21,6 +21,7 @@ import ParticleBackground from '@/components/ParticleBackground';
 import { StorageUsage } from '@/components/StorageUsage';
 import { FreeUserExpirationBanner } from '@/components/FreeUserExpirationBanner';
 import { ExpirationCountdown } from '@/components/ExpirationCountdown';
+import { ExpirationHoverPopup } from '@/components/ExpirationHoverPopup';
 import { useSubscription } from '@/hooks/useSubscription';
 import {
   AlertDialog,
@@ -930,28 +931,34 @@ export default function Gallery() {
                               userId={job.userId} 
                             />
                           ) : (
-                            <img
-                              src={job.outputs[0]}
-                              alt={job.options.prompt}
-                              className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                              onError={(e) => {
-                                const target = e.currentTarget;
-                                target.style.display = 'none';
-                                const container = target.parentElement;
-                                if (container && !container.querySelector('.image-error-fallback')) {
-                                  const fallback = document.createElement('div');
-                                  fallback.className = 'image-error-fallback absolute inset-0 flex flex-col items-center justify-center bg-muted/20 text-center p-4';
-                                  fallback.innerHTML = `
-                                    <svg class="w-12 h-12 text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <p class="text-xs text-muted-foreground">Image URL expired</p>
-                                    <p class="text-xs text-muted-foreground mt-1">Re-generate to get a new URL</p>
-                                  `;
-                                  container.appendChild(fallback);
-                                }
-                              }}
-                            />
+                            <ExpirationHoverPopup
+                              expiresAt={!isPro ? fileExpirations[job.id] : null}
+                              imageUrl={job.outputs[0]}
+                              fileName={`image-${job.id.slice(0, 8)}.png`}
+                            >
+                              <img
+                                src={job.outputs[0]}
+                                alt={job.options.prompt}
+                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                onError={(e) => {
+                                  const target = e.currentTarget;
+                                  target.style.display = 'none';
+                                  const container = target.parentElement?.parentElement;
+                                  if (container && !container.querySelector('.image-error-fallback')) {
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'image-error-fallback absolute inset-0 flex flex-col items-center justify-center bg-muted/20 text-center p-4';
+                                    fallback.innerHTML = `
+                                      <svg class="w-12 h-12 text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                      </svg>
+                                      <p class="text-xs text-muted-foreground">Image URL expired</p>
+                                      <p class="text-xs text-muted-foreground mt-1">Re-generate to get a new URL</p>
+                                    `;
+                                    container.appendChild(fallback);
+                                  }
+                                }}
+                              />
+                            </ExpirationHoverPopup>
                           )}
                           <Badge variant="secondary" className="absolute top-2 right-2 gap-1">
                             {getTypeIcon(job.options.type)} {job.options.type.toUpperCase()}
