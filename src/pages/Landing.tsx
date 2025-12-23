@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Film, Box, GraduationCap, Gamepad2, Printer, Glasses, Home, ChevronRight, Play, Zap, Layers, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
+import { useAuth } from "@/contexts/AuthContext";
 const useCategories = [
   { id: "film", label: "Film Production", icon: Film, color: "from-pink-500 to-rose-600" },
   { id: "product", label: "Product Design", icon: Box, color: "from-cyan-500 to-blue-600" },
@@ -64,6 +64,7 @@ const previewCards = [
 
 export default function Landing() {
   const [activeCategory, setActiveCategory] = useState("game");
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,14 +80,24 @@ export default function Landing() {
             <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
           </nav>
           <div className="flex items-center gap-3">
-            <Link to="/auth">
-              <Button variant="ghost" size="sm">Sign In</Button>
-            </Link>
-            <Link to="/create">
-              <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                Get Started
-              </Button>
-            </Link>
+            {user ? (
+              <Link to="/create">
+                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  Go to Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/auth">
+                  <Button variant="ghost" size="sm">Sign In</Button>
+                </Link>
+                <Link to="/create">
+                  <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    Get Started
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
