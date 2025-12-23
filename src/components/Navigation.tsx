@@ -18,7 +18,8 @@ import { LanguageTranslator } from './LanguageTranslator';
 
 export default function Navigation() {
   const { user, signOut } = useAuth();
-  const { tokenBalance, isAdmin } = useSubscription();
+  const { tokenBalance, isAdmin, subscription } = useSubscription();
+  const isPro = isAdmin || subscription?.status === 'active';
 
   const getInitials = (email: string) => {
     return email.slice(0, 2).toUpperCase();
@@ -67,16 +68,18 @@ export default function Navigation() {
                     <span className="hidden sm:inline">Gallery</span>
                   </Button>
                 </NavLink>
-                <NavLink
-                  to="/scenes"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                  activeClassName="text-primary"
-                >
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <Video className="w-4 h-4" />
-                    <span className="hidden sm:inline">Scenes</span>
-                  </Button>
-                </NavLink>
+                {isPro && (
+                  <NavLink
+                    to="/scenes"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    activeClassName="text-primary"
+                  >
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <Video className="w-4 h-4" />
+                      <span className="hidden sm:inline">Scenes</span>
+                    </Button>
+                  </NavLink>
+                )}
                 <NavLink
                   to="/pricing"
                   className="text-muted-foreground hover:text-foreground transition-colors"

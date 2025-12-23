@@ -36,7 +36,7 @@ const App = () => (
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<Landing />} />
-              <Route path="/create" element={<ProtectedRoute requireTokens><Index /></ProtectedRoute>} />
+              <Route path="/create" element={<ProtectedRoute skipSubscriptionCheck><Index /></ProtectedRoute>} />
               <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
               <Route path="/scenes" element={<ProtectedRoute><Scenes /></ProtectedRoute>} />
               <Route path="/movie" element={<MovieViewer />} />
