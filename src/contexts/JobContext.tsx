@@ -302,40 +302,82 @@ export function JobProvider({ children }: { children: ReactNode }) {
       try {
         setLoadError(null);
         
-        // Load jobs with pagination - only fetch essential fields to avoid large payloads
-        // For completed jobs, outputs field may contain large base64 data
-        const { data, error, count } = await supabase
+        // OPTIMIZATION: Load jobs metadata first WITHOUT the large outputs field
+        // This prevents timeouts caused by massive base64 data in outputs
+        const { data: metadataData, error: metadataError, count } = await supabase
           .from('jobs')
-          .select('id, user_id, type, status, prompt, negative_prompt, width, height, three_d_mode, duration, fps, video_mode, num_images, num_videos, upscale_video, progress_stage, progress_percent, progress_message, current_step, total_steps, eta, created_at, started_at, completed_at, error, manifest, outputs, compressed_outputs, seed, steps, cfg_scale, updated_at', { count: 'exact' })
+          .select('id, user_id, type, status, prompt, negative_prompt, width, height, three_d_mode, duration, fps, video_mode, num_images, num_videos, upscale_video, progress_stage, progress_percent, progress_message, current_step, total_steps, eta, created_at, started_at, completed_at, error, manifest, seed, steps, cfg_scale, updated_at', { count: 'exact' })
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(JOBS_PER_PAGE)
           .range(offset, offset + JOBS_PER_PAGE - 1);
 
-        if (error) {
-          console.error('Failed to load jobs:', error);
+        if (metadataError) {
+          console.error('Failed to load jobs metadata:', metadataError);
           
-          // Handle timeout errors with retry
-          if (error.code === '57014' && retryAttempt < MAX_RETRIES) {
+          if (metadataError.code === '57014' && retryAttempt < MAX_RETRIES) {
             console.log(`Query timeout, retrying... (${retryAttempt + 1}/${MAX_RETRIES})`);
             setRetryCount(retryAttempt + 1);
-            
-            // Exponential backoff: 2s, 4s, 8s
             const delay = 2000 * Math.pow(2, retryAttempt);
             await new Promise(resolve => setTimeout(resolve, delay));
-            
             return loadJobs(reset, retryAttempt + 1);
-          } else if (error.code === '57014') {
+          } else if (metadataError.code === '57014') {
             setLoadError('Database query timed out. Your database instance may need an upgrade for better performance.');
-            toast.error('Failed to load gallery. Database timeout - please upgrade your instance size.', {
-              duration: 5000,
-            });
+            toast.error('Failed to load gallery. Database timeout - please upgrade your instance size.', { duration: 5000 });
           } else {
             setLoadError('Failed to load job history');
             toast.error('Failed to load job history');
           }
           return;
         }
+
+        if (!metadataData || metadataData.length === 0) {
+          if (reset) {
+            setJobs([]);
+            setCurrentPage(1);
+          }
+          setHasMoreJobs(false);
+          return;
+        }
+
+        // Now load outputs separately for completed jobs only
+        // Filter to get only URL-based outputs (skip base64 which causes timeouts)
+        const completedJobIds = metadataData
+          .filter((j: any) => j.status === 'completed')
+          .map((j: any) => j.id);
+
+        let outputsMap: Record<string, string[]> = {};
+        
+        if (completedJobIds.length > 0) {
+          // Load outputs in smaller batches to avoid timeout
+          const BATCH_SIZE = 20;
+          for (let i = 0; i < completedJobIds.length; i += BATCH_SIZE) {
+            const batchIds = completedJobIds.slice(i, i + BATCH_SIZE);
+            const { data: outputsData, error: outputsError } = await supabase
+              .from('jobs')
+              .select('id, outputs, compressed_outputs')
+              .in('id', batchIds);
+            
+            if (!outputsError && outputsData) {
+              outputsData.forEach((job: any) => {
+                // Prefer compressed_outputs if available, otherwise use outputs
+                // Skip any outputs that are base64 (they're too large and should be migrated)
+                const outputs = job.compressed_outputs || job.outputs || [];
+                const validOutputs = Array.isArray(outputs) 
+                  ? outputs.filter((o: string) => typeof o === 'string' && o.startsWith('http'))
+                  : [];
+                outputsMap[job.id] = validOutputs;
+              });
+            }
+          }
+        }
+
+        // Merge metadata with outputs
+        const data = metadataData.map((job: any) => ({
+          ...job,
+          outputs: outputsMap[job.id] || [],
+          compressed_outputs: undefined, // Already merged into outputs
+        }));
 
         if (data) {
           const jobsWithDates: Job[] = data.map((dbJob: any) => ({
