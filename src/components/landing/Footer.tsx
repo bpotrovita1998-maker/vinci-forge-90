@@ -25,9 +25,9 @@ const footerLinks = {
   ],
   Legal: [
     { label: 'Terms of Service', href: '#' },
-    { label: 'Privacy Policy', href: '#' },
-    { label: 'Cookie Policy', href: '#' },
-    { label: 'GDPR', href: '#' },
+    { label: 'Privacy Policy', href: '/privacy' },
+    { label: 'Cookie Policy', href: '/privacy#cookies' },
+    { label: 'GDPR', href: '/privacy#gdpr' },
   ],
 };
 
@@ -99,10 +99,10 @@ export function Footer() {
             <Link to="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
               Terms
             </Link>
-            <Link to="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            <Link to="/privacy" className="text-sm text-muted-foreground hover:text-primary transition-colors">
               Privacy
             </Link>
-            <Link to="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            <Link to="/privacy" className="text-sm text-muted-foreground hover:text-primary transition-colors">
               Cookies
             </Link>
           </div>
