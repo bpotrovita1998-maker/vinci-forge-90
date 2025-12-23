@@ -20,6 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import ParticleBackground from '@/components/ParticleBackground';
 import { StorageUsage } from '@/components/StorageUsage';
 import { FreeUserExpirationBanner } from '@/components/FreeUserExpirationBanner';
+import { ExpirationCountdown } from '@/components/ExpirationCountdown';
+import { useSubscription } from '@/hooks/useSubscription';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,6 +65,9 @@ interface LongVideo {
 export default function Gallery() {
   const { jobs, deleteJob, loadMoreJobs, hasMoreJobs, isLoadingMore, loadError, retryLoadJobs, refreshJobs } = useJobs();
   const { user } = useAuth();
+  const { isAdmin, subscription } = useSubscription();
+  const isPro = isAdmin || subscription?.status === 'active';
+  
   const [galleryMode, setGalleryMode] = useState<'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes'>('all');
   const [selectedType, setSelectedType] = useState<JobType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,6 +81,9 @@ export default function Gallery() {
     completed: number;
     expiredCount: number;
   } | null>(null);
+  
+  // File expiration tracking for free users
+  const [fileExpirations, setFileExpirations] = useState<Record<string, string>>({});
   
   // Client-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -241,7 +249,33 @@ export default function Gallery() {
     if (!user) return;
     syncCompletedJobs();
     loadLongVideos();
+    loadFileExpirations();
   }, [user]);
+
+  // Load file expirations for free users
+  const loadFileExpirations = async () => {
+    if (!user || isPro) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_files')
+        .select('job_id, expires_at')
+        .eq('user_id', user.id)
+        .not('expires_at', 'is', null);
+
+      if (error) throw error;
+      
+      const expirations: Record<string, string> = {};
+      (data || []).forEach(file => {
+        if (file.job_id && file.expires_at) {
+          expirations[file.job_id] = file.expires_at;
+        }
+      });
+      setFileExpirations(expirations);
+    } catch (error) {
+      console.error('Error loading file expirations:', error);
+    }
+  };
 
   const loadLongVideos = async () => {
     if (!user) return;
@@ -596,7 +630,7 @@ export default function Gallery() {
           </motion.div>
 
           <div className="mb-6 space-y-4">
-            <FreeUserExpirationBanner />
+            <FreeUserExpirationBanner jobs={completedJobs} />
             <StorageUsage />
             
             {/* Bulk Regeneration Button */}
@@ -922,6 +956,12 @@ export default function Gallery() {
                           <Badge variant="secondary" className="absolute top-2 right-2 gap-1">
                             {getTypeIcon(job.options.type)} {job.options.type.toUpperCase()}
                           </Badge>
+                          {!isPro && fileExpirations[job.id] && (
+                            <ExpirationCountdown 
+                              expiresAt={fileExpirations[job.id]} 
+                              className="absolute top-2 left-2"
+                            />
+                          )}
                         </div>
                         <div className="p-4">
                           <p className="text-sm text-foreground line-clamp-2 mb-3">{job.options.prompt}</p>
