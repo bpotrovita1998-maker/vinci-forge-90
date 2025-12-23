@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown, FolderUp, Loader2 } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown, FolderUp, Loader2, Play } from 'lucide-react';
 import { GenerationOptions, JobType } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -17,6 +17,8 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { moderationService } from '@/services/moderationService';
 import { InputSanitizer } from '@/lib/inputSanitization';
 import { useMemory } from '@/hooks/useMemory';
+import { useAdGenerations } from '@/hooks/useAdGenerations';
+import { AdModalContext } from '@/pages/Index';
 import {
   Collapsible,
   CollapsibleContent,
@@ -80,6 +82,9 @@ export default function Hero() {
   const { submitJob } = useJobs();
   const { isAdmin, subscription, tokenBalance } = useSubscription();
   const { instructions, recordPattern, getPreference, savePreference, analyzeAndLearn } = useMemory();
+  const { canGenerate, needsAd, useGeneration, isPro: isAdPro, remaining: adRemaining } = useAdGenerations();
+  const adModalContext = useContext(AdModalContext);
+  
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showEnhancer, setShowEnhancer] = useState(false);
@@ -91,6 +96,7 @@ export default function Hero() {
   const [showFrameToFrame, setShowFrameToFrame] = useState(false);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showCharacterSection, setShowCharacterSection] = useState(false);
+  const [pendingGeneration, setPendingGeneration] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const startFrameInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +139,17 @@ export default function Hero() {
       }));
     }
   }, []);
+
+  // Auto-trigger generation after ad is watched
+  useEffect(() => {
+    if (pendingGeneration && canGenerate) {
+      setPendingGeneration(false);
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        handleGenerate();
+      }, 100);
+    }
+  }, [pendingGeneration, canGenerate]);
 
   // Apply custom instructions to prompt
   const applyCustomInstructions = (basePrompt: string): string => {
@@ -498,16 +515,35 @@ export default function Hero() {
       const isPro = isAdmin || subscription?.status === 'active';
       const requestedType = options.type || 'image';
       if (!isPro && requestedType !== 'image') {
+        setIsGenerating(false);
         toast({ title: 'Upgrade required', description: 'Upgrade to PRO subscription to enable this feature.', variant: 'destructive' });
         return;
       }
+      
+      // Check ad-based generations for free users
       if (!isPro && requestedType === 'image') {
-        const freeGranted = tokenBalance?.free_tokens_granted ?? 5;
-        const freeUsed = tokenBalance?.free_tokens_used ?? 0;
-        const remaining = Math.max(0, freeGranted - freeUsed);
-        const requested = options.numImages || 1;
-        if (remaining <= 0 || requested > remaining) {
-          toast({ title: 'Free limit reached', description: "You've used all 5 free images. Upgrade to PRO to continue.", variant: 'destructive' });
+        // First check if user has ad-based generations
+        if (!canGenerate) {
+          setIsGenerating(false);
+          // Show ad modal and set callback to retry generation
+          if (adModalContext) {
+            adModalContext.setAdWatchedCallback(() => {
+              setPendingGeneration(true);
+            });
+            adModalContext.showAdModal();
+          }
+          toast({ 
+            title: 'Watch ad to continue', 
+            description: 'Play a quick game to unlock 3 free image generations!',
+          });
+          return;
+        }
+        
+        // Use one ad generation
+        const used = useGeneration();
+        if (!used) {
+          setIsGenerating(false);
+          toast({ title: 'Generation failed', description: 'Could not use generation credit. Please try again.', variant: 'destructive' });
           return;
         }
       }
@@ -806,15 +842,34 @@ export default function Hero() {
             </div>
             
             <div className="flex flex-col gap-3">
-              <Button
-                size="lg"
-                onClick={handleGenerate}
-                disabled={(!prompt.trim() && uploadedImages.length === 0) || isGenerating}
-                className="w-full bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
-              >
-                <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-                {isGenerating ? 'Submitting...' : 'Generate'}
-              </Button>
+              {/* Generate button - shows different states based on ad availability */}
+              {needsAd && !isAdPro ? (
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    if (adModalContext) {
+                      adModalContext.setAdWatchedCallback(() => {
+                        setPendingGeneration(true);
+                      });
+                      adModalContext.showAdModal();
+                    }
+                  }}
+                  className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Play Game to Generate ({adRemaining} left)
+                </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  onClick={handleGenerate}
+                  disabled={(!prompt.trim() && uploadedImages.length === 0) || isGenerating}
+                  className="w-full bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
+                >
+                  <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
+                  {isGenerating ? 'Submitting...' : `Generate${!isAdPro && adRemaining > 0 ? ` (${adRemaining} left)` : ''}`}
+                </Button>
+              )}
 
               <Collapsible open={showEnhancer} onOpenChange={setShowEnhancer}>
                 <CollapsibleTrigger asChild>

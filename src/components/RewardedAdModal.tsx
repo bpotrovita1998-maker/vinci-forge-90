@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Gift, Sparkles, Timer, CheckCircle } from 'lucide-react';
+import { Play, Gift, Sparkles, Timer, CheckCircle, Gamepad2, Target, Trophy } from 'lucide-react';
 import { useAdGenerations } from '@/hooks/useAdGenerations';
 
 interface RewardedAdModalProps {
@@ -11,55 +11,146 @@ interface RewardedAdModalProps {
   onAdComplete: () => void;
 }
 
+// Simple target clicking game component
+function TargetGame({ onComplete }: { onComplete: () => void }) {
+  const [score, setScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(30);
+  const [targetPosition, setTargetPosition] = useState({ x: 50, y: 50 });
+  const [targetSize, setTargetSize] = useState(60);
+  const [combo, setCombo] = useState(0);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
+  const requiredScore = 10;
+
+  // Move target to random position
+  const moveTarget = useCallback(() => {
+    const newX = 10 + Math.random() * 80;
+    const newY = 10 + Math.random() * 80;
+    const newSize = 40 + Math.random() * 30;
+    setTargetPosition({ x: newX, y: newY });
+    setTargetSize(newSize);
+  }, []);
+
+  // Handle target click
+  const handleTargetClick = () => {
+    setScore(prev => prev + 1 + Math.floor(combo / 3));
+    setCombo(prev => prev + 1);
+    moveTarget();
+  };
+
+  // Timer countdown
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      onComplete();
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft, onComplete]);
+
+  // Check if score requirement met
+  useEffect(() => {
+    if (score >= requiredScore && timeLeft > 0) {
+      onComplete();
+    }
+  }, [score, timeLeft, onComplete, requiredScore]);
+
+  // Reset combo if no click for 2 seconds
+  useEffect(() => {
+    const comboTimer = setTimeout(() => {
+      setCombo(0);
+    }, 2000);
+
+    return () => clearTimeout(comboTimer);
+  }, [score]);
+
+  return (
+    <div className="space-y-4">
+      {/* Game stats */}
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-yellow-500" />
+          <span className="font-bold text-lg">{score}/{requiredScore}</span>
+          {combo > 2 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full"
+            >
+              x{combo} combo!
+            </motion.span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Timer className="w-4 h-4 text-muted-foreground" />
+          <span className={`font-mono ${timeLeft <= 10 ? 'text-red-500' : ''}`}>
+            {timeLeft}s
+          </span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <motion.div
+          className="h-full bg-gradient-to-r from-primary to-green-500"
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(100, (score / requiredScore) * 100)}%` }}
+        />
+      </div>
+
+      {/* Game area */}
+      <div
+        ref={gameAreaRef}
+        className="relative w-full aspect-video bg-gradient-to-br from-primary/5 to-accent/5 rounded-lg overflow-hidden border border-border cursor-crosshair"
+      >
+        {/* Target */}
+        <motion.button
+          onClick={handleTargetClick}
+          className="absolute transform -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-red-500 to-orange-500 shadow-lg hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-primary"
+          style={{
+            left: `${targetPosition.x}%`,
+            top: `${targetPosition.y}%`,
+            width: targetSize,
+            height: targetSize,
+          }}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          whileTap={{ scale: 0.8 }}
+        >
+          <Target className="w-full h-full p-2 text-white" />
+        </motion.button>
+
+        {/* Click effects */}
+        <div className="absolute inset-0 pointer-events-none">
+          <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-muted-foreground">
+            Click the targets! Reach {requiredScore} points to unlock generations
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: RewardedAdModalProps) {
   const { grantGenerations, generationsPerAd } = useAdGenerations();
-  const [adState, setAdState] = useState<'ready' | 'watching' | 'complete'>('ready');
-  const [countdown, setCountdown] = useState(5);
-  const [adProgress, setAdProgress] = useState(0);
+  const [adState, setAdState] = useState<'ready' | 'playing' | 'complete'>('ready');
 
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
       setAdState('ready');
-      setCountdown(5);
-      setAdProgress(0);
     }
   }, [open]);
 
-  // Simulate ad watching (replace with real ad SDK)
-  const startWatchingAd = useCallback(() => {
-    setAdState('watching');
-    setCountdown(5);
-    setAdProgress(0);
+  const startGame = () => {
+    setAdState('playing');
+  };
 
-    // Simulate ad progress
-    const progressInterval = setInterval(() => {
-      setAdProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 2;
-      });
-    }, 100);
-
-    // Countdown timer
-    const countdownInterval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval);
-          clearInterval(progressInterval);
-          setAdState('complete');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      clearInterval(progressInterval);
-      clearInterval(countdownInterval);
-    };
+  const handleGameComplete = useCallback(() => {
+    setAdState('complete');
   }, []);
 
   const handleClaimReward = () => {
@@ -69,19 +160,23 @@ export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: Re
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      // Only allow closing if not in the middle of playing
+      if (!isOpen && adState === 'playing') return;
+      onOpenChange(isOpen);
+    }}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Gift className="w-5 h-5 text-primary" />
-            Watch Ad for Free Generations
+            <Gamepad2 className="w-5 h-5 text-primary" />
+            Play to Unlock Free Generations
           </DialogTitle>
           <DialogDescription>
-            Watch a short ad to unlock {generationsPerAd} free image generations
+            Play a quick 30-second game to unlock {generationsPerAd} free image generations
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-6">
+        <div className="py-4">
           <AnimatePresence mode="wait">
             {adState === 'ready' && (
               <motion.div
@@ -92,9 +187,9 @@ export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: Re
                 className="text-center space-y-6"
               >
                 <div className="relative w-32 h-32 mx-auto">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full" />
-                  <div className="absolute inset-4 bg-gradient-to-br from-primary/30 to-primary/10 rounded-full flex items-center justify-center">
-                    <Play className="w-12 h-12 text-primary" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full animate-pulse" />
+                  <div className="absolute inset-4 bg-gradient-to-br from-primary/30 to-accent/30 rounded-full flex items-center justify-center">
+                    <Gamepad2 className="w-12 h-12 text-primary" />
                   </div>
                 </div>
 
@@ -103,56 +198,39 @@ export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: Re
                     Get <span className="text-primary">{generationsPerAd} free</span> generations!
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Watch a 5-second ad to continue creating
+                    Play a quick target-clicking game (30 seconds max)
                   </p>
                 </div>
 
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <p className="text-sm font-medium">How to play:</p>
+                  <ul className="text-xs text-muted-foreground space-y-1 text-left">
+                    <li>• Click the red targets as fast as you can</li>
+                    <li>• Reach 10 points to win instantly</li>
+                    <li>• Build combos for bonus points</li>
+                    <li>• Complete within 30 seconds</li>
+                  </ul>
+                </div>
+
                 <Button 
-                  onClick={startWatchingAd} 
+                  onClick={startGame} 
                   className="w-full gap-2"
                   size="lg"
                 >
                   <Play className="w-4 h-4" />
-                  Watch Ad
+                  Start Game
                 </Button>
               </motion.div>
             )}
 
-            {adState === 'watching' && (
+            {adState === 'playing' && (
               <motion.div
-                key="watching"
+                key="playing"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="text-center space-y-6"
               >
-                {/* Ad placeholder - replace with actual ad content */}
-                <div className="relative bg-muted rounded-lg overflow-hidden aspect-video">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center space-y-2">
-                      <div className="w-16 h-16 mx-auto rounded-full bg-primary/20 flex items-center justify-center">
-                        <Sparkles className="w-8 h-8 text-primary animate-pulse" />
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Ad playing...
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Progress bar */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted-foreground/20">
-                    <motion.div
-                      className="h-full bg-primary"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${adProgress}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                  <Timer className="w-4 h-4" />
-                  <span>Reward in {countdown}s...</span>
-                </div>
+                <TargetGame onComplete={handleGameComplete} />
               </motion.div>
             )}
 
@@ -175,10 +253,10 @@ export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: Re
 
                 <div className="space-y-2">
                   <p className="text-xl font-semibold text-green-500">
-                    Ad Complete!
+                    Game Complete!
                   </p>
                   <p className="text-muted-foreground">
-                    You've earned {generationsPerAd} free image generations
+                    You have earned {generationsPerAd} free image generations
                   </p>
                 </div>
 
