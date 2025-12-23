@@ -514,8 +514,37 @@ export default function Hero() {
       
       setIsGenerating(true);
       
-      // Apply custom instructions to prompt
-      const enhancedPrompt = applyCustomInstructions(sanitizationResult.sanitized);
+      // Translate prompt to English if needed (supports all languages)
+      let translatedPrompt = sanitizationResult.sanitized;
+      try {
+        const translateResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/translate-prompt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ prompt: sanitizationResult.sanitized }),
+        });
+        
+        if (translateResponse.ok) {
+          const translateData = await translateResponse.json();
+          translatedPrompt = translateData.translatedPrompt || sanitizationResult.sanitized;
+          
+          if (translateData.wasTranslated) {
+            console.log('Prompt translated from user language to English');
+            toast({
+              title: "Prompt translated",
+              description: "Your prompt was translated to English for better AI understanding",
+            });
+          }
+        }
+      } catch (translateError) {
+        console.warn('Translation failed, using original prompt:', translateError);
+        // Continue with original prompt if translation fails
+      }
+      
+      // Apply custom instructions to translated prompt
+      const enhancedPrompt = applyCustomInstructions(translatedPrompt);
       
       const fullOptions: GenerationOptions = {
         prompt: enhancedPrompt,
