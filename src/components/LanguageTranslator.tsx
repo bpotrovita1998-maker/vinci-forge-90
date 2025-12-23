@@ -6,6 +6,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 
 declare global {
@@ -27,28 +29,65 @@ declare global {
   }
 }
 
+const LANGUAGE_STORAGE_KEY = 'vinci-language-preference';
+
 const POPULAR_LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-  { code: 'it', name: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', name: 'Português', flag: '🇵🇹' },
-  { code: 'ro', name: 'Română', flag: '🇷🇴' },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-  { code: 'zh-CN', name: '中文', flag: '🇨🇳' },
-  { code: 'ja', name: '日本語', flag: '🇯🇵' },
-  { code: 'ko', name: '한국어', flag: '🇰🇷' },
-  { code: 'ar', name: 'العربية', flag: '🇸🇦' },
-  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳' },
-  { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
-  { code: 'pl', name: 'Polski', flag: '🇵🇱' },
-  { code: 'nl', name: 'Nederlands', flag: '🇳🇱' },
+  { code: 'en', name: 'English', flag: '🇺🇸', region: 'popular' },
+  { code: 'es', name: 'Español', flag: '🇪🇸', region: 'popular' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷', region: 'popular' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪', region: 'popular' },
+  { code: 'it', name: 'Italiano', flag: '🇮🇹', region: 'popular' },
+  { code: 'pt', name: 'Português', flag: '🇵🇹', region: 'popular' },
+  { code: 'ro', name: 'Română', flag: '🇷🇴', region: 'popular' },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺', region: 'popular' },
+  { code: 'zh-CN', name: '中文 (简体)', flag: '🇨🇳', region: 'popular' },
+  { code: 'zh-TW', name: '中文 (繁體)', flag: '🇹🇼', region: 'popular' },
+  { code: 'ja', name: '日本語', flag: '🇯🇵', region: 'popular' },
+  { code: 'ko', name: '한국어', flag: '🇰🇷', region: 'popular' },
+  // Nordic languages
+  { code: 'sv', name: 'Svenska', flag: '🇸🇪', region: 'nordic' },
+  { code: 'no', name: 'Norsk', flag: '🇳🇴', region: 'nordic' },
+  { code: 'da', name: 'Dansk', flag: '🇩🇰', region: 'nordic' },
+  { code: 'fi', name: 'Suomi', flag: '🇫🇮', region: 'nordic' },
+  { code: 'is', name: 'Íslenska', flag: '🇮🇸', region: 'nordic' },
+  // Other European
+  { code: 'nl', name: 'Nederlands', flag: '🇳🇱', region: 'europe' },
+  { code: 'pl', name: 'Polski', flag: '🇵🇱', region: 'europe' },
+  { code: 'cs', name: 'Čeština', flag: '🇨🇿', region: 'europe' },
+  { code: 'sk', name: 'Slovenčina', flag: '🇸🇰', region: 'europe' },
+  { code: 'hu', name: 'Magyar', flag: '🇭🇺', region: 'europe' },
+  { code: 'el', name: 'Ελληνικά', flag: '🇬🇷', region: 'europe' },
+  { code: 'bg', name: 'Български', flag: '🇧🇬', region: 'europe' },
+  { code: 'uk', name: 'Українська', flag: '🇺🇦', region: 'europe' },
+  { code: 'hr', name: 'Hrvatski', flag: '🇭🇷', region: 'europe' },
+  { code: 'sr', name: 'Српски', flag: '🇷🇸', region: 'europe' },
+  // Middle East & Asia
+  { code: 'ar', name: 'العربية', flag: '🇸🇦', region: 'asia' },
+  { code: 'he', name: 'עברית', flag: '🇮🇱', region: 'asia' },
+  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', region: 'asia' },
+  { code: 'bn', name: 'বাংলা', flag: '🇧🇩', region: 'asia' },
+  { code: 'th', name: 'ไทย', flag: '🇹🇭', region: 'asia' },
+  { code: 'vi', name: 'Tiếng Việt', flag: '🇻🇳', region: 'asia' },
+  { code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩', region: 'asia' },
+  { code: 'ms', name: 'Bahasa Melayu', flag: '🇲🇾', region: 'asia' },
+  { code: 'tl', name: 'Filipino', flag: '🇵🇭', region: 'asia' },
+  { code: 'tr', name: 'Türkçe', flag: '🇹🇷', region: 'asia' },
 ];
 
 export function LanguageTranslator() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentLang, setCurrentLang] = useState<typeof POPULAR_LANGUAGES[0]>(POPULAR_LANGUAGES[0]);
+
+  // Load saved language preference on mount
+  useEffect(() => {
+    const savedLangCode = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (savedLangCode) {
+      const savedLang = POPULAR_LANGUAGES.find(l => l.code === savedLangCode);
+      if (savedLang) {
+        setCurrentLang(savedLang);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     // Check if script already exists
@@ -75,6 +114,14 @@ export function LanguageTranslator() {
           'google_translate_element'
         );
         setIsLoaded(true);
+        
+        // Apply saved language preference after initialization
+        const savedLangCode = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+        if (savedLangCode && savedLangCode !== 'en') {
+          setTimeout(() => {
+            applyTranslation(savedLangCode);
+          }, 500);
+        }
       }
     };
 
@@ -89,24 +136,8 @@ export function LanguageTranslator() {
     };
   }, []);
 
-  const translateTo = (langCode: string) => {
-    const lang = POPULAR_LANGUAGES.find(l => l.code === langCode);
-    if (lang) setCurrentLang(lang);
-
-    // Trigger Google Translate
-    const frame = document.querySelector('.goog-te-menu-frame') as HTMLIFrameElement;
-    if (frame) {
-      const frameDoc = frame.contentDocument || frame.contentWindow?.document;
-      if (frameDoc) {
-        const langLink = frameDoc.querySelector(`a[href*="setLang=${langCode}"]`) as HTMLAnchorElement;
-        if (langLink) {
-          langLink.click();
-          return;
-        }
-      }
-    }
-
-    // Alternative: Set cookie and reload (more reliable)
+  const applyTranslation = (langCode: string) => {
+    // Set cookies for Google Translate
     const cookieValue = langCode === 'en' ? '' : `/en/${langCode}`;
     document.cookie = `googtrans=${cookieValue}; path=/`;
     document.cookie = `googtrans=${cookieValue}; path=/; domain=${window.location.hostname}`;
@@ -118,6 +149,22 @@ export function LanguageTranslator() {
       select.dispatchEvent(new Event('change'));
     }
   };
+
+  const translateTo = (langCode: string) => {
+    const lang = POPULAR_LANGUAGES.find(l => l.code === langCode);
+    if (lang) {
+      setCurrentLang(lang);
+      // Save preference to localStorage
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, langCode);
+    }
+
+    applyTranslation(langCode);
+  };
+
+  const popularLangs = POPULAR_LANGUAGES.filter(l => l.region === 'popular');
+  const nordicLangs = POPULAR_LANGUAGES.filter(l => l.region === 'nordic');
+  const europeLangs = POPULAR_LANGUAGES.filter(l => l.region === 'europe');
+  const asiaLangs = POPULAR_LANGUAGES.filter(l => l.region === 'asia');
 
   return (
     <>
@@ -138,8 +185,48 @@ export function LanguageTranslator() {
             <ChevronDown className="w-3 h-3" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-          {POPULAR_LANGUAGES.map((lang) => (
+        <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto w-48 bg-popover border border-border z-50">
+          <DropdownMenuLabel className="text-xs text-muted-foreground">Popular</DropdownMenuLabel>
+          {popularLangs.map((lang) => (
+            <DropdownMenuItem
+              key={lang.code}
+              onClick={() => translateTo(lang.code)}
+              className="gap-2 cursor-pointer"
+            >
+              <span>{lang.flag}</span>
+              <span>{lang.name}</span>
+            </DropdownMenuItem>
+          ))}
+          
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs text-muted-foreground">Nordic</DropdownMenuLabel>
+          {nordicLangs.map((lang) => (
+            <DropdownMenuItem
+              key={lang.code}
+              onClick={() => translateTo(lang.code)}
+              className="gap-2 cursor-pointer"
+            >
+              <span>{lang.flag}</span>
+              <span>{lang.name}</span>
+            </DropdownMenuItem>
+          ))}
+          
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs text-muted-foreground">Europe</DropdownMenuLabel>
+          {europeLangs.map((lang) => (
+            <DropdownMenuItem
+              key={lang.code}
+              onClick={() => translateTo(lang.code)}
+              className="gap-2 cursor-pointer"
+            >
+              <span>{lang.flag}</span>
+              <span>{lang.name}</span>
+            </DropdownMenuItem>
+          ))}
+          
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-xs text-muted-foreground">Asia & Middle East</DropdownMenuLabel>
+          {asiaLangs.map((lang) => (
             <DropdownMenuItem
               key={lang.code}
               onClick={() => translateTo(lang.code)}
