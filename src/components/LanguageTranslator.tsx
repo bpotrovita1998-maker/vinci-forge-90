@@ -10,9 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const LANGUAGE_STORAGE_KEY = 'vinci-language-preference';
 const RELOAD_GUARD_KEY = 'vinci-gt-reload-once';
+const PREFERENCE_KEY = 'preferred_language';
 
 const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇺🇸', region: 'popular' },
@@ -74,10 +77,8 @@ function setGoogTransCookie(langCode: string) {
 }
 
 function ensureTranslateScriptLoaded() {
-  // Inject once
   if (document.getElementById('google-translate-script')) return;
 
-  // styles (hide UI, keep translation behavior)
   if (!document.getElementById('google-translate-styles')) {
     const style = document.createElement('style');
     style.id = 'google-translate-styles';
@@ -98,7 +99,6 @@ function ensureTranslateScriptLoaded() {
     document.head.appendChild(style);
   }
 
-  // container
   if (!document.getElementById('google_translate_element')) {
     const container = document.createElement('div');
     container.id = 'google_translate_element';
@@ -140,8 +140,10 @@ function setReloadGuard(next: Record<string, true>) {
 
 export function LanguageTranslator() {
   const location = useLocation();
+  const { user } = useAuth();
   const [currentLang, setCurrentLang] = useState<Lang>(LANGUAGES[0]);
   const lastPathRef = useRef(location.pathname);
+  const hasFetchedFromDb = useRef(false);
 
   const grouped = useMemo(() => {
     return {
@@ -157,16 +159,54 @@ export function LanguageTranslator() {
     ensureTranslateScriptLoaded();
   }, []);
 
-  // Restore preference + ensure cookie
+  // Load preference from DB (if logged in) or localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
-    const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === saved) || LANGUAGES[0];
-    setCurrentLang(lang);
-    setGoogTransCookie(lang.code);
-  }, []);
+    const loadPreference = async () => {
+      let langCode = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
 
-  // SPA navigation: Google Translate won't re-translate new DOM reliably.
-  // So we perform a single hard reload per route (guarded), preserving auth session.
+      // If user is logged in, try to get from database
+      if (user && !hasFetchedFromDb.current) {
+        hasFetchedFromDb.current = true;
+        
+        const { data } = await supabase
+          .from('user_preferences')
+          .select('preference_value')
+          .eq('user_id', user.id)
+          .eq('preference_key', PREFERENCE_KEY)
+          .maybeSingle();
+
+        if (data?.preference_value) {
+          const dbLangCode = (data.preference_value as { code?: string })?.code;
+          if (dbLangCode) {
+            langCode = dbLangCode;
+            // Sync to localStorage
+            localStorage.setItem(LANGUAGE_STORAGE_KEY, langCode);
+          }
+        } else {
+          // No DB preference yet, save current localStorage value to DB
+          const currentLocal = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+          if (currentLocal && currentLocal !== 'en') {
+            await supabase.from('user_preferences').upsert({
+              user_id: user.id,
+              preference_key: PREFERENCE_KEY,
+              preference_type: 'language',
+              preference_value: { code: currentLocal },
+            }, {
+              onConflict: 'user_id,preference_key',
+            });
+          }
+        }
+      }
+
+      const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
+      setCurrentLang(lang);
+      setGoogTransCookie(lang.code);
+    };
+
+    loadPreference();
+  }, [user]);
+
+  // SPA navigation: reload once per route to apply translation
   useEffect(() => {
     if (lastPathRef.current === location.pathname) return;
     lastPathRef.current = location.pathname;
@@ -174,7 +214,6 @@ export function LanguageTranslator() {
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
     if (saved === 'en') return;
 
-    // ensure cookie is present for the new page load
     setGoogTransCookie(saved);
 
     const guard = getReloadGuard();
@@ -183,19 +222,28 @@ export function LanguageTranslator() {
     guard[key] = true;
     setReloadGuard(guard);
 
-    // slight delay to allow route update to settle
     const t = setTimeout(() => window.location.reload(), 50);
     return () => clearTimeout(t);
   }, [location.pathname]);
 
-  const translateTo = (langCode: string) => {
+  const translateTo = async (langCode: string) => {
     const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
     setCurrentLang(lang);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, lang.code);
 
-    // clear reload guard so next pages can reload once under the new language
-    sessionStorage.removeItem(RELOAD_GUARD_KEY);
+    // Save to database if logged in
+    if (user) {
+      await supabase.from('user_preferences').upsert({
+        user_id: user.id,
+        preference_key: PREFERENCE_KEY,
+        preference_type: 'language',
+        preference_value: { code: lang.code },
+      }, {
+        onConflict: 'user_id,preference_key',
+      });
+    }
 
+    sessionStorage.removeItem(RELOAD_GUARD_KEY);
     setGoogTransCookie(lang.code);
     window.location.reload();
   };
