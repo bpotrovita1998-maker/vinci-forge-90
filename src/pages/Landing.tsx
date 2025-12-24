@@ -1,11 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Film, Box, GraduationCap, Gamepad2, Printer, Glasses, Home, ChevronRight, Play, Zap, Layers, Wand2 } from "lucide-react";
+import { Sparkles, Film, Box, GraduationCap, Gamepad2, Printer, Glasses, Home, ChevronRight, Play, Zap, Layers, Wand2, Star, Quote, ChevronDown, BookOpen, ArrowRight, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import AdBanner from "@/components/AdBanner";
 import { useSubscription } from "@/hooks/useSubscription";
+import { Card } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 const useCategories = [
   { id: "film", label: "Film Production", icon: Film, color: "from-pink-500 to-rose-600" },
   { id: "product", label: "Product Design", icon: Box, color: "from-cyan-500 to-blue-600" },
@@ -62,6 +69,98 @@ const previewCards = [
   { color: "from-pink-400 to-rose-600", innerColor: "bg-pink-300/30" },
   { color: "from-purple-400 to-violet-600", innerColor: "bg-purple-300/30" },
   { color: "from-amber-400 to-yellow-600", innerColor: "bg-amber-300/30" },
+];
+
+// Testimonials data
+const testimonials = [
+  {
+    quote: "VinciAI has completely transformed our product visualization workflow. What used to take days now takes minutes.",
+    author: "Jennifer Martinez",
+    role: "Product Designer at DesignCo",
+    rating: 5,
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jennifer"
+  },
+  {
+    quote: "As a game developer, I can now prototype character models in seconds. It's like having a 3D artist on demand.",
+    author: "Marcus Chen",
+    role: "Indie Game Developer",
+    rating: 5,
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus"
+  },
+  {
+    quote: "The quality of the 3D models is incredible. Our clients are always impressed with the results.",
+    author: "Sarah Thompson",
+    role: "Architect at BuildStudio",
+    rating: 5,
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah"
+  },
+  {
+    quote: "We've reduced our content production costs by 70% since switching to VinciAI. Absolutely game-changing.",
+    author: "David Kim",
+    role: "Marketing Director at TechStart",
+    rating: 5,
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=David"
+  }
+];
+
+// FAQ data
+const faqs = [
+  {
+    question: "What types of content can I create with VinciAI?",
+    answer: "VinciAI supports multiple content types including high-quality images, videos, 3D models (GLB, OBJ, FBX), and CAD-ready files for manufacturing. You can generate everything from product visualizations to game assets and architectural models."
+  },
+  {
+    question: "Do I need any technical experience to use VinciAI?",
+    answer: "Not at all! VinciAI is designed to be user-friendly for everyone. Simply describe what you want to create in plain language, and our AI will generate it for you. No coding, 3D modeling, or design experience required."
+  },
+  {
+    question: "How long does it take to generate content?",
+    answer: "Most content is generated within seconds to a few minutes, depending on complexity. Simple images take just a few seconds, while detailed 3D models may take 1-2 minutes. Video generation typically takes 2-5 minutes."
+  },
+  {
+    question: "Can I use the generated content commercially?",
+    answer: "Yes! All content you generate with VinciAI is yours to use commercially. Pro and Enterprise users get full commercial rights with no attribution required."
+  },
+  {
+    question: "What file formats are supported for 3D models?",
+    answer: "We support all major 3D formats including GLB/GLTF, OBJ, FBX, STL (for 3D printing), and USDZ (for AR). You can easily export to your preferred format directly from the platform."
+  },
+  {
+    question: "Is there a free tier available?",
+    answer: "Yes! We offer a generous free tier with daily credits that refresh automatically. Free users can create images, videos, and 3D models with some limitations. Upgrade to Pro for unlimited access and additional features."
+  },
+  {
+    question: "How does VinciAI ensure content quality?",
+    answer: "Our AI models are trained on millions of high-quality assets and continuously improved. We also offer upscaling and enhancement tools to ensure your content meets professional standards."
+  }
+];
+
+// Blog posts data
+const blogPosts = [
+  {
+    title: "How AI is Revolutionizing 3D Content Creation",
+    excerpt: "Discover how artificial intelligence is transforming the way designers, developers, and creators work with 3D content.",
+    category: "Industry Trends",
+    date: "Dec 20, 2024",
+    readTime: "5 min read",
+    image: "from-violet-500 to-purple-600"
+  },
+  {
+    title: "10 Tips for Better AI-Generated 3D Models",
+    excerpt: "Learn the best practices for writing prompts and getting the most out of AI-powered 3D generation tools.",
+    category: "Tutorial",
+    date: "Dec 18, 2024",
+    readTime: "8 min read",
+    image: "from-cyan-500 to-blue-600"
+  },
+  {
+    title: "From Text to Game Asset: A Developer's Guide",
+    excerpt: "A step-by-step guide for game developers looking to integrate AI-generated assets into their workflow.",
+    category: "Guide",
+    date: "Dec 15, 2024",
+    readTime: "12 min read",
+    image: "from-emerald-500 to-green-600"
+  }
 ];
 
 export default function Landing() {
@@ -319,6 +418,60 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Testimonials Section */}
+      <section className="py-20 px-6">
+        <div className="container mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl md:text-5xl font-bold text-foreground mb-4">
+              Loved by Creators Worldwide
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Join thousands of designers, developers, and creators who trust VinciAI for their projects.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {testimonials.map((testimonial, index) => (
+              <motion.div
+                key={testimonial.author}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card className="glass border-border/30 p-6 h-full flex flex-col">
+                  <div className="flex gap-1 mb-4">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                    ))}
+                  </div>
+                  <Quote className="w-8 h-8 text-primary/30 mb-3" />
+                  <p className="text-sm text-muted-foreground flex-grow mb-4 italic">
+                    "{testimonial.quote}"
+                  </p>
+                  <div className="flex items-center gap-3 pt-4 border-t border-border/30">
+                    <img 
+                      src={testimonial.avatar} 
+                      alt={testimonial.author}
+                      className="w-10 h-10 rounded-full bg-muted"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{testimonial.author}</p>
+                      <p className="text-xs text-muted-foreground">{testimonial.role}</p>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Ad Banner for Free Users - Placed between content sections */}
       {!isPro && (
         <section className="py-8 px-6">
@@ -326,7 +479,7 @@ export default function Landing() {
             <AdBanner 
               format="horizontal" 
               pageType="content"
-              contentItemCount={7} // We have 7 use case categories as content
+              contentItemCount={testimonials.length + faqs.length + blogPosts.length}
               minContentItems={1}
               className="w-full max-w-3xl"
             />
@@ -334,8 +487,115 @@ export default function Landing() {
         </section>
       )}
 
-      {/* CTA Section */}
+      {/* FAQ Section */}
+      <section className="py-20 px-6 bg-muted/20">
+        <div className="container mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-3xl md:text-5xl font-bold text-foreground mb-4">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Everything you need to know about VinciAI.
+            </p>
+          </motion.div>
+
+          <div className="max-w-3xl mx-auto">
+            <Accordion type="single" collapsible className="space-y-4">
+              {faqs.map((faq, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <AccordionItem 
+                    value={`item-${index}`}
+                    className="bg-card border border-border/50 rounded-xl px-6 data-[state=open]:border-primary/30"
+                  >
+                    <AccordionTrigger className="text-left text-foreground hover:no-underline py-5">
+                      <span className="font-medium">{faq.question}</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="text-muted-foreground pb-5">
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                </motion.div>
+              ))}
+            </Accordion>
+          </div>
+        </div>
+      </section>
+
+      {/* Blog Section */}
       <section className="py-20 px-6">
+        <div className="container mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="flex flex-col md:flex-row items-center justify-between mb-12"
+          >
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+                Latest from Our Blog
+              </h2>
+              <p className="text-muted-foreground">
+                Insights, tutorials, and updates from the VinciAI team.
+              </p>
+            </div>
+            <Link to="/about" className="mt-4 md:mt-0">
+              <Button variant="outline" className="gap-2">
+                View All Posts <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {blogPosts.map((post, index) => (
+              <motion.div
+                key={post.title}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card className="glass border-border/30 overflow-hidden group cursor-pointer hover:border-primary/30 transition-all">
+                  <div className={`h-40 bg-gradient-to-br ${post.image} flex items-center justify-center`}>
+                    <BookOpen className="w-12 h-12 text-white/50" />
+                  </div>
+                  <div className="p-6">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
+                        {post.category}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{post.readTime}</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
+                      {post.title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {post.excerpt}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{post.date}</span>
+                      <ArrowRight className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 px-6 bg-muted/20">
         <div className="container mx-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -360,21 +620,56 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-6 border-t border-border/50">
+      <footer className="py-16 px-6 border-t border-border/50 bg-card/30">
         <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-foreground">VinciAI</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+            {/* Brand Column */}
+            <div className="col-span-2 md:col-span-1">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="h-6 w-6 text-primary" />
+                <span className="text-xl font-bold text-foreground">VinciAI</span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                The world's most intuitive AI-powered 3D content creation platform.
+              </p>
             </div>
-            <div className="flex items-center gap-8 text-sm text-muted-foreground">
-              <Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
-              <Link to="/gallery" className="hover:text-foreground transition-colors">Gallery</Link>
-              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
+
+            {/* Product Column */}
+            <div>
+              <h4 className="font-semibold text-foreground mb-4">Product</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><Link to="/create" className="hover:text-foreground transition-colors">Create</Link></li>
+                <li><Link to="/gallery" className="hover:text-foreground transition-colors">Gallery</Link></li>
+                <li><Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
+              </ul>
             </div>
+
+            {/* Company Column */}
+            <div>
+              <h4 className="font-semibold text-foreground mb-4">Company</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><Link to="/about" className="hover:text-foreground transition-colors">About Us</Link></li>
+                <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
+              </ul>
+            </div>
+
+            {/* Legal Column */}
+            <div>
+              <h4 className="font-semibold text-foreground mb-4">Legal</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom Bar */}
+          <div className="pt-8 border-t border-border/30 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 VinciAI. All rights reserved.
+              © {new Date().getFullYear()} VinciAI. All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Made with <span className="text-primary">♥</span> for creators worldwide
             </p>
           </div>
         </div>
