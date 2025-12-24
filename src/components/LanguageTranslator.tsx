@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Globe, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const LANGUAGE_STORAGE_KEY = 'vinci-language-preference';
+const RELOAD_GUARD_KEY = 'vinci-gt-reload-once';
 
-const POPULAR_LANGUAGES = [
+const LANGUAGES = [
   { code: 'en', name: 'English', flag: '🇺🇸', region: 'popular' },
   { code: 'es', name: 'Español', flag: '🇪🇸', region: 'popular' },
   { code: 'fr', name: 'Français', flag: '🇫🇷', region: 'popular' },
@@ -26,13 +27,13 @@ const POPULAR_LANGUAGES = [
   { code: 'zh-TW', name: '中文 (繁體)', flag: '🇹🇼', region: 'popular' },
   { code: 'ja', name: '日本語', flag: '🇯🇵', region: 'popular' },
   { code: 'ko', name: '한국어', flag: '🇰🇷', region: 'popular' },
-  // Nordic languages
+  // Nordic
   { code: 'sv', name: 'Svenska', flag: '🇸🇪', region: 'nordic' },
   { code: 'no', name: 'Norsk', flag: '🇳🇴', region: 'nordic' },
   { code: 'da', name: 'Dansk', flag: '🇩🇰', region: 'nordic' },
   { code: 'fi', name: 'Suomi', flag: '🇫🇮', region: 'nordic' },
   { code: 'is', name: 'Íslenska', flag: '🇮🇸', region: 'nordic' },
-  // Other European
+  // Europe
   { code: 'nl', name: 'Nederlands', flag: '🇳🇱', region: 'europe' },
   { code: 'pl', name: 'Polski', flag: '🇵🇱', region: 'europe' },
   { code: 'cs', name: 'Čeština', flag: '🇨🇿', region: 'europe' },
@@ -43,7 +44,7 @@ const POPULAR_LANGUAGES = [
   { code: 'uk', name: 'Українська', flag: '🇺🇦', region: 'europe' },
   { code: 'hr', name: 'Hrvatski', flag: '🇭🇷', region: 'europe' },
   { code: 'sr', name: 'Српски', flag: '🇷🇸', region: 'europe' },
-  // Middle East & Asia
+  // Asia & Middle East
   { code: 'ar', name: 'العربية', flag: '🇸🇦', region: 'asia' },
   { code: 'he', name: 'עברית', flag: '🇮🇱', region: 'asia' },
   { code: 'hi', name: 'हिन्दी', flag: '🇮🇳', region: 'asia' },
@@ -54,193 +55,157 @@ const POPULAR_LANGUAGES = [
   { code: 'ms', name: 'Bahasa Melayu', flag: '🇲🇾', region: 'asia' },
   { code: 'tl', name: 'Filipino', flag: '🇵🇭', region: 'asia' },
   { code: 'tr', name: 'Türkçe', flag: '🇹🇷', region: 'asia' },
-];
+] as const;
 
-export function LanguageTranslator() {
-  const [currentLang, setCurrentLang] = useState<typeof POPULAR_LANGUAGES[0]>(POPULAR_LANGUAGES[0]);
-  const isInitializedRef = useRef(false);
-  const location = useLocation();
-  const lastPathRef = useRef(location.pathname);
+type Lang = (typeof LANGUAGES)[number];
 
-  // Function to trigger Google Translate
-  const triggerTranslation = useCallback((langCode: string) => {
-    if (langCode === 'en') {
-      // Reset to English
-      const frame = document.querySelector('.goog-te-menu-frame') as HTMLIFrameElement;
-      if (frame?.contentDocument) {
-        const items = frame.contentDocument.querySelectorAll('.goog-te-menu2-item span.text');
-        items.forEach((item: any) => {
-          if (item.textContent === 'English') {
-            item.click();
-          }
-        });
-      }
-      // Also try the banner's restore button
-      const restoreBtn = document.querySelector('.goog-te-banner-frame')?.querySelector('[id="restore"]') as HTMLElement;
-      if (restoreBtn) {
-        restoreBtn.click();
-      }
-      return;
-    }
+function setGoogTransCookie(langCode: string) {
+  const hostname = window.location.hostname;
 
-    // Find and click the language in Google Translate's hidden menu
-    const selectLanguage = () => {
-      const frame = document.querySelector('.goog-te-menu-frame') as HTMLIFrameElement;
-      if (frame?.contentDocument) {
-        const items = frame.contentDocument.querySelectorAll('.goog-te-menu2-item');
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i] as HTMLElement;
-          const langAttr = item.getAttribute('value') || '';
-          if (langAttr === langCode || item.textContent?.toLowerCase().includes(langCode)) {
-            item.click();
-            return true;
-          }
-        }
-      }
-      return false;
-    };
+  if (langCode === 'en') {
+    document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    document.cookie = `googtrans=; path=/; domain=${hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    return;
+  }
 
-    // Try immediately, then retry a few times
-    if (!selectLanguage()) {
-      let attempts = 0;
-      const interval = setInterval(() => {
-        if (selectLanguage() || attempts > 10) {
-          clearInterval(interval);
-        }
-        attempts++;
-      }, 200);
-    }
-  }, []);
+  const cookieValue = `/en/${langCode}`;
+  document.cookie = `googtrans=${cookieValue}; path=/`;
+  document.cookie = `googtrans=${cookieValue}; path=/; domain=${hostname}`;
+}
 
-  // Load saved language preference on mount
-  useEffect(() => {
-    const savedLangCode = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (savedLangCode) {
-      const savedLang = POPULAR_LANGUAGES.find(l => l.code === savedLangCode);
-      if (savedLang) {
-        setCurrentLang(savedLang);
-        // Apply translation after Google Translate loads
-        if (savedLangCode !== 'en') {
-          setTimeout(() => triggerTranslation(savedLangCode), 1500);
-        }
-      }
-    }
-  }, [triggerTranslation]);
+function ensureTranslateScriptLoaded() {
+  // Inject once
+  if (document.getElementById('google-translate-script')) return;
 
-  // Re-apply translation when route changes (SPA navigation)
-  useEffect(() => {
-    if (lastPathRef.current !== location.pathname) {
-      lastPathRef.current = location.pathname;
-      
-      const savedLangCode = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-      if (savedLangCode && savedLangCode !== 'en') {
-        // Google Translate needs time to detect new content
-        setTimeout(() => {
-          // Force re-translation by toggling the translate element
-          const googleTranslateElement = document.getElementById('google_translate_element');
-          if (googleTranslateElement && (window as any).google?.translate?.TranslateElement) {
-            // Re-initialize the translate element
-            googleTranslateElement.innerHTML = '';
-            new (window as any).google.translate.TranslateElement(
-              {
-                pageLanguage: 'en',
-                includedLanguages: POPULAR_LANGUAGES.map(l => l.code).join(','),
-                autoDisplay: false,
-              },
-              'google_translate_element'
-            );
-            // Re-apply language selection
-            setTimeout(() => triggerTranslation(savedLangCode), 500);
-          }
-        }, 300);
-      }
-    }
-  }, [location.pathname, triggerTranslation]);
-
-  // Initialize Google Translate script only once
-  useEffect(() => {
-    if (isInitializedRef.current) return;
-    isInitializedRef.current = true;
-
-    // Add styles to hide Google Translate UI elements but keep functionality
+  // styles (hide UI, keep translation behavior)
+  if (!document.getElementById('google-translate-styles')) {
     const style = document.createElement('style');
     style.id = 'google-translate-styles';
     style.textContent = `
-      .goog-te-banner-frame {
-        display: none !important;
-      }
+      .goog-te-banner-frame { display: none !important; }
       .goog-te-balloon-frame,
       #goog-gt-tt,
       .goog-te-spinner-pos,
       .goog-tooltip,
       .goog-tooltip:hover,
-      .goog-text-highlight {
-        display: none !important;
-      }
-      .skiptranslate {
-        display: none !important;
-      }
+      .goog-text-highlight,
+      .goog-te-gadget,
       #google_translate_element {
         display: none !important;
       }
-      body {
-        top: 0 !important;
-      }
-      .goog-te-gadget {
-        display: none !important;
-      }
+      body { top: 0 !important; }
     `;
     document.head.appendChild(style);
+  }
 
-    // Create a container for Google Translate
+  // container
+  if (!document.getElementById('google_translate_element')) {
     const container = document.createElement('div');
     container.id = 'google_translate_element';
     container.style.display = 'none';
     document.body.appendChild(container);
+  }
 
-    // Load Google Translate script
-    const script = document.createElement('script');
-    script.id = 'google-translate-script';
-    script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
-    script.async = true;
-    
-    // Define init function globally
-    (window as any).googleTranslateElementInit = () => {
-      if ((window as any).google?.translate) {
-        new (window as any).google.translate.TranslateElement(
-          {
-            pageLanguage: 'en',
-            includedLanguages: POPULAR_LANGUAGES.map(l => l.code).join(','),
-            autoDisplay: false,
-          },
-          'google_translate_element'
-        );
-      }
+  (window as any).googleTranslateElementInit = () => {
+    if ((window as any).google?.translate && (window as any).google.translate.TranslateElement) {
+      new (window as any).google.translate.TranslateElement(
+        {
+          pageLanguage: 'en',
+          includedLanguages: LANGUAGES.map(l => l.code).join(','),
+          autoDisplay: false,
+        },
+        'google_translate_element'
+      );
+    }
+  };
+
+  const script = document.createElement('script');
+  script.id = 'google-translate-script';
+  script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+  script.async = true;
+  document.body.appendChild(script);
+}
+
+function getReloadGuard(): Record<string, true> {
+  try {
+    return JSON.parse(sessionStorage.getItem(RELOAD_GUARD_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function setReloadGuard(next: Record<string, true>) {
+  sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify(next));
+}
+
+export function LanguageTranslator() {
+  const location = useLocation();
+  const [currentLang, setCurrentLang] = useState<Lang>(LANGUAGES[0]);
+  const lastPathRef = useRef(location.pathname);
+
+  const grouped = useMemo(() => {
+    return {
+      popular: LANGUAGES.filter(l => l.region === 'popular'),
+      nordic: LANGUAGES.filter(l => l.region === 'nordic'),
+      europe: LANGUAGES.filter(l => l.region === 'europe'),
+      asia: LANGUAGES.filter(l => l.region === 'asia'),
     };
-
-    document.body.appendChild(script);
   }, []);
 
-  const translateTo = useCallback((langCode: string) => {
-    const lang = POPULAR_LANGUAGES.find(l => l.code === langCode);
-    if (lang) {
-      setCurrentLang(lang);
-      localStorage.setItem(LANGUAGE_STORAGE_KEY, langCode);
-    }
-    triggerTranslation(langCode);
-  }, [triggerTranslation]);
+  // Init script once
+  useEffect(() => {
+    ensureTranslateScriptLoaded();
+  }, []);
 
-  const popularLangs = POPULAR_LANGUAGES.filter(l => l.region === 'popular');
-  const nordicLangs = POPULAR_LANGUAGES.filter(l => l.region === 'nordic');
-  const europeLangs = POPULAR_LANGUAGES.filter(l => l.region === 'europe');
-  const asiaLangs = POPULAR_LANGUAGES.filter(l => l.region === 'asia');
+  // Restore preference + ensure cookie
+  useEffect(() => {
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
+    const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === saved) || LANGUAGES[0];
+    setCurrentLang(lang);
+    setGoogTransCookie(lang.code);
+  }, []);
+
+  // SPA navigation: Google Translate won't re-translate new DOM reliably.
+  // So we perform a single hard reload per route (guarded), preserving auth session.
+  useEffect(() => {
+    if (lastPathRef.current === location.pathname) return;
+    lastPathRef.current = location.pathname;
+
+    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
+    if (saved === 'en') return;
+
+    // ensure cookie is present for the new page load
+    setGoogTransCookie(saved);
+
+    const guard = getReloadGuard();
+    const key = `${saved}:${location.pathname}`;
+    if (guard[key]) return;
+    guard[key] = true;
+    setReloadGuard(guard);
+
+    // slight delay to allow route update to settle
+    const t = setTimeout(() => window.location.reload(), 50);
+    return () => clearTimeout(t);
+  }, [location.pathname]);
+
+  const translateTo = (langCode: string) => {
+    const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
+    setCurrentLang(lang);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, lang.code);
+
+    // clear reload guard so next pages can reload once under the new language
+    sessionStorage.removeItem(RELOAD_GUARD_KEY);
+
+    setGoogTransCookie(lang.code);
+    window.location.reload();
+  };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           className="gap-2 text-muted-foreground hover:text-foreground notranslate"
         >
           <Globe className="w-4 h-4" />
@@ -251,51 +216,35 @@ export function LanguageTranslator() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto w-48 bg-popover border border-border z-50 notranslate">
         <DropdownMenuLabel className="text-xs text-muted-foreground">Popular</DropdownMenuLabel>
-        {popularLangs.map((lang) => (
-          <DropdownMenuItem
-            key={lang.code}
-            onClick={() => translateTo(lang.code)}
-            className="gap-2 cursor-pointer"
-          >
+        {grouped.popular.map((lang) => (
+          <DropdownMenuItem key={lang.code} onClick={() => translateTo(lang.code)} className="gap-2 cursor-pointer">
             <span>{lang.flag}</span>
             <span>{lang.name}</span>
           </DropdownMenuItem>
         ))}
-        
+
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">Nordic</DropdownMenuLabel>
-        {nordicLangs.map((lang) => (
-          <DropdownMenuItem
-            key={lang.code}
-            onClick={() => translateTo(lang.code)}
-            className="gap-2 cursor-pointer"
-          >
+        {grouped.nordic.map((lang) => (
+          <DropdownMenuItem key={lang.code} onClick={() => translateTo(lang.code)} className="gap-2 cursor-pointer">
             <span>{lang.flag}</span>
             <span>{lang.name}</span>
           </DropdownMenuItem>
         ))}
-        
+
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">Europe</DropdownMenuLabel>
-        {europeLangs.map((lang) => (
-          <DropdownMenuItem
-            key={lang.code}
-            onClick={() => translateTo(lang.code)}
-            className="gap-2 cursor-pointer"
-          >
+        {grouped.europe.map((lang) => (
+          <DropdownMenuItem key={lang.code} onClick={() => translateTo(lang.code)} className="gap-2 cursor-pointer">
             <span>{lang.flag}</span>
             <span>{lang.name}</span>
           </DropdownMenuItem>
         ))}
-        
+
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs text-muted-foreground">Asia & Middle East</DropdownMenuLabel>
-        {asiaLangs.map((lang) => (
-          <DropdownMenuItem
-            key={lang.code}
-            onClick={() => translateTo(lang.code)}
-            className="gap-2 cursor-pointer"
-          >
+        {grouped.asia.map((lang) => (
+          <DropdownMenuItem key={lang.code} onClick={() => translateTo(lang.code)} className="gap-2 cursor-pointer">
             <span>{lang.flag}</span>
             <span>{lang.name}</span>
           </DropdownMenuItem>
