@@ -6,6 +6,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import { SEO } from "@/components/SEO";
 
 export default function Pricing() {
   const navigate = useNavigate();
@@ -185,7 +186,13 @@ export default function Pricing() {
   const isPro = isAdmin || subscription?.status === 'active';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-background/80 py-12 px-4">
+    <>
+      <SEO 
+        title="Pricing"
+        description="Choose the perfect plan for your creative needs. Free tier with ad-supported generations, Pro subscription for unlimited access, and token packs for flexibility."
+        keywords="VinciAI pricing, AI image generator cost, subscription plans, free AI art generator"
+      />
+      <div className="min-h-screen bg-gradient-to-b from-background to-background/80 py-12 px-4">
       <div className="max-w-6xl mx-auto space-y-12">
         {/* Header */}
         <div className="text-center space-y-4">
@@ -457,5 +464,6 @@ export default function Pricing() {
         )}
       </div>
     </div>
+    </>
   );
 }

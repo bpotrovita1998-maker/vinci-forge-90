@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Footer } from '@/components/landing/Footer';
 import { motion } from 'framer-motion';
+import { SEO } from '@/components/SEO';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 const teamMembers = [
   {
@@ -65,18 +67,25 @@ const milestones = [
 
 export default function AboutUs() {
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Home
-            </Button>
-          </Link>
+    <>
+      <SEO 
+        title="About Us"
+        description="Learn about VinciAI's mission to democratize AI content creation. Meet our team of AI researchers, engineers, and designers building the future of creative tools."
+        keywords="VinciAI team, about VinciAI, AI company, creative AI, 3D generation company"
+      />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Back to Home
+              </Button>
+            </Link>
+            <Breadcrumbs />
+          </div>
         </div>
-      </div>
 
       {/* Hero Section */}
       <section className="py-20 px-4">
@@ -341,5 +350,6 @@ export default function AboutUs() {
 
       <Footer />
     </div>
+    </>
   );
 }
