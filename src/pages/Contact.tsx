@@ -10,6 +10,8 @@ import { Footer } from '@/components/landing/Footer';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
+import { SEO } from '@/components/SEO';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
@@ -91,18 +93,25 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Home
-            </Button>
-          </Link>
+    <>
+      <SEO 
+        title="Contact Us"
+        description="Get in touch with VinciAI support team. We're here to help with questions about our AI image, video, and 3D generation platform."
+        keywords="contact VinciAI, support, help, customer service"
+      />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Back to Home
+              </Button>
+            </Link>
+            <Breadcrumbs />
+          </div>
         </div>
-      </div>
 
       {/* Content */}
       <main className="max-w-6xl mx-auto px-4 py-12">
@@ -291,5 +300,6 @@ export default function Contact() {
 
       <Footer />
     </div>
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { JobProvider } from "@/contexts/JobContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navigation from "./components/Navigation";
 import { CookieConsent } from "./components/CookieConsent";
+import { useWebVitals } from "./hooks/useWebVitals";
 import Index from "./pages/Index";
 import Landing from "./pages/Landing";
 import Gallery from "./pages/Gallery";
@@ -28,11 +29,27 @@ import FAQ from "./pages/FAQ";
 
 const queryClient = new QueryClient();
 
+// Web Vitals monitoring component
+function WebVitalsMonitor() {
+  useWebVitals({
+    enabled: true,
+    debug: import.meta.env.DEV, // Only log in development
+    onMetric: (data) => {
+      // In production, you could send this to an analytics service
+      if (import.meta.env.PROD && data.rating === 'poor') {
+        console.warn(`[Performance] Poor ${data.metric}: ${data.value.toFixed(2)}`);
+      }
+    },
+  });
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <JobProvider>
         <TooltipProvider>
+          <WebVitalsMonitor />
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -46,7 +63,7 @@ const App = () => (
               <Route path="/movie" element={<MovieViewer />} />
               <Route path="/pricing" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Pricing /></ProtectedRoute>} />
               <Route path="/memory" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Memory /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Settings /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute requireAuth={true} skipSubscriptionCheck={true}><Settings /></ProtectedRoute>} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/contact" element={<Contact />} />

@@ -2,21 +2,30 @@ import { ArrowLeft, Shield, Cookie, Eye, Lock, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Footer } from '@/components/landing/Footer';
+import { SEO } from '@/components/SEO';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Home
-            </Button>
-          </Link>
+    <>
+      <SEO 
+        title="Privacy Policy"
+        description="VinciAI's privacy policy explains how we collect, use, and protect your personal information when you use our AI content generation platform."
+        keywords="VinciAI privacy, data protection, privacy policy"
+      />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+          <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                Back to Home
+              </Button>
+            </Link>
+            <Breadcrumbs />
+          </div>
         </div>
-      </div>
 
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 py-12">
@@ -241,5 +250,6 @@ export default function PrivacyPolicy() {
 
       <Footer />
     </div>
+    </>
   );
 }

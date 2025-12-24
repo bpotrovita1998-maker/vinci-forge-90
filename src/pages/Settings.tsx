@@ -12,6 +12,7 @@ import { Brain, Save, Trash2, Plus, Edit, Settings2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { NoIndexSEO } from '@/components/SEO';
 
 export default function Settings() {
   const { 
@@ -107,7 +108,9 @@ export default function Settings() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-6xl">
+    <>
+      <NoIndexSEO title="Settings" />
+      <div className="container mx-auto p-6 space-y-6 max-w-6xl">
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <Settings2 className="w-8 h-8 text-primary" />
@@ -465,5 +468,6 @@ export default function Settings() {
         </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }
