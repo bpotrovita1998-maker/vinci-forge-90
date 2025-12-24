@@ -11,8 +11,9 @@ const footerLinks = {
   ],
   Resources: [
     { label: 'Gallery', href: '/gallery' },
+    { label: 'Tutorials', href: '/tutorials' },
+    { label: 'Blog', href: '/blog' },
     { label: 'Pricing', href: '/pricing' },
-    { label: 'Memory', href: '/memory' },
   ],
   Company: [
     { label: 'About Us', href: '/about' },
