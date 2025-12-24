@@ -46,6 +46,9 @@ export default function Navigation() {
 
           {/* Nav Links */}
           <div className="flex items-center gap-2">
+            {/* Language Translator (available on all pages, including /auth) */}
+            <LanguageTranslator />
+
             {user && (
               <>
                 <NavLink
@@ -87,7 +90,7 @@ export default function Navigation() {
                 >
                   <Button variant="ghost" size="sm" className="gap-2">
                     <DollarSign className="w-4 h-4" />
-                  <span className="hidden sm:inline">Pricing</span>
+                    <span className="hidden sm:inline">Pricing</span>
                   </Button>
                 </NavLink>
                 <NavLink
@@ -101,8 +104,6 @@ export default function Navigation() {
                   </Button>
                 </NavLink>
 
-                {/* Language Translator */}
-                <LanguageTranslator />
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 border border-primary/20">
                   <Coins className="w-4 h-4 text-primary" />
                   <span className="text-sm font-semibold text-foreground">
@@ -149,7 +150,7 @@ export default function Navigation() {
                       </NavLink>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-border/30" />
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       className="cursor-pointer text-destructive focus:text-destructive"
                       onClick={() => signOut()}
                     >

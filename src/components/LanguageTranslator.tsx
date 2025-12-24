@@ -121,8 +121,13 @@ function ensureTranslateScriptLoaded() {
 
   const script = document.createElement('script');
   script.id = 'google-translate-script';
-  script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+  // Use https explicitly (more reliable than protocol-relative in some environments)
+  script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
   script.async = true;
+  script.onerror = () => {
+    // If blocked by adblock/CSP, translation will never work
+    console.warn('[Translate] Failed to load Google Translate script.');
+  };
   document.body.appendChild(script);
 }
 
@@ -167,7 +172,7 @@ export function LanguageTranslator() {
       // If user is logged in, try to get from database
       if (user && !hasFetchedFromDb.current) {
         hasFetchedFromDb.current = true;
-        
+
         const { data } = await supabase
           .from('user_preferences')
           .select('preference_value')
@@ -186,14 +191,17 @@ export function LanguageTranslator() {
           // No DB preference yet, save current localStorage value to DB
           const currentLocal = localStorage.getItem(LANGUAGE_STORAGE_KEY);
           if (currentLocal && currentLocal !== 'en') {
-            await supabase.from('user_preferences').upsert({
-              user_id: user.id,
-              preference_key: PREFERENCE_KEY,
-              preference_type: 'language',
-              preference_value: { code: currentLocal },
-            }, {
-              onConflict: 'user_id,preference_key',
-            });
+            await supabase.from('user_preferences').upsert(
+              {
+                user_id: user.id,
+                preference_key: PREFERENCE_KEY,
+                preference_type: 'language',
+                preference_value: { code: currentLocal },
+              },
+              {
+                onConflict: 'user_id,preference_key',
+              }
+            );
           }
         }
       }
@@ -201,6 +209,18 @@ export function LanguageTranslator() {
       const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
       setCurrentLang(lang);
       setGoogTransCookie(lang.code);
+
+      // If a non-English language is saved, we need ONE initial reload so Google Translate
+      // can apply it (it reads the cookie during initialization).
+      if (lang.code !== 'en') {
+        const guard = getReloadGuard();
+        const key = `init:${lang.code}`;
+        if (!guard[key]) {
+          guard[key] = true;
+          setReloadGuard(guard);
+          setTimeout(() => window.location.reload(), 50);
+        }
+      }
     };
 
     loadPreference();
@@ -208,7 +228,6 @@ export function LanguageTranslator() {
 
   // SPA navigation: reload once per route to apply translation
   useEffect(() => {
-    if (lastPathRef.current === location.pathname) return;
     lastPathRef.current = location.pathname;
 
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';

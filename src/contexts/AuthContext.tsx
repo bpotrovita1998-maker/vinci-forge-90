@@ -23,23 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Safety timeout: never block the UI on auth init
-    const safetyTimeout = setTimeout(() => {
-      if (mounted) setLoading(false);
-    }, 4000);
-    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
-
-        try {
-          setSession(session);
-          setUser(session?.user ?? null);
-        } finally {
-          setLoading(false);
-          clearTimeout(safetyTimeout);
-        }
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
     );
 
@@ -47,10 +37,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession()
       .then(({ data: { session }, error }) => {
         if (!mounted) return;
-        
+
         if (error) {
           console.error('Session error:', error);
-          // Clear session on error
           setSession(null);
           setUser(null);
         } else {
@@ -58,19 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session?.user ?? null);
         }
         setLoading(false);
-        clearTimeout(safetyTimeout);
       })
       .catch(err => {
         console.error('Failed to get session:', err);
         setSession(null);
         setUser(null);
         setLoading(false);
-        clearTimeout(safetyTimeout);
       });
 
     return () => {
       mounted = false;
-      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
