@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Globe, ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -121,12 +122,15 @@ function ensureTranslateScriptLoaded() {
 
   const script = document.createElement('script');
   script.id = 'google-translate-script';
-  // Use https explicitly (more reliable than protocol-relative in some environments)
   script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
   script.async = true;
   script.onerror = () => {
-    // If blocked by adblock/CSP, translation will never work
-    console.warn('[Translate] Failed to load Google Translate script.');
+    // Most common causes: AdBlock/privacy extensions, network filtering, or restrictive CSP.
+    toast.error('Translation blocked by browser settings', {
+      description:
+        'Google Translate script failed to load. Disable AdBlock/privacy extensions for this site, allow translate.google.com, then refresh.',
+      duration: 9000,
+    });
   };
   document.body.appendChild(script);
 }
@@ -159,9 +163,23 @@ export function LanguageTranslator() {
     };
   }, []);
 
-  // Init script once
+  // Init script once + warn if it's blocked
   useEffect(() => {
     ensureTranslateScriptLoaded();
+
+    const t = setTimeout(() => {
+      const wanted = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
+      const loaded = !!(window as any).google?.translate;
+      if (wanted !== 'en' && !loaded) {
+        toast.warning('Translation may be blocked', {
+          description:
+            'If nothing is translating, your browser/extension may be blocking translate.google.com. Disable AdBlock/privacy extensions for this site and refresh.',
+          duration: 9000,
+        });
+      }
+    }, 2500);
+
+    return () => clearTimeout(t);
   }, []);
 
   // Load preference from DB (if logged in) or localStorage
