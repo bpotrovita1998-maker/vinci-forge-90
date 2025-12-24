@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
@@ -220,6 +220,42 @@ const faqCategories: FAQCategory[] = [
 export default function FAQ() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  // Generate JSON-LD structured data for FAQ schema
+  useEffect(() => {
+    const allFAQs = faqCategories.flatMap(category => category.faqs);
+    
+    const faqSchema = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": allFAQs.map(faq => ({
+        "@type": "Question",
+        "name": faq.question,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": faq.answer
+        }
+      }))
+    };
+
+    // Create or update the script element
+    let script = document.querySelector('script[data-schema="faq"]') as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.type = 'application/ld+json';
+      script.setAttribute('data-schema', 'faq');
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(faqSchema);
+
+    // Cleanup on unmount
+    return () => {
+      const existingScript = document.querySelector('script[data-schema="faq"]');
+      if (existingScript) {
+        existingScript.remove();
+      }
+    };
+  }, []);
 
   const filteredCategories = faqCategories.map(category => ({
     ...category,
