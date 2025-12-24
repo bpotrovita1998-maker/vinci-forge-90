@@ -83,7 +83,7 @@ export default function Hero() {
   const { submitJob } = useJobs();
   const { isAdmin, subscription, tokenBalance } = useSubscription();
   const { instructions, recordPattern, getPreference, savePreference, analyzeAndLearn } = useMemory();
-  const { canGenerate, needsAd, useGeneration, isPro: isAdPro, remaining: adRemaining } = useAdGenerations();
+  const { canGenerate, needsAd, refreshBalance, isPro: isAdPro, remaining: adRemaining } = useAdGenerations();
   const adModalContext = useContext(AdModalContext);
   
   const [prompt, setPrompt] = useState('');
@@ -549,14 +549,8 @@ export default function Hero() {
           });
           return;
         }
-        
-        // Use one ad generation
-        const used = useGeneration();
-        if (!used) {
-          setIsGenerating(false);
-          toast({ title: 'Generation failed', description: 'Could not use generation credit. Please try again.', variant: 'destructive' });
-          return;
-        }
+        // Backend will handle token deduction via check-and-deduct-tokens
+        // Just refresh balance after generation completes
       }
       
       setIsGenerating(true);
@@ -689,6 +683,8 @@ export default function Hero() {
       }
     } finally {
       setIsGenerating(false);
+      // Refresh ad generation balance after generation attempt
+      refreshBalance();
     }
   };
 

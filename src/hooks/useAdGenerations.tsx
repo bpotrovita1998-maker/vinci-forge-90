@@ -1,74 +1,91 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSubscription } from './useSubscription';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
-const AD_GENERATIONS_KEY = 'vinci_ad_generations';
-const AD_GENERATIONS_RESET_KEY = 'vinci_ad_generations_reset';
 const GENERATIONS_PER_AD = 3;
 
 interface AdGenerationsState {
   remaining: number;
-  totalWatched: number;
-  lastReset: string;
+  totalEarned: number;
+  loading: boolean;
 }
 
 export function useAdGenerations() {
   const { isAdmin, subscription } = useSubscription();
+  const { user } = useAuth();
   const isPro = isAdmin || subscription?.status === 'active';
   
-  const [state, setState] = useState<AdGenerationsState>(() => {
-    if (typeof window === 'undefined') {
-      return { remaining: 0, totalWatched: 0, lastReset: new Date().toISOString() };
-    }
-    
-    const saved = localStorage.getItem(AD_GENERATIONS_KEY);
-    const lastReset = localStorage.getItem(AD_GENERATIONS_RESET_KEY);
-    const today = new Date().toDateString();
-    
-    // Reset daily
-    if (lastReset !== today) {
-      localStorage.setItem(AD_GENERATIONS_RESET_KEY, today);
-      const freshState = { remaining: 0, totalWatched: 0, lastReset: new Date().toISOString() };
-      localStorage.setItem(AD_GENERATIONS_KEY, JSON.stringify(freshState));
-      return freshState;
-    }
-    
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return { remaining: 0, totalWatched: 0, lastReset: new Date().toISOString() };
-      }
-    }
-    
-    return { remaining: 0, totalWatched: 0, lastReset: new Date().toISOString() };
+  const [state, setState] = useState<AdGenerationsState>({
+    remaining: 0,
+    totalEarned: 0,
+    loading: true,
   });
 
-  // Persist state changes
+  // Fetch ad generations from database
+  const fetchAdGenerations = useCallback(async () => {
+    if (!user) {
+      setState({ remaining: 0, totalEarned: 0, loading: false });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('token_balances')
+        .select('ad_generations_remaining, ad_generations_total_earned')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching ad generations:', error);
+      }
+
+      setState({
+        remaining: data?.ad_generations_remaining ?? 0,
+        totalEarned: data?.ad_generations_total_earned ?? 0,
+        loading: false,
+      });
+    } catch (error) {
+      console.error('Error fetching ad generations:', error);
+      setState(prev => ({ ...prev, loading: false }));
+    }
+  }, [user]);
+
+  // Initial fetch
   useEffect(() => {
-    localStorage.setItem(AD_GENERATIONS_KEY, JSON.stringify(state));
-  }, [state]);
+    fetchAdGenerations();
+  }, [fetchAdGenerations]);
 
-  // Grant generations after watching an ad
-  const grantGenerations = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      remaining: prev.remaining + GENERATIONS_PER_AD,
-      totalWatched: prev.totalWatched + 1,
-    }));
-  }, []);
+  // Grant generations after watching an ad (calls backend)
+  const grantGenerations = useCallback(async () => {
+    if (!user) return false;
 
-  // Use one generation
-  const useGeneration = useCallback(() => {
-    if (isPro) return true; // PRO users don't consume ad generations
-    
-    if (state.remaining <= 0) return false;
-    
-    setState(prev => ({
-      ...prev,
-      remaining: Math.max(0, prev.remaining - 1),
-    }));
-    return true;
-  }, [state.remaining, isPro]);
+    try {
+      const { data, error } = await supabase.functions.invoke('grant-ad-generations');
+
+      if (error) {
+        console.error('Error granting ad generations:', error);
+        return false;
+      }
+
+      // Update local state with response
+      setState(prev => ({
+        ...prev,
+        remaining: data.remaining ?? prev.remaining + GENERATIONS_PER_AD,
+        totalEarned: data.totalEarned ?? prev.totalEarned + GENERATIONS_PER_AD,
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('Error granting ad generations:', error);
+      return false;
+    }
+  }, [user]);
+
+  // Refresh after a generation is used (the backend handles deduction)
+  const refreshBalance = useCallback(() => {
+    fetchAdGenerations();
+  }, [fetchAdGenerations]);
 
   // Check if user can generate
   const canGenerate = isPro || state.remaining > 0;
@@ -78,12 +95,13 @@ export function useAdGenerations() {
 
   return {
     remaining: state.remaining,
-    totalWatched: state.totalWatched,
+    totalEarned: state.totalEarned,
+    loading: state.loading,
     canGenerate,
     needsAd,
     isPro,
     grantGenerations,
-    useGeneration,
+    refreshBalance,
     generationsPerAd: GENERATIONS_PER_AD,
   };
 }

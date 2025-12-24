@@ -434,6 +434,8 @@ export type Database = {
       }
       token_balances: {
         Row: {
+          ad_generations_remaining: number | null
+          ad_generations_total_earned: number | null
           balance: number
           created_at: string
           free_tokens_granted: number | null
@@ -447,6 +449,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ad_generations_remaining?: number | null
+          ad_generations_total_earned?: number | null
           balance?: number
           created_at?: string
           free_tokens_granted?: number | null
@@ -460,6 +464,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ad_generations_remaining?: number | null
+          ad_generations_total_earned?: number | null
           balance?: number
           created_at?: string
           free_tokens_granted?: number | null
@@ -665,6 +671,10 @@ export type Database = {
           _job_id: string
           _user_id: string
         }
+        Returns: boolean
+      }
+      grant_ad_generations: {
+        Args: { _amount: number; _user_id: string }
         Returns: boolean
       }
       has_role: {
