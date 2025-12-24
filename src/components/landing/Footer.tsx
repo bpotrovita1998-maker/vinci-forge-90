@@ -3,31 +3,25 @@ import { Link } from 'react-router-dom';
 
 const footerLinks = {
   Features: [
-    { label: 'Image to 3D', href: '#' },
-    { label: 'Text to 3D', href: '#' },
-    { label: 'AI Texturing', href: '#' },
-    { label: '3D to Video', href: '#' },
-    { label: 'Animation', href: '#' },
+    { label: 'Image to 3D', href: '/create' },
+    { label: 'Text to 3D', href: '/create' },
+    { label: 'AI Texturing', href: '/create' },
+    { label: '3D to Video', href: '/create' },
+    { label: 'Animation', href: '/create' },
   ],
   Resources: [
-    { label: 'Documentation', href: '#' },
-    { label: 'API Reference', href: '#' },
-    { label: 'Tutorials', href: '#' },
-    { label: 'Blog', href: '#' },
-    { label: 'Community', href: '#' },
+    { label: 'Gallery', href: '/gallery' },
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'Memory', href: '/memory' },
   ],
   Company: [
-    { label: 'About', href: '#' },
-    { label: 'Pricing', href: '/pricing' },
+    { label: 'About Us', href: '/about' },
     { label: 'Contact', href: '/contact' },
-    { label: 'Careers', href: '#' },
-    { label: 'Press', href: '#' },
   ],
   Legal: [
     { label: 'Terms of Service', href: '/terms' },
     { label: 'Privacy Policy', href: '/privacy' },
-    { label: 'Cookie Policy', href: '/privacy#cookies' },
-    { label: 'GDPR', href: '/privacy#gdpr' },
+    { label: 'Cookie Policy', href: '/privacy' },
   ],
 };
 
