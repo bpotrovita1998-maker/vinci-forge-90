@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Globe, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,6 +60,8 @@ export function LanguageTranslator() {
   const [currentLang, setCurrentLang] = useState<typeof POPULAR_LANGUAGES[0]>(POPULAR_LANGUAGES[0]);
   const translateContainerRef = useRef<HTMLDivElement>(null);
   const isInitializedRef = useRef(false);
+  const location = useLocation();
+  const lastPathRef = useRef(location.pathname);
 
   // Load saved language preference on mount
   useEffect(() => {
@@ -70,6 +73,48 @@ export function LanguageTranslator() {
       }
     }
   }, []);
+
+  // Re-apply translation when route changes (SPA navigation)
+  useEffect(() => {
+    if (lastPathRef.current !== location.pathname) {
+      lastPathRef.current = location.pathname;
+      
+      const savedLangCode = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (savedLangCode && savedLangCode !== 'en') {
+        // Small delay to let new page content render
+        const timer = setTimeout(() => {
+          // Trigger Google Translate to re-translate new content
+          const translateFrame = document.querySelector('.goog-te-menu-frame') as HTMLIFrameElement;
+          if (translateFrame?.contentDocument) {
+            const items = translateFrame.contentDocument.querySelectorAll('.goog-te-menu2-item');
+            items.forEach((item: any) => {
+              if (item.textContent?.includes(savedLangCode)) {
+                item.click();
+              }
+            });
+          }
+          
+          // Alternative: Force Google Translate to reprocess the page
+          if ((window as any).google?.translate?.TranslateElement) {
+            const element = document.getElementById('google_translate_element');
+            if (element) {
+              element.innerHTML = '';
+              new (window as any).google.translate.TranslateElement(
+                {
+                  pageLanguage: 'en',
+                  includedLanguages: POPULAR_LANGUAGES.map(l => l.code).join(','),
+                  autoDisplay: false,
+                },
+                'google_translate_element'
+              );
+            }
+          }
+        }, 100);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [location.pathname]);
 
   // Apply translation via cookie with smooth transition
   const applyTranslation = useCallback((langCode: string) => {
