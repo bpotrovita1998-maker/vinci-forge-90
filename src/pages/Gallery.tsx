@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import OutputViewer from '@/components/OutputViewer';
 import ThreeDThumbnail from '@/components/ThreeDThumbnail';
 import VirtualGalleryGrid from '@/components/VirtualGalleryGrid';
+import AdBanner from '@/components/AdBanner';
 import { Image as ImageIcon, Video, Box, Search, Download, Clock, Trash2, Eye, Package, Film, Loader2, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -684,6 +685,19 @@ export default function Gallery() {
               )}
             </Card>
           </div>
+
+          {/* Ad Banner for Free Users - Only shows when there's actual gallery content */}
+          {!isPro && sortedJobs.length > 0 && (
+            <div className="mb-6 flex justify-center">
+              <AdBanner 
+                format="horizontal" 
+                pageType="content"
+                contentItemCount={sortedJobs.length}
+                minContentItems={3} // Only show ads when gallery has at least 3 items
+                className="w-full max-w-3xl"
+              />
+            </div>
+          )}
 
           <Tabs value={galleryMode} onValueChange={(v) => setGalleryMode(v as 'all' | 'image' | 'video' | '3d' | 'cad' | 'scenes')} className="space-y-6">
             <TabsList className="glass border-border/30">
