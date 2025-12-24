@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Footer } from "@/components/landing/Footer";
+import AdBanner from "@/components/AdBanner";
 
 const categories = [
   { id: "all", label: "All Guides", icon: BookOpen },
@@ -547,6 +548,18 @@ export default function Tutorials() {
               </Button>
             </Link>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Ad Banner */}
+      <section className="py-8 px-4">
+        <div className="max-w-4xl mx-auto flex justify-center">
+          <AdBanner 
+            pageType="content" 
+            format="horizontal" 
+            contentItemCount={tutorials.length}
+            minContentItems={1}
+          />
         </div>
       </section>
 
