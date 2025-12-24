@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/landing/Footer";
 import AdBanner from "@/components/AdBanner";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 const categories = ["All", "Industry Trends", "Tutorials", "Product Updates", "Case Studies", "Tips & Tricks"];
 
@@ -300,16 +301,75 @@ export default function Blog() {
     setCurrentPage(1);
   };
 
+  // Add Article schema when viewing a post
+  useEffect(() => {
+    if (!selectedPost) {
+      // Remove article schema when not viewing a post
+      const existingScript = document.querySelector('script[data-schema="article"]');
+      if (existingScript) existingScript.remove();
+      return;
+    }
+
+    const articleSchema = {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": selectedPost.title,
+      "description": selectedPost.excerpt,
+      "author": {
+        "@type": "Person",
+        "name": selectedPost.author,
+        "jobTitle": selectedPost.authorRole
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "VinciAI",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://vinciai.lovable.app/og-image.png"
+        }
+      },
+      "datePublished": selectedPost.date,
+      "dateModified": selectedPost.date,
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": `https://vinciai.lovable.app/blog#${selectedPost.id}`
+      },
+      "articleSection": selectedPost.category,
+      "wordCount": selectedPost.content.split(/\s+/).length
+    };
+
+    let script = document.querySelector('script[data-schema="article"]') as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.type = 'application/ld+json';
+      script.setAttribute('data-schema', 'article');
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(articleSchema);
+
+    return () => {
+      const existingScript = document.querySelector('script[data-schema="article"]');
+      if (existingScript) existingScript.remove();
+    };
+  }, [selectedPost]);
+
   if (selectedPost) {
     return (
       <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-          <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
             <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedPost(null)}>
               <ArrowLeft className="w-4 h-4" />
               Back to Blog
             </Button>
+            <Breadcrumbs 
+              items={[
+                { label: "Home", href: "/" },
+                { label: "Blog", href: "/blog" },
+                { label: selectedPost.title.slice(0, 30) + "...", href: `/blog#${selectedPost.id}` }
+              ]} 
+            />
           </div>
         </div>
 
@@ -415,13 +475,14 @@ export default function Blog() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/">
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Back to Home
             </Button>
           </Link>
+          <Breadcrumbs />
         </div>
       </div>
 

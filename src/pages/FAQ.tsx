@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/accordion";
 import { Footer } from "@/components/landing/Footer";
 import AdBanner from "@/components/AdBanner";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 
 interface FAQItem {
   question: string;
@@ -271,13 +272,14 @@ export default function FAQ() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/">
             <Button variant="ghost" size="sm" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Back to Home
             </Button>
           </Link>
+          <Breadcrumbs />
         </div>
       </div>
 
