@@ -9,7 +9,7 @@ interface AdGenerationCounterProps {
 }
 
 export default function AdGenerationCounter({ onWatchAd }: AdGenerationCounterProps) {
-  const { remaining, needsAd, isPro, generationsPerAd, totalWatched } = useAdGenerations();
+  const { remaining, needsAd, isPro, generationsPerAd, totalEarned } = useAdGenerations();
   const navigate = useNavigate();
 
   // Don't show for PRO users

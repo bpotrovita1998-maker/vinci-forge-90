@@ -83,3 +83,6 @@ verify_jwt = true
 
 [functions.enhance-images-batch]
 verify_jwt = false
+
+[functions.grant-ad-generations]
+verify_jwt = false
