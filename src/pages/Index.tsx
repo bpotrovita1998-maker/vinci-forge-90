@@ -4,7 +4,6 @@ import Hero from "@/components/Hero";
 import JobQueue from "@/components/JobQueue";
 import FreeTokenCounter from "@/components/FreeTokenCounter";
 import FirstGenerationCelebration from "@/components/FirstGenerationCelebration";
-import AdBanner from "@/components/AdBanner";
 import AdGenerationCounter from "@/components/AdGenerationCounter";
 import RewardedAdModal from "@/components/RewardedAdModal";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -64,24 +63,11 @@ const Index = () => {
           
           <FreeTokenCounter />
           
-          {/* Top Banner Ad for Free Users */}
-          {!isPro && (
-            <div className="max-w-6xl mx-auto px-4 mb-6 flex justify-center">
-              <AdBanner format="horizontal" className="w-full" />
-            </div>
-          )}
-          
-          {/* Job Queue Section */}
+          {/* Job Queue Section - No ads on this page per AdSense policy */}
+          {/* This is a tool/navigation page, ads should only be on content-rich pages */}
           <div className="max-w-6xl mx-auto px-4 py-12">
             <JobQueue />
           </div>
-          
-          {/* Bottom Banner Ad for Free Users */}
-          {!isPro && (
-            <div className="max-w-6xl mx-auto px-4 pb-8 flex justify-center">
-              <AdBanner format="horizontal" className="w-full" />
-            </div>
-          )}
         </div>
         
         {/* First Generation Celebration */}

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Film, Box, GraduationCap, Gamepad2, Printer, Glasses, Home, ChevronRight, Play, Zap, Layers, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import AdBanner from "@/components/AdBanner";
+import { useSubscription } from "@/hooks/useSubscription";
 const useCategories = [
   { id: "film", label: "Film Production", icon: Film, color: "from-pink-500 to-rose-600" },
   { id: "product", label: "Product Design", icon: Box, color: "from-cyan-500 to-blue-600" },
@@ -65,6 +67,8 @@ const previewCards = [
 export default function Landing() {
   const [activeCategory, setActiveCategory] = useState("game");
   const { user } = useAuth();
+  const { isAdmin, subscription } = useSubscription();
+  const isPro = isAdmin || subscription?.status === 'active';
 
   return (
     <div className="min-h-screen bg-background">
@@ -314,6 +318,21 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Ad Banner for Free Users - Placed between content sections */}
+      {!isPro && (
+        <section className="py-8 px-6">
+          <div className="container mx-auto flex justify-center">
+            <AdBanner 
+              format="horizontal" 
+              pageType="content"
+              contentItemCount={7} // We have 7 use case categories as content
+              minContentItems={1}
+              className="w-full max-w-3xl"
+            />
+          </div>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="py-20 px-6">
