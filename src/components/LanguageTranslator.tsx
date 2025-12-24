@@ -124,12 +124,16 @@ function ensureTranslateScriptLoaded() {
   script.id = 'google-translate-script';
   script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
   script.async = true;
+  script.onload = () => {
+    (window as any).__vinciGoogleTranslateLoaded = true;
+  };
   script.onerror = () => {
+    (window as any).__vinciGoogleTranslateLoaded = false;
     // Most common causes: AdBlock/privacy extensions, network filtering, or restrictive CSP.
-    toast.error('Translation blocked by browser settings', {
+    toast.error('Translator blocked', {
       description:
-        'Google Translate script failed to load. Disable AdBlock/privacy extensions for this site, allow translate.google.com, then refresh.',
-      duration: 9000,
+        'Your browser or a network rule blocked translate.google.com. Disable AdBlock/privacy extensions for this site, then hard refresh (Ctrl+Shift+R).',
+      duration: 10000,
     });
   };
   document.body.appendChild(script);
@@ -163,18 +167,19 @@ export function LanguageTranslator() {
     };
   }, []);
 
-  // Init script once + warn if it's blocked
   useEffect(() => {
     ensureTranslateScriptLoaded();
 
     const t = setTimeout(() => {
       const wanted = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
       const loaded = !!(window as any).google?.translate;
-      if (wanted !== 'en' && !loaded) {
-        toast.warning('Translation may be blocked', {
+      const flaggedLoaded = (window as any).__vinciGoogleTranslateLoaded;
+
+      if (wanted !== 'en' && (!loaded || flaggedLoaded === false)) {
+        toast.warning('Translator not active', {
           description:
-            'If nothing is translating, your browser/extension may be blocking translate.google.com. Disable AdBlock/privacy extensions for this site and refresh.',
-          duration: 9000,
+            'Nothing is translating because Google Translate is not loading. Check AdBlock/privacy extensions, Brave shields, or network filtering; then hard refresh (Ctrl+Shift+R).',
+          duration: 10000,
         });
       }
     }, 2500);
