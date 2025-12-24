@@ -11,4 +11,5 @@ User-agent: facebookexternalhit
 Allow: /
 
 User-agent: *
+Sitemap: https://vinciai.lovable.app/sitemap.xml
 Allow: /
