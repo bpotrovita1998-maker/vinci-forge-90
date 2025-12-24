@@ -13,6 +13,7 @@ const footerLinks = {
     { label: 'Gallery', href: '/gallery' },
     { label: 'Tutorials', href: '/tutorials' },
     { label: 'Blog', href: '/blog' },
+    { label: 'FAQ', href: '/faq' },
     { label: 'Pricing', href: '/pricing' },
   ],
   Company: [
