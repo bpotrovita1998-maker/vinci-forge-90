@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Footer } from "@/components/landing/Footer";
 import AdBanner from "@/components/AdBanner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { SEO } from "@/components/SEO";
 
 const categories = [
   { id: "all", label: "All Guides", icon: BookOpen },
@@ -281,7 +282,13 @@ export default function Tutorials() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <SEO 
+        title="Tutorials & Documentation"
+        description="Learn how to create stunning AI-generated images, videos, and 3D models with our comprehensive tutorials and guides."
+        keywords="AI tutorials, image generation guide, video generation tutorial, 3D model creation, VinciAI documentation"
+      />
+      <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -567,5 +574,6 @@ export default function Tutorials() {
 
       <Footer />
     </div>
+    </>
   );
 }

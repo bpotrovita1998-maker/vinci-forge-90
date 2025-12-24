@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/landing/Footer";
 import AdBanner from "@/components/AdBanner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { SEO, ArticleSEO } from "@/components/SEO";
 
 const categories = ["All", "Industry Trends", "Tutorials", "Product Updates", "Case Studies", "Tips & Tricks"];
 
@@ -355,7 +356,15 @@ export default function Blog() {
 
   if (selectedPost) {
     return (
-      <div className="min-h-screen bg-background">
+      <>
+        <ArticleSEO
+          title={selectedPost.title}
+          description={selectedPost.excerpt}
+          author={selectedPost.author}
+          publishedTime={selectedPost.date}
+          section={selectedPost.category}
+        />
+        <div className="min-h-screen bg-background">
         {/* Header */}
         <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
           <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -468,6 +477,7 @@ export default function Blog() {
 
         <Footer />
       </div>
+      </>
     );
   }
 
