@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/landing/Footer";
+import AdBanner from "@/components/AdBanner";
 
 const categories = ["All", "Industry Trends", "Tutorials", "Product Updates", "Case Studies", "Tips & Tricks"];
 
@@ -636,6 +637,18 @@ export default function Blog() {
               </Button>
             </div>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Ad Banner */}
+      <section className="py-8 px-4">
+        <div className="max-w-4xl mx-auto flex justify-center">
+          <AdBanner 
+            pageType="content" 
+            format="horizontal" 
+            contentItemCount={blogPosts.length}
+            minContentItems={1}
+          />
         </div>
       </section>
 
