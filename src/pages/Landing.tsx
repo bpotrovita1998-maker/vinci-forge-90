@@ -549,7 +549,7 @@ export default function Landing() {
                 Insights, tutorials, and updates from the VinciAI team.
               </p>
             </div>
-            <Link to="/about" className="mt-4 md:mt-0">
+            <Link to="/blog" className="mt-4 md:mt-0">
               <Button variant="outline" className="gap-2">
                 View All Posts <ArrowRight className="w-4 h-4" />
               </Button>
