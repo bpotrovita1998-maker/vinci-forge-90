@@ -29,6 +29,7 @@ import {
 import { Footer } from "@/components/landing/Footer";
 import AdBanner from "@/components/AdBanner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { SEO } from "@/components/SEO";
 
 interface FAQItem {
   question: string;
@@ -269,7 +270,13 @@ export default function FAQ() {
   const totalFAQs = faqCategories.reduce((acc, cat) => acc + cat.faqs.length, 0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <SEO 
+        title="Frequently Asked Questions"
+        description="Find answers to common questions about VinciAI. Learn about pricing, features, image generation, video creation, 3D models, and more."
+        keywords="VinciAI FAQ, AI image generator questions, pricing FAQ, support, help"
+      />
+      <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -463,5 +470,6 @@ export default function FAQ() {
 
       <Footer />
     </div>
+    </>
   );
 }

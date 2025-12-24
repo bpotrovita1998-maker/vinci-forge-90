@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { z } from 'zod';
+import { NoIndexSEO } from '@/components/SEO';
 
 const signUpSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -99,7 +100,9 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+    <>
+      <NoIndexSEO title="Sign In" />
+      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       {/* Gradient Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-accent/10" />
       
@@ -242,5 +245,6 @@ export default function Auth() {
         </p>
       </motion.div>
     </div>
+    </>
   );
 }
