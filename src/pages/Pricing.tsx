@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Loader2, Settings } from "lucide-react";
+import { Check, Loader2, Settings, Play, Sparkles, Crown, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
@@ -182,6 +182,8 @@ export default function Pricing() {
     }
   ];
 
+  const isPro = isAdmin || subscription?.status === 'active';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/80 py-12 px-4">
       <div className="max-w-6xl mx-auto space-y-12">
@@ -202,78 +204,167 @@ export default function Pricing() {
           </div>
         )}
 
-        {/* Subscription Plan */}
-        <Card className="border-primary/20 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl">VinciAI PRO</CardTitle>
-            <CardDescription>Complete access to all AI creation tools</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-bold">$3</span>
-              <span className="text-muted-foreground">/month</span>
+        {/* Plan Comparison Grid */}
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Free Tier */}
+          <Card className="border-border/50 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-muted-foreground/50 to-muted-foreground/30" />
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-muted">
+                  <Play className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl">Free Tier</CardTitle>
+                  <CardDescription>Watch ads to create</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-baseline gap-2">
+                <span className="text-5xl font-bold">$0</span>
+                <span className="text-muted-foreground">/forever</span>
+              </div>
+              
+              {/* How it works */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium text-foreground">How it works:</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-bold">1</div>
+                  <p className="text-sm text-muted-foreground">Watch a short ad (15-30 seconds)</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-bold">2</div>
+                  <p className="text-sm text-muted-foreground">Get 3 free image generations</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-bold">3</div>
+                  <p className="text-sm text-muted-foreground">Create amazing AI images!</p>
+                </div>
+              </div>
+
+              <ul className="space-y-3">
+                {[
+                  { text: "AI image generation", included: true },
+                  { text: "Watch ads for free generations", included: true },
+                  { text: "3 generations per ad watched", included: true },
+                  { text: "Basic image quality", included: true },
+                  { text: "Video generation", included: false },
+                  { text: "3D model generation", included: false },
+                  { text: "Priority support", included: false },
+                ].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    {feature.included ? (
+                      <Check className="h-5 w-5 text-primary" />
+                    ) : (
+                      <X className="h-5 w-5 text-muted-foreground/50" />
+                    )}
+                    <span className={feature.included ? "" : "text-muted-foreground/50"}>{feature.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={() => navigate('/create')}
+              >
+                Start Free
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {/* PRO Tier */}
+          <Card className="border-primary/40 shadow-lg shadow-primary/10 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-primary/60" />
+            <div className="absolute top-4 right-4">
+              <span className="bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded-full">POPULAR</span>
             </div>
-            <ul className="space-y-2">
-              {[
-                "32GB storage included",
-                "90-day file retention",
-                "Unlimited AI image generation",
-                "Unlimited AI video generation",
-                "Unlimited 3D model generation",
-                "Image vectorization (1920x1080)",
-                "Priority support"
-              ].map((feature, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <Check className="h-5 w-5 text-primary" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="pt-2 text-sm text-muted-foreground border-t">
-              🎁 New users get 5 free image generations to start!
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-2">
-            {subscription?.status === 'active' ? (
-              <>
-                <Button disabled className="w-full">Current Plan</Button>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-primary/20">
+                  <Crown className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl">VinciAI PRO</CardTitle>
+                  <CardDescription>Unlimited creative power</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-baseline gap-2">
+                <span className="text-5xl font-bold">$3</span>
+                <span className="text-muted-foreground">/month</span>
+              </div>
+
+              {/* Key benefit */}
+              <div className="bg-primary/10 rounded-lg p-4 border border-primary/20">
+                <div className="flex items-center gap-2 text-primary font-medium">
+                  <Sparkles className="h-4 w-4" />
+                  <span>No ads, unlimited generations</span>
+                </div>
+              </div>
+
+              <ul className="space-y-3">
+                {[
+                  { text: "Unlimited AI image generation", included: true },
+                  { text: "Unlimited AI video generation", included: true },
+                  { text: "Unlimited 3D model generation", included: true },
+                  { text: "32GB storage included", included: true },
+                  { text: "90-day file retention", included: true },
+                  { text: "Image vectorization (1920x1080)", included: true },
+                  { text: "Priority support", included: true },
+                ].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <Check className="h-5 w-5 text-primary" />
+                    <span>{feature.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-2">
+              {isPro ? (
+                <>
+                  <Button disabled className="w-full">Current Plan</Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleManageSubscription}
+                    disabled={loading === 'portal'}
+                  >
+                    {loading === 'portal' ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Manage Subscription
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
                 <Button 
-                  variant="outline" 
                   className="w-full" 
-                  onClick={handleManageSubscription}
-                  disabled={loading === 'portal'}
+                  onClick={handleSubscribe}
+                  disabled={loading === 'subscription'}
                 >
-                  {loading === 'portal' ? (
+                  {loading === 'subscription' ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
+                      Processing...
                     </>
                   ) : (
-                    <>
-                      <Settings className="mr-2 h-4 w-4" />
-                      Manage Subscription
-                    </>
+                    'Subscribe Now'
                   )}
                 </Button>
-              </>
-            ) : (
-              <Button 
-                className="w-full" 
-                onClick={handleSubscribe}
-                disabled={loading === 'subscription'}
-              >
-                {loading === 'subscription' ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Subscribe Now'
-                )}
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
+              )}
+            </CardFooter>
+          </Card>
+        </div>
 
         {/* Token Packages */}
         <div>

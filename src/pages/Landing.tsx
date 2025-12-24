@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Film, Box, GraduationCap, Gamepad2, Printer, Glasses, Home, ChevronRight, Play, Zap, Layers, Wand2, Star, Quote, ChevronDown, BookOpen, ArrowRight, MessageSquare } from "lucide-react";
+import { Sparkles, Film, Box, GraduationCap, Gamepad2, Printer, Glasses, Home, ChevronRight, Play, Zap, Layers, Wand2, Star, Quote, ChevronDown, BookOpen, ArrowRight, MessageSquare, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import AdBanner from "@/components/AdBanner";
@@ -415,6 +415,141 @@ export default function Landing() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* Free Tier Explanation Section */}
+      <section className="py-20 px-6">
+        <div className="container mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <span className="inline-block px-4 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium mb-4">
+              100% Free to Start
+            </span>
+            <h2 className="text-3xl md:text-5xl font-bold text-foreground mb-4">
+              Create for Free with Ads
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              No credit card required. Watch short ads and get free AI image generations instantly.
+            </p>
+          </motion.div>
+
+          {/* Visual Flow */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="bg-gradient-to-br from-card to-muted/30 rounded-3xl p-8 md:p-12 border border-border/50">
+              <div className="grid md:grid-cols-3 gap-8 items-center">
+                {/* Step 1 */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.1 }}
+                  className="text-center"
+                >
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                    <Play className="h-10 w-10 text-white" />
+                  </div>
+                  <div className="text-sm font-bold text-primary mb-1">Step 1</div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">Watch an Ad</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Quick 15-30 second video ad
+                  </p>
+                </motion.div>
+
+                {/* Arrow */}
+                <div className="hidden md:flex justify-center">
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    whileInView={{ scaleX: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.3 }}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="w-24 h-0.5 bg-gradient-to-r from-primary/50 to-primary" />
+                    <ChevronRight className="h-6 w-6 text-primary" />
+                  </motion.div>
+                </div>
+
+                {/* Step 2 */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.2 }}
+                  className="text-center"
+                >
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                    <Sparkles className="h-10 w-10 text-white" />
+                  </div>
+                  <div className="text-sm font-bold text-primary mb-1">Step 2</div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">Get 3 Free Generations</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Instantly credited to your account
+                  </p>
+                </motion.div>
+              </div>
+
+              {/* Result */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.4 }}
+                className="mt-10 pt-8 border-t border-border/50"
+              >
+                <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
+                      <Wand2 className="h-8 w-8 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-foreground">Create Amazing AI Images</h4>
+                      <p className="text-sm text-muted-foreground">Use your generations to bring ideas to life</p>
+                    </div>
+                  </div>
+                  <Link to="/create">
+                    <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                      <Play className="mr-2 h-4 w-4" />
+                      Try It Now - Free
+                    </Button>
+                  </Link>
+                </div>
+              </motion.div>
+
+              {/* Benefits */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.5 }}
+                className="mt-8 flex flex-wrap justify-center gap-4"
+              >
+                {[
+                  "No credit card required",
+                  "Unlimited ad watches",
+                  "No account limits",
+                  "Upgrade anytime"
+                ].map((benefit, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted/50 rounded-full text-sm text-muted-foreground"
+                  >
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                    {benefit}
+                  </span>
+                ))}
+              </motion.div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
