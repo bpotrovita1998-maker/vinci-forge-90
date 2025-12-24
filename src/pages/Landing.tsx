@@ -127,7 +127,7 @@ const faqs = [
   },
   {
     question: "Is there a free tier available?",
-    answer: "Yes! We offer a generous free tier with daily credits that refresh automatically. Free users can create images, videos, and 3D models with some limitations. Upgrade to Pro for unlimited access and additional features."
+    answer: "Yes! Free users can create AI-generated images by watching short ads. Each ad you watch grants you free generations to use. This allows you to experience VinciAI's powerful creation tools at no cost. Upgrade to Pro for ad-free unlimited access and all premium features."
   },
   {
     question: "How does VinciAI ensure content quality?",
