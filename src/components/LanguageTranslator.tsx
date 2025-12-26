@@ -190,21 +190,77 @@ function tryApplyTranslateViaCombo(langCode: string): boolean {
   const combo = getTranslateCombo();
   if (!combo) return false;
 
+  // Set value
   combo.value = langCode;
-  combo.dispatchEvent(new Event('change'));
-  combo.dispatchEvent(new Event('input'));
+  
+  // Dispatch multiple event types to ensure Google picks it up
+  const events = ['change', 'input', 'blur'];
+  events.forEach(type => {
+    combo.dispatchEvent(new Event(type, { bubbles: true }));
+  });
+
+  // Also try triggering via the native setter
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLSelectElement.prototype,
+    'value'
+  )?.set;
+  if (nativeInputValueSetter) {
+    nativeInputValueSetter.call(combo, langCode);
+    combo.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   return true;
 }
 
-async function applyGoogleTranslate(langCode: string, opts?: { timeoutMs?: number }) {
-  const timeoutMs = opts?.timeoutMs ?? 2500;
+// Fallback: set googtrans cookie and reload (only when user explicitly picks a language)
+function applyTranslateViaCookie(langCode: string) {
+  const domain = window.location.hostname;
+  const path = '/';
+  const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+  
+  if (langCode === 'en') {
+    // Clear the cookie to reset to English
+    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}`;
+    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}; domain=${domain}`;
+    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}; domain=.${domain}`;
+  } else {
+    const value = `/en/${langCode}`;
+    document.cookie = `googtrans=${value}; expires=${expires}; path=${path}`;
+    document.cookie = `googtrans=${value}; expires=${expires}; path=${path}; domain=${domain}`;
+    document.cookie = `googtrans=${value}; expires=${expires}; path=${path}; domain=.${domain}`;
+  }
+}
+
+async function applyGoogleTranslate(langCode: string, opts?: { timeoutMs?: number; useCookieFallback?: boolean }) {
+  const timeoutMs = opts?.timeoutMs ?? 3000;
+  const useCookieFallback = opts?.useCookieFallback ?? true;
   const start = Date.now();
 
   ensureTranslateScriptLoaded();
 
+  // Wait for combo to appear
   while (Date.now() - start < timeoutMs) {
-    if (tryApplyTranslateViaCombo(langCode)) return true;
-    await new Promise(r => setTimeout(r, 100));
+    const combo = getTranslateCombo();
+    if (combo) {
+      const applied = tryApplyTranslateViaCombo(langCode);
+      if (applied) {
+        console.log('[Translator] Applied via combo:', langCode);
+        return true;
+      }
+    }
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  // If combo never appeared, use cookie fallback + reload
+  if (useCookieFallback && langCode !== 'en') {
+    console.log('[Translator] Combo not found, using cookie fallback for:', langCode);
+    applyTranslateViaCookie(langCode);
+    // Mark that we're doing a translation reload so we don't loop
+    if (!sessionStorage.getItem('vinci-gt-reload-once')) {
+      sessionStorage.setItem('vinci-gt-reload-once', 'true');
+      window.location.reload();
+    }
+    return true;
   }
 
   return false;
@@ -356,12 +412,12 @@ export function LanguageTranslator() {
       }
     }
 
-    // IMPORTANT: Don't set googtrans cookie globally; it can auto-trigger translation
-    // and crash React during re-renders. We only apply translation via the widget.
-
-    // Apply without reload; if widget isn't ready, show a clear error.
+    // Clear the reload guard so cookie fallback can work if needed
+    sessionStorage.removeItem('vinci-gt-reload-once');
+    
+    // Apply translation - will use combo first, then cookie fallback with reload if needed
     if (lang.code !== 'en') {
-      const applied = await applyGoogleTranslate(lang.code);
+      const applied = await applyGoogleTranslate(lang.code, { useCookieFallback: true });
       if (!applied) {
         toast.error('Translation not ready', {
           description: 'Google Translate widget did not initialize. Disable AdBlock/privacy shields for translate.google.com and refresh.',
@@ -369,7 +425,9 @@ export function LanguageTranslator() {
         });
       }
     } else {
-      await applyGoogleTranslate('en');
+      // Reset to English - clear cookie and apply
+      applyTranslateViaCookie('en');
+      await applyGoogleTranslate('en', { useCookieFallback: false });
     }
   };
 
