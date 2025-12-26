@@ -15,7 +15,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
 const LANGUAGE_STORAGE_KEY = 'vinci-language-preference';
-const RELOAD_GUARD_KEY = 'vinci-gt-reload-once';
 const PREFERENCE_KEY = 'preferred_language';
 
 const LANGUAGES = [
@@ -63,19 +62,9 @@ const LANGUAGES = [
 
 type Lang = (typeof LANGUAGES)[number];
 
-function setGoogTransCookie(langCode: string) {
-  const hostname = window.location.hostname;
-
-  if (langCode === 'en') {
-    document.cookie = 'googtrans=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    document.cookie = `googtrans=; path=/; domain=${hostname}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-    return;
-  }
-
-  const cookieValue = `/en/${langCode}`;
-  document.cookie = `googtrans=${cookieValue}; path=/`;
-  document.cookie = `googtrans=${cookieValue}; path=/; domain=${hostname}`;
-}
+// NOTE: We intentionally avoid forcing the googtrans cookie globally.
+// Setting it can auto-trigger translation and, when React re-renders, Google’s DOM mutations
+// can cause "removeChild" crashes. We rely on the widget's combo switch instead.
 
 function ensureTranslateScriptLoaded() {
   if (document.getElementById('google-translate-script')) return;
@@ -139,8 +128,6 @@ function ensureTranslateScriptLoaded() {
 }
 
 function getTranslateCombo(): HTMLSelectElement | null {
-  // Google injects a <select class="goog-te-combo"> control.
-  // We keep it hidden but can still set its value to change languages without reloading.
   return document.querySelector('select.goog-te-combo') as HTMLSelectElement | null;
 }
 
@@ -148,8 +135,6 @@ function tryApplyTranslateViaCombo(langCode: string): boolean {
   const combo = getTranslateCombo();
   if (!combo) return false;
 
-  // Some language codes might not exist in the combo if Google filtered them.
-  // Setting the value and dispatching change is the standard programmatic way.
   combo.value = langCode;
   combo.dispatchEvent(new Event('change'));
   combo.dispatchEvent(new Event('input'));
@@ -162,9 +147,6 @@ async function applyGoogleTranslate(langCode: string, opts?: { timeoutMs?: numbe
 
   ensureTranslateScriptLoaded();
 
-  // Wait for the widget to inject the combo, then apply.
-  // This keeps SPA state intact (no reload) and avoids "blank page" issues.
-  // Polling is used because Google injects asynchronously.
   while (Date.now() - start < timeoutMs) {
     if (tryApplyTranslateViaCombo(langCode)) return true;
     await new Promise(r => setTimeout(r, 100));
@@ -173,20 +155,17 @@ async function applyGoogleTranslate(langCode: string, opts?: { timeoutMs?: numbe
   return false;
 }
 
-// Simple flag - has a reload happened this session already?
+// (kept for backward-compat with older sessions) – no longer used
+const RELOAD_GUARD_KEY = 'vinci-gt-reload-once';
 function hasReloadedThisSession(): boolean {
   return sessionStorage.getItem(RELOAD_GUARD_KEY) === 'true';
 }
-
 function markReloadDone() {
   sessionStorage.setItem(RELOAD_GUARD_KEY, 'true');
 }
-
 async function guardedReload() {
   if (hasReloadedThisSession()) return;
   markReloadDone();
-
-  // Let React finish committing before we reload.
   await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   window.location.reload();
 }
@@ -290,46 +269,49 @@ export function LanguageTranslator() {
     loadPreference();
   }, [user, isReady]);
 
-  // SPA navigation: just set the cookie, no reloads needed (Google Translate persists)
-  useEffect(() => {
-    lastPathRef.current = location.pathname;
-
-    const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
-    if (saved === 'en') return;
-
-    // Just ensure cookie is set for each navigation
-    setGoogTransCookie(saved);
-  }, [location.pathname]);
-
   const translateTo = async (langCode: string) => {
     const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
     setCurrentLang(lang);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, lang.code);
-    setGoogTransCookie(lang.code);
 
-    // Save to database if logged in
+    // Save to database if logged in (avoid upsert-onConflict 400s by doing select->update/insert)
     if (user) {
-      await supabase
+      const { data: existing } = await supabase
         .from('user_preferences')
-        .upsert(
-          {
-            user_id: user.id,
-            preference_key: PREFERENCE_KEY,
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('preference_key', PREFERENCE_KEY)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabase
+          .from('user_preferences')
+          .update({
             preference_type: 'language',
             preference_value: { code: lang.code },
-          },
-          {
-            onConflict: 'user_id,preference_key',
-          }
-        );
+          })
+          .eq('id', existing.id);
+      } else {
+        await supabase.from('user_preferences').insert({
+          user_id: user.id,
+          preference_key: PREFERENCE_KEY,
+          preference_type: 'language',
+          preference_value: { code: lang.code },
+        });
+      }
     }
 
-    // Apply without reload. If Google isn't ready, do a single guarded reload.
+    // IMPORTANT: Don't set googtrans cookie globally; it can auto-trigger translation
+    // and crash React during re-renders. We only apply translation via the widget.
+
+    // Apply without reload; if widget isn't ready, show a clear error.
     if (lang.code !== 'en') {
       const applied = await applyGoogleTranslate(lang.code);
       if (!applied) {
-        toast.message('Applying translation…', { duration: 1500 });
-        await guardedReload();
+        toast.error('Translation not ready', {
+          description: 'Google Translate widget did not initialize. Disable AdBlock/privacy shields for translate.google.com and refresh.',
+          duration: 8000,
+        });
       }
     } else {
       await applyGoogleTranslate('en');
