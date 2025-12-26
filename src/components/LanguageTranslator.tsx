@@ -139,16 +139,17 @@ function ensureTranslateScriptLoaded() {
   document.body.appendChild(script);
 }
 
-function getReloadGuard(): Record<string, true> {
-  try {
-    return JSON.parse(sessionStorage.getItem(RELOAD_GUARD_KEY) || '{}');
-  } catch {
-    return {};
-  }
+// Simple flag - has a reload happened this session already?
+function hasReloadedThisSession(): boolean {
+  return sessionStorage.getItem(RELOAD_GUARD_KEY) === 'true';
 }
 
-function setReloadGuard(next: Record<string, true>) {
-  sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify(next));
+function markReloadDone() {
+  sessionStorage.setItem(RELOAD_GUARD_KEY, 'true');
+}
+
+function clearReloadGuard() {
+  sessionStorage.removeItem(RELOAD_GUARD_KEY);
 }
 
 export function LanguageTranslator() {
@@ -235,37 +236,24 @@ export function LanguageTranslator() {
 
       // If a non-English language is saved, we need ONE initial reload so Google Translate
       // can apply it (it reads the cookie during initialization).
-      if (lang.code !== 'en') {
-        const guard = getReloadGuard();
-        const key = `init:${lang.code}`;
-        if (!guard[key]) {
-          guard[key] = true;
-          setReloadGuard(guard);
-          setTimeout(() => window.location.reload(), 50);
-        }
+      if (lang.code !== 'en' && !hasReloadedThisSession()) {
+        markReloadDone();
+        setTimeout(() => window.location.reload(), 50);
       }
     };
 
     loadPreference();
   }, [user]);
 
-  // SPA navigation: reload once per route to apply translation
+  // SPA navigation: just set the cookie, no reloads needed (Google Translate persists)
   useEffect(() => {
     lastPathRef.current = location.pathname;
 
     const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
     if (saved === 'en') return;
 
+    // Just ensure cookie is set for each navigation
     setGoogTransCookie(saved);
-
-    const guard = getReloadGuard();
-    const key = `${saved}:${location.pathname}`;
-    if (guard[key]) return;
-    guard[key] = true;
-    setReloadGuard(guard);
-
-    const t = setTimeout(() => window.location.reload(), 50);
-    return () => clearTimeout(t);
   }, [location.pathname]);
 
   const translateTo = async (langCode: string) => {
@@ -285,7 +273,8 @@ export function LanguageTranslator() {
       });
     }
 
-    sessionStorage.removeItem(RELOAD_GUARD_KEY);
+    // Clear guard so the next reload will be allowed
+    clearReloadGuard();
     setGoogTransCookie(lang.code);
     window.location.reload();
   };
