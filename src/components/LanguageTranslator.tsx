@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Globe, ChevronDown } from 'lucide-react';
+import { Globe, ChevronDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -286,6 +286,7 @@ export function LanguageTranslator() {
   const { user } = useAuth();
   const [currentLang, setCurrentLang] = useState<Lang>(LANGUAGES[0]);
   const [isReady, setIsReady] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const lastPathRef = useRef(location.pathname);
   const hasFetchedFromDb = useRef(false);
 
@@ -383,6 +384,7 @@ export function LanguageTranslator() {
   const translateTo = async (langCode: string) => {
     const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
     setCurrentLang(lang);
+    setIsTranslating(true);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, lang.code);
 
     // Save to database if logged in (avoid upsert-onConflict 400s by doing select->update/insert)
@@ -415,19 +417,23 @@ export function LanguageTranslator() {
     // Clear the reload guard so cookie fallback can work if needed
     sessionStorage.removeItem('vinci-gt-reload-once');
     
-    // Apply translation - will use combo first, then cookie fallback with reload if needed
-    if (lang.code !== 'en') {
-      const applied = await applyGoogleTranslate(lang.code, { useCookieFallback: true });
-      if (!applied) {
-        toast.error('Translation not ready', {
-          description: 'Google Translate widget did not initialize. Disable AdBlock/privacy shields for translate.google.com and refresh.',
-          duration: 8000,
-        });
+    try {
+      // Apply translation - will use combo first, then cookie fallback with reload if needed
+      if (lang.code !== 'en') {
+        const applied = await applyGoogleTranslate(lang.code, { useCookieFallback: true });
+        if (!applied) {
+          toast.error('Translation not ready', {
+            description: 'Google Translate widget did not initialize. Disable AdBlock/privacy shields for translate.google.com and refresh.',
+            duration: 8000,
+          });
+        }
+      } else {
+        // Reset to English - clear cookie and apply
+        applyTranslateViaCookie('en');
+        await applyGoogleTranslate('en', { useCookieFallback: false });
       }
-    } else {
-      // Reset to English - clear cookie and apply
-      applyTranslateViaCookie('en');
-      await applyGoogleTranslate('en', { useCookieFallback: false });
+    } finally {
+      setIsTranslating(false);
     }
   };
 
@@ -438,11 +444,21 @@ export function LanguageTranslator() {
           variant="ghost"
           size="sm"
           className="gap-2 text-muted-foreground hover:text-foreground notranslate"
+          disabled={isTranslating}
         >
-          <Globe className="w-4 h-4" />
-          <span className="hidden sm:inline">{currentLang.flag} {currentLang.name}</span>
-          <span className="sm:hidden">{currentLang.flag}</span>
-          <ChevronDown className="w-3 h-3" />
+          {isTranslating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="hidden sm:inline text-xs">Translating...</span>
+            </>
+          ) : (
+            <>
+              <Globe className="w-4 h-4" />
+              <span className="hidden sm:inline">{currentLang.flag} {currentLang.name}</span>
+              <span className="sm:hidden">{currentLang.flag}</span>
+              <ChevronDown className="w-3 h-3" />
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto w-48 bg-popover border border-border z-50 notranslate">
