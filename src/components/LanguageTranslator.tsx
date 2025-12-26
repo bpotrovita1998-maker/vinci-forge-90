@@ -73,7 +73,9 @@ function ensureTranslateScriptLoaded() {
     const style = document.createElement('style');
     style.id = 'google-translate-styles';
     style.textContent = `
-      .goog-te-banner-frame { display: none !important; }
+      /* Hide all Google Translate UI elements */
+      .goog-te-banner-frame,
+      .goog-te-menu-frame,
       .goog-te-balloon-frame,
       #goog-gt-tt,
       .goog-te-spinner-pos,
@@ -81,10 +83,26 @@ function ensureTranslateScriptLoaded() {
       .goog-tooltip:hover,
       .goog-text-highlight,
       .goog-te-gadget,
-      #google_translate_element {
+      #google_translate_element,
+      .skiptranslate {
         display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
       }
-      body { top: 0 !important; }
+      /* Prevent body from being pushed down by hidden banner */
+      body {
+        top: 0 !important;
+        position: static !important;
+      }
+      /* Hide the iframe toolbar Google injects */
+      iframe.goog-te-banner-frame,
+      iframe.skiptranslate {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+      }
     `;
     document.head.appendChild(style);
   }
