@@ -119,9 +119,20 @@ export default function UnityThreeDViewer({ modelUrl, transform }: UnityThreeDVi
       <Canvas
         key={`model-${retryCount}`}
         shadows
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
+        gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: true }}
         camera={{ position: [0, 2, 5], fov: 50 }}
-        onCreated={() => setIsLoading(false)}
+        onCreated={({ gl }) => {
+          setIsLoading(false);
+          const elem = gl.domElement as HTMLCanvasElement;
+          const onLost = (e: any) => {
+            e.preventDefault?.();
+            setRetryCount((c) => c + 1);
+          };
+          const onRestored = () => setRetryCount((c) => c + 1);
+          elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
+          elem.addEventListener('webglcontextrestored', onRestored as any);
+        }}
       >
         <color attach="background" args={['#3a3a3a']} />
         

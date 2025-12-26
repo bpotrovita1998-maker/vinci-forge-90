@@ -257,6 +257,19 @@ export default function ThreeDViewer({
       <Canvas
         camera={{ position: [0, 0, 5], fov: 50 }}
         className="w-full h-full"
+        dpr={[1, 1.5]}
+        gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: true }}
+        onCreated={({ gl }) => {
+          const elem = gl.domElement as HTMLCanvasElement;
+          const onLost = (e: any) => {
+            e.preventDefault?.();
+            // Force remount + fresh context
+            setRetryCount((c) => c + 1);
+          };
+          const onRestored = () => setRetryCount((c) => c + 1);
+          elem.addEventListener('webglcontextlost', onLost as any, { passive: false } as any);
+          elem.addEventListener('webglcontextrestored', onRestored as any);
+        }}
       >
         <Suspense fallback={null}>
           <ModelErrorBoundary onError={handleLoadError}>
