@@ -67,7 +67,7 @@ type Lang = (typeof LANGUAGES)[number];
 // can cause "removeChild" crashes. We rely on the widget's combo switch instead.
 
 function ensureTranslateScriptLoaded() {
-  if (document.getElementById('google-translate-script')) return;
+  // Always ensure styles + container + init exist, even if the script tag was added earlier.
 
   if (!document.getElementById('google-translate-styles')) {
     const style = document.createElement('style');
@@ -135,6 +135,9 @@ function ensureTranslateScriptLoaded() {
 
   (window as any).googleTranslateElementInit = () => {
     if ((window as any).google?.translate && (window as any).google.translate.TranslateElement) {
+      // Avoid re-creating the widget if it already injected the combo.
+      if (document.querySelector('select.goog-te-combo')) return;
+
       new (window as any).google.translate.TranslateElement(
         {
           pageLanguage: 'en',
@@ -146,12 +149,27 @@ function ensureTranslateScriptLoaded() {
     }
   };
 
+  // If the script is already present, just try to init the widget.
+  if (document.getElementById('google-translate-script')) {
+    try {
+      (window as any).googleTranslateElementInit?.();
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
   const script = document.createElement('script');
   script.id = 'google-translate-script';
   script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
   script.async = true;
   script.onload = () => {
     (window as any).__vinciGoogleTranslateLoaded = true;
+    try {
+      (window as any).googleTranslateElementInit?.();
+    } catch {
+      // ignore
+    }
   };
   script.onerror = () => {
     (window as any).__vinciGoogleTranslateLoaded = false;
