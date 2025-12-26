@@ -156,6 +156,7 @@ export function LanguageTranslator() {
   const location = useLocation();
   const { user } = useAuth();
   const [currentLang, setCurrentLang] = useState<Lang>(LANGUAGES[0]);
+  const [isReady, setIsReady] = useState(false);
   const lastPathRef = useRef(location.pathname);
   const hasFetchedFromDb = useRef(false);
 
@@ -166,6 +167,12 @@ export function LanguageTranslator() {
       europe: LANGUAGES.filter(l => l.region === 'europe'),
       asia: LANGUAGES.filter(l => l.region === 'asia'),
     };
+  }, []);
+
+  // Mark component as ready after initial mount - prevents reload during hydration
+  useEffect(() => {
+    const t = setTimeout(() => setIsReady(true), 100);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
@@ -190,6 +197,9 @@ export function LanguageTranslator() {
 
   // Load preference from DB (if logged in) or localStorage
   useEffect(() => {
+    // Don't do anything until the component is ready
+    if (!isReady) return;
+
     const loadPreference = async () => {
       let langCode = localStorage.getItem(LANGUAGE_STORAGE_KEY) || 'en';
 
@@ -236,14 +246,16 @@ export function LanguageTranslator() {
 
       // If a non-English language is saved, we need ONE initial reload so Google Translate
       // can apply it (it reads the cookie during initialization).
+      // Wait until the app is fully ready before reloading to prevent blank screens.
       if (lang.code !== 'en' && !hasReloadedThisSession()) {
         markReloadDone();
-        setTimeout(() => window.location.reload(), 50);
+        // Give React more time to fully render before reloading
+        setTimeout(() => window.location.reload(), 300);
       }
     };
 
     loadPreference();
-  }, [user]);
+  }, [user, isReady]);
 
   // SPA navigation: just set the cookie, no reloads needed (Google Translate persists)
   useEffect(() => {
