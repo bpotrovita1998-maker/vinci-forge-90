@@ -281,17 +281,10 @@ export function LanguageTranslator() {
 
       const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
       setCurrentLang(lang);
-      setGoogTransCookie(lang.code);
-
-      // Apply translation without reloading (keeps the SPA route/state intact).
-      if (lang.code !== 'en') {
-        const applied = await applyGoogleTranslate(lang.code);
-        // If Google hasn't injected the control yet, fall back to a single guarded reload.
-        if (!applied) await guardedReload();
-      } else {
-        // Switch back to English
-        await applyGoogleTranslate('en');
-      }
+      
+      // DO NOT auto-apply non-English languages on page load.
+      // This prevents the "page goes blank after 3 sec" issue.
+      // Translation only happens when user explicitly picks language from dropdown.
     };
 
     loadPreference();
