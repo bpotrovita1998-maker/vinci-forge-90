@@ -129,7 +129,6 @@ function ensureTranslateScriptLoaded() {
   };
   script.onerror = () => {
     (window as any).__vinciGoogleTranslateLoaded = false;
-    // Most common causes: AdBlock/privacy extensions, network filtering, or restrictive CSP.
     toast.error('Translator blocked', {
       description:
         'Your browser or a network rule blocked translate.google.com. Disable AdBlock/privacy extensions for this site, then hard refresh (Ctrl+Shift+R).',
@@ -137,6 +136,41 @@ function ensureTranslateScriptLoaded() {
     });
   };
   document.body.appendChild(script);
+}
+
+function getTranslateCombo(): HTMLSelectElement | null {
+  // Google injects a <select class="goog-te-combo"> control.
+  // We keep it hidden but can still set its value to change languages without reloading.
+  return document.querySelector('select.goog-te-combo') as HTMLSelectElement | null;
+}
+
+function tryApplyTranslateViaCombo(langCode: string): boolean {
+  const combo = getTranslateCombo();
+  if (!combo) return false;
+
+  // Some language codes might not exist in the combo if Google filtered them.
+  // Setting the value and dispatching change is the standard programmatic way.
+  combo.value = langCode;
+  combo.dispatchEvent(new Event('change'));
+  combo.dispatchEvent(new Event('input'));
+  return true;
+}
+
+async function applyGoogleTranslate(langCode: string, opts?: { timeoutMs?: number }) {
+  const timeoutMs = opts?.timeoutMs ?? 2500;
+  const start = Date.now();
+
+  ensureTranslateScriptLoaded();
+
+  // Wait for the widget to inject the combo, then apply.
+  // This keeps SPA state intact (no reload) and avoids "blank page" issues.
+  // Polling is used because Google injects asynchronously.
+  while (Date.now() - start < timeoutMs) {
+    if (tryApplyTranslateViaCombo(langCode)) return true;
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  return false;
 }
 
 // Simple flag - has a reload happened this session already?
@@ -148,8 +182,13 @@ function markReloadDone() {
   sessionStorage.setItem(RELOAD_GUARD_KEY, 'true');
 }
 
-function clearReloadGuard() {
-  sessionStorage.removeItem(RELOAD_GUARD_KEY);
+async function guardedReload() {
+  if (hasReloadedThisSession()) return;
+  markReloadDone();
+
+  // Let React finish committing before we reload.
+  await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  window.location.reload();
 }
 
 export function LanguageTranslator() {
@@ -244,13 +283,14 @@ export function LanguageTranslator() {
       setCurrentLang(lang);
       setGoogTransCookie(lang.code);
 
-      // If a non-English language is saved, we need ONE initial reload so Google Translate
-      // can apply it (it reads the cookie during initialization).
-      // Wait until the app is fully ready before reloading to prevent blank screens.
-      if (lang.code !== 'en' && !hasReloadedThisSession()) {
-        markReloadDone();
-        // Give React more time to fully render before reloading
-        setTimeout(() => window.location.reload(), 300);
+      // Apply translation without reloading (keeps the SPA route/state intact).
+      if (lang.code !== 'en') {
+        const applied = await applyGoogleTranslate(lang.code);
+        // If Google hasn't injected the control yet, fall back to a single guarded reload.
+        if (!applied) await guardedReload();
+      } else {
+        // Switch back to English
+        await applyGoogleTranslate('en');
       }
     };
 
@@ -272,23 +312,35 @@ export function LanguageTranslator() {
     const lang = (LANGUAGES as readonly Lang[]).find(l => l.code === langCode) || LANGUAGES[0];
     setCurrentLang(lang);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, lang.code);
+    setGoogTransCookie(lang.code);
 
     // Save to database if logged in
     if (user) {
-      await supabase.from('user_preferences').upsert({
-        user_id: user.id,
-        preference_key: PREFERENCE_KEY,
-        preference_type: 'language',
-        preference_value: { code: lang.code },
-      }, {
-        onConflict: 'user_id,preference_key',
-      });
+      await supabase
+        .from('user_preferences')
+        .upsert(
+          {
+            user_id: user.id,
+            preference_key: PREFERENCE_KEY,
+            preference_type: 'language',
+            preference_value: { code: lang.code },
+          },
+          {
+            onConflict: 'user_id,preference_key',
+          }
+        );
     }
 
-    // Clear guard so the next reload will be allowed
-    clearReloadGuard();
-    setGoogTransCookie(lang.code);
-    window.location.reload();
+    // Apply without reload. If Google isn't ready, do a single guarded reload.
+    if (lang.code !== 'en') {
+      const applied = await applyGoogleTranslate(lang.code);
+      if (!applied) {
+        toast.message('Applying translation…', { duration: 1500 });
+        await guardedReload();
+      }
+    } else {
+      await applyGoogleTranslate('en');
+    }
   };
 
   return (
