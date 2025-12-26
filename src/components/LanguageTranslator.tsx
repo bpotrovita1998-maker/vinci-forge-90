@@ -73,7 +73,7 @@ function ensureTranslateScriptLoaded() {
     const style = document.createElement('style');
     style.id = 'google-translate-styles';
     style.textContent = `
-      /* Hide all Google Translate UI elements */
+      /* Hide the Google Translate top banner + tooltips (but DO NOT hide .skiptranslate) */
       .goog-te-banner-frame,
       .goog-te-menu-frame,
       .goog-te-balloon-frame,
@@ -81,21 +81,32 @@ function ensureTranslateScriptLoaded() {
       .goog-te-spinner-pos,
       .goog-tooltip,
       .goog-tooltip:hover,
-      .goog-text-highlight,
-      .goog-te-gadget,
-      #google_translate_element,
-      .skiptranslate {
+      .goog-text-highlight {
         display: none !important;
         visibility: hidden !important;
         height: 0 !important;
         width: 0 !important;
         overflow: hidden !important;
       }
-      /* Prevent body from being pushed down by hidden banner */
+
+      /* Keep the widget in the DOM (so the hidden language combo exists), but visually hide it */
+      #google_translate_element {
+        position: fixed !important;
+        left: -9999px !important;
+        top: 0 !important;
+        width: 1px !important;
+        height: 1px !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        overflow: hidden !important;
+      }
+
+      /* Prevent body from being pushed down by the (hidden) banner */
       body {
         top: 0 !important;
         position: static !important;
       }
+
       /* Hide the iframe toolbar Google injects */
       iframe.goog-te-banner-frame,
       iframe.skiptranslate {
@@ -110,7 +121,15 @@ function ensureTranslateScriptLoaded() {
   if (!document.getElementById('google_translate_element')) {
     const container = document.createElement('div');
     container.id = 'google_translate_element';
-    container.style.display = 'none';
+    // Keep it renderable for Google (so it injects the <select>), but offscreen/invisible.
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '1px';
+    container.style.height = '1px';
+    container.style.opacity = '0';
+    container.style.pointerEvents = 'none';
+    container.style.overflow = 'hidden';
     document.body.appendChild(container);
   }
 
