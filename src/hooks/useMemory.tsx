@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface UserPreference {
   id: string;
@@ -32,10 +33,20 @@ export const useMemory = () => {
   const [patterns, setPatterns] = useState<GenerationPattern[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    loadMemoryData();
-  }, []);
+    // Only load memory data when user is authenticated
+    if (user) {
+      loadMemoryData();
+    } else {
+      // Reset state and stop loading when not authenticated
+      setPreferences([]);
+      setInstructions([]);
+      setPatterns([]);
+      setLoading(false);
+    }
+  }, [user]);
 
   const loadMemoryData = async () => {
     try {
