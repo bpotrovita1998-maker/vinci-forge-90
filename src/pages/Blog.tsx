@@ -718,7 +718,7 @@ export default function Blog() {
             pageType="content" 
             format="horizontal" 
             contentItemCount={blogPosts.length}
-            minContentItems={1}
+            minContentItems={5}
           />
         </div>
       </section>

@@ -2,23 +2,37 @@ import { useEffect, useRef, useState } from 'react';
 import { useSubscription } from '@/hooks/useSubscription';
 
 /**
- * AdSense Compliant Ad Banner
+ * AdSense Compliant Ad Banner - STRICT COMPLIANCE
  * 
- * IMPORTANT: Per Google AdSense policies, ads should ONLY be shown on pages with:
- * - Substantial publisher content (not empty states, loading screens, or navigation)
- * - Content that provides value to users
- * - Pages that are not "under construction"
+ * Per Google AdSense Publisher Policies (https://support.google.com/adsense/answer/10502938):
  * 
- * Approved page types:
- * - 'content': Pages with substantial text/media content (Landing, Gallery with items, Blog, etc.)
+ * MINIMUM CONTENT REQUIREMENTS:
+ * - Pages must have substantial, unique, and valuable content
+ * - Content must provide value to users beyond what's available elsewhere
+ * - Sites should be regularly updated with fresh content
+ * - Navigation should be clear and functional
  * 
- * DO NOT use on:
- * - Tool/generator pages (Index/Create page)
- * - Auth pages
- * - Settings pages
- * - Empty states
- * - Loading screens
- * - Navigation pages
+ * APPROVED PAGES (content-rich with substantial value):
+ * - Landing page (with testimonials, FAQs, features, blog previews)
+ * - Blog page (with 5+ detailed articles with unique content)
+ * - Tutorials page (with 5+ comprehensive guides)
+ * - FAQ page (with 10+ detailed Q&A entries)
+ * - Gallery (user's own created content, 3+ items)
+ * 
+ * PROHIBITED PAGES (tools, navigation, empty states):
+ * - /create (tool page)
+ * - /auth (login/signup)
+ * - /settings (user settings)
+ * - /scenes (tool page)
+ * - /pricing (may be considered thin content without substantial copy)
+ * - Any page with loading states or empty content
+ * - Any page under construction
+ * 
+ * USER EXPERIENCE REQUIREMENTS:
+ * - Ads should not be deceptive or misleading
+ * - Ads should not interfere with navigation
+ * - Content should be clearly distinguishable from ads
+ * - Site should work well on all devices
  */
 
 interface AdBannerProps {
@@ -32,8 +46,11 @@ interface AdBannerProps {
   pageType: 'content';
   /**
    * Minimum content items required on the page before showing ads.
-   * For example, a gallery should have at least 1 item before showing ads.
-   * Defaults to 1.
+   * - FAQ: minimum 10 questions
+   * - Blog: minimum 5 articles
+   * - Tutorials: minimum 5 guides
+   * - Gallery: minimum 3 items
+   * - Landing: minimum 5 content sections
    */
   minContentItems?: number;
   /**
@@ -48,8 +65,8 @@ export default function AdBanner({
   format = 'horizontal',
   className = '',
   pageType,
-  minContentItems = 1,
-  contentItemCount = 1,
+  minContentItems = 5, // Increased default for stricter compliance
+  contentItemCount = 0,
 }: AdBannerProps) {
   const { isAdmin, subscription } = useSubscription();
   const adRef = useRef<HTMLDivElement>(null);

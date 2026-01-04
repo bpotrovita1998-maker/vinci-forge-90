@@ -567,7 +567,7 @@ export default function Tutorials() {
             pageType="content" 
             format="horizontal" 
             contentItemCount={tutorials.length}
-            minContentItems={1}
+            minContentItems={5}
           />
         </div>
       </section>
