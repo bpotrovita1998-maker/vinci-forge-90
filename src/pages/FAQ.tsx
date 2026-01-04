@@ -463,7 +463,7 @@ export default function FAQ() {
             pageType="content" 
             format="horizontal" 
             contentItemCount={totalFAQs}
-            minContentItems={1}
+            minContentItems={10}
           />
         </div>
       </section>

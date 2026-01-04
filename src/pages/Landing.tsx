@@ -178,9 +178,13 @@ export default function Landing() {
             <Sparkles className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold text-foreground">VinciAI</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6">
             <Link to="/gallery" className="text-muted-foreground hover:text-foreground transition-colors">Gallery</Link>
+            <Link to="/tutorials" className="text-muted-foreground hover:text-foreground transition-colors">Tutorials</Link>
+            <Link to="/blog" className="text-muted-foreground hover:text-foreground transition-colors">Blog</Link>
+            <Link to="/faq" className="text-muted-foreground hover:text-foreground transition-colors">FAQ</Link>
             <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
+            <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors">About</Link>
           </nav>
           <div className="flex items-center gap-3">
             {user ? (
@@ -615,7 +619,7 @@ export default function Landing() {
               format="horizontal" 
               pageType="content"
               contentItemCount={testimonials.length + faqs.length + blogPosts.length}
-              minContentItems={1}
+              minContentItems={10}
               className="w-full max-w-3xl"
             />
           </div>
@@ -757,7 +761,7 @@ export default function Landing() {
       {/* Footer */}
       <footer className="py-16 px-6 border-t border-border/50 bg-card/30">
         <div className="container mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
             {/* Brand Column */}
             <div className="col-span-2 md:col-span-1">
               <div className="flex items-center gap-2 mb-4">
@@ -776,6 +780,16 @@ export default function Landing() {
                 <li><Link to="/create" className="hover:text-foreground transition-colors">Create</Link></li>
                 <li><Link to="/gallery" className="hover:text-foreground transition-colors">Gallery</Link></li>
                 <li><Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
+              </ul>
+            </div>
+
+            {/* Resources Column */}
+            <div>
+              <h4 className="font-semibold text-foreground mb-4">Resources</h4>
+              <ul className="space-y-3 text-sm text-muted-foreground">
+                <li><Link to="/tutorials" className="hover:text-foreground transition-colors">Tutorials</Link></li>
+                <li><Link to="/blog" className="hover:text-foreground transition-colors">Blog</Link></li>
+                <li><Link to="/faq" className="hover:text-foreground transition-colors">FAQ</Link></li>
               </ul>
             </div>
 

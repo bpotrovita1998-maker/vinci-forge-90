@@ -38,31 +38,34 @@ const values = [
   {
     icon: Lightbulb,
     title: "Innovation First",
-    description: "We push the boundaries of what's possible with AI, constantly improving our technology to deliver cutting-edge solutions."
+    description: "We push the boundaries of what's possible with AI, constantly improving our technology to deliver cutting-edge solutions. Our research team publishes findings and contributes to the AI community."
   },
   {
     icon: Users,
-    title: "User-Centric",
-    description: "Every feature we build starts with understanding our users' needs. Your success is our success."
+    title: "User-Centric Design",
+    description: "Every feature we build starts with understanding our users' needs. We conduct extensive user research, gather feedback, and iterate to ensure your success is our success."
   },
   {
     icon: Globe,
     title: "Accessible to All",
-    description: "We believe powerful creative tools should be available to everyone, regardless of technical background."
+    description: "We believe powerful creative tools should be available to everyone, regardless of technical background, location, or budget. That's why we offer free tiers and educational resources."
   },
   {
     icon: Award,
     title: "Quality Matters",
-    description: "We never compromise on quality. Our AI models are trained to produce professional-grade results."
+    description: "We never compromise on quality. Our AI models are trained on millions of high-quality 3D assets to produce professional-grade results that meet industry standards."
   }
 ];
 
 const milestones = [
-  { year: "2022", title: "Founded", description: "VinciAI was founded with a vision to democratize 3D content creation." },
-  { year: "2023", title: "Beta Launch", description: "Released our first AI-powered 3D model generator to early adopters." },
-  { year: "2023", title: "1M+ Models", description: "Crossed 1 million AI-generated 3D models created by our community." },
-  { year: "2024", title: "Global Expansion", description: "Expanded to serve creators in over 150 countries worldwide." },
-  { year: "2024", title: "Enterprise Launch", description: "Launched enterprise solutions for studios and businesses." }
+  { year: "2022", month: "March", title: "Founded", description: "VinciAI was founded with a vision to democratize 3D content creation. Our founding team of AI researchers and designers set out to make professional-quality 3D generation accessible to everyone." },
+  { year: "2022", month: "September", title: "First AI Model", description: "Released our proprietary AI model specifically trained for 3D asset generation, marking a breakthrough in text-to-3D technology." },
+  { year: "2023", month: "February", title: "Beta Launch", description: "Opened our platform to early adopters with our first AI-powered 3D model generator. Over 10,000 users joined within the first month." },
+  { year: "2023", month: "July", title: "1M+ Models", description: "Crossed 1 million AI-generated 3D models created by our growing community of designers, game developers, and hobbyists." },
+  { year: "2023", month: "November", title: "Video Generation", description: "Launched AI video generation capabilities, allowing users to bring static images and 3D models to life with motion." },
+  { year: "2024", month: "March", title: "Global Expansion", description: "Expanded to serve creators in over 150 countries worldwide with localized support and multi-language capabilities." },
+  { year: "2024", month: "August", title: "CAD Integration", description: "Added CAD file generation for engineering and manufacturing workflows, expanding our platform beyond creative industries." },
+  { year: "2024", month: "December", title: "VinciAI 2.0", description: "Major platform update with 60% faster generation, improved quality, and new export formats for game engines and 3D printing." }
 ];
 
 export default function AboutUs() {
@@ -223,11 +226,12 @@ export default function AboutUs() {
                 transition={{ delay: index * 0.1 }}
                 className="flex gap-4 items-start"
               >
-                <div className="flex-shrink-0 w-16 text-right">
+                <div className="flex-shrink-0 w-20 text-right">
                   <span className="text-primary font-bold">{milestone.year}</span>
+                  <div className="text-xs text-muted-foreground">{milestone.month}</div>
                 </div>
                 <div className="flex-shrink-0 w-4 h-4 rounded-full bg-primary mt-1" />
-                <div>
+                <div className="flex-1">
                   <h3 className="font-semibold text-foreground">{milestone.title}</h3>
                   <p className="text-sm text-muted-foreground">{milestone.description}</p>
                 </div>
