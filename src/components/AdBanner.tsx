@@ -67,11 +67,8 @@ interface AdBannerProps {
   contentItemCount?: number;
 }
 
-// Your AdSense ad slot ID
-// Get this from: Google AdSense Dashboard → Ads → By ad unit → Create/copy ad unit code
-// IMPORTANT: Replace this with YOUR actual ad unit slot ID from AdSense dashboard!
-// The slot ID is found in the ad code: data-ad-slot="XXXXXXXXXX"
-const DEFAULT_AD_SLOT = '4567890123'; // TODO: Replace with your real ad slot ID
+// Your AdSense ad slot ID - Vinci Horizontal Banner
+const DEFAULT_AD_SLOT = '3352231617';
 
 export default function AdBanner({ 
   adSlot,
