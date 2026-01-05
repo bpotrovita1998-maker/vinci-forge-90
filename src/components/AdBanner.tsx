@@ -36,6 +36,13 @@ import { useSubscription } from '@/hooks/useSubscription';
  */
 
 interface AdBannerProps {
+  /**
+   * Your AdSense ad unit ID from your AdSense dashboard.
+   * Create ad units at: https://www.google.com/adsense/new/u/0/pub-XXXXX/myads/units
+   * 
+   * If not provided, falls back to VITE_ADSENSE_AD_SLOT env variable.
+   * Ads will NOT render without a valid slot ID.
+   */
   adSlot?: string;
   format?: 'horizontal' | 'vertical' | 'rectangle';
   className?: string;
@@ -60,23 +67,32 @@ interface AdBannerProps {
   contentItemCount?: number;
 }
 
+// Your AdSense ad slot ID - set via environment variable or prop
+// Get this from: Google AdSense Dashboard → Ads → By ad unit → Create/copy ad unit code
+const DEFAULT_AD_SLOT = import.meta.env.VITE_ADSENSE_AD_SLOT || '';
+
 export default function AdBanner({ 
-  adSlot = '1234567890',
+  adSlot,
   format = 'horizontal',
   className = '',
   pageType,
-  minContentItems = 5, // Increased default for stricter compliance
+  minContentItems = 5,
   contentItemCount = 0,
 }: AdBannerProps) {
+  // Use provided slot or fallback to env variable
+  const effectiveAdSlot = adSlot || DEFAULT_AD_SLOT;
   const { isAdmin, subscription } = useSubscription();
   const adRef = useRef<HTMLDivElement>(null);
   const isPro = isAdmin || subscription?.status === 'active';
   const [adLoaded, setAdLoaded] = useState(false);
   const [adError, setAdError] = useState(false);
 
+  // Check if a valid ad slot is provided
+  const hasValidSlot = effectiveAdSlot && effectiveAdSlot.length >= 10;
+
   // Validate that we should show ads
   const hasEnoughContent = contentItemCount >= minContentItems;
-  const shouldShowAd = !isPro && pageType === 'content' && hasEnoughContent;
+  const shouldShowAd = !isPro && pageType === 'content' && hasEnoughContent && hasValidSlot;
 
   useEffect(() => {
     // Don't load ads if conditions aren't met
@@ -138,7 +154,7 @@ export default function AdBanner({
           className="adsbygoogle"
           style={{ display: 'block', width: '100%', height: '100%' }}
           data-ad-client="ca-pub-5709994240953071"
-          data-ad-slot={adSlot}
+          data-ad-slot={effectiveAdSlot}
           data-ad-format="auto"
           data-full-width-responsive="true"
         />
