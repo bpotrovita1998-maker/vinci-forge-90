@@ -854,37 +854,53 @@ export default function Blog() {
               <BookOpen className="w-20 h-20 text-white/50" />
             </div>
 
-            {/* Article Body */}
+            {/* Article Body with In-Article Ads */}
             <div className="prose prose-lg prose-invert max-w-none">
-              {selectedPost.content.split('\n\n').map((paragraph, index) => {
+              {selectedPost.content.split('\n\n').map((paragraph, index, allParagraphs) => {
+                const elements = [];
+                
+                // Insert in-article ad after 3rd paragraph (good placement per AdSense guidelines)
+                if (index === 3) {
+                  elements.push(
+                    <AdBanner
+                      key={`ad-${index}`}
+                      format="in-article"
+                      pageType="content"
+                      contentItemCount={blogPosts.length}
+                      minContentItems={5}
+                    />
+                  );
+                }
+                
                 if (paragraph.startsWith('**') && paragraph.endsWith('**')) {
-                  return (
+                  elements.push(
                     <h2 key={index} className="text-2xl font-bold text-foreground mt-8 mb-4">
                       {paragraph.replace(/\*\*/g, '')}
                     </h2>
                   );
-                }
-                if (paragraph.startsWith('**')) {
-                  return (
+                } else if (paragraph.startsWith('**')) {
+                  elements.push(
                     <h3 key={index} className="text-xl font-semibold text-foreground mt-6 mb-3">
                       {paragraph.replace(/\*\*/g, '')}
                     </h3>
                   );
-                }
-                if (paragraph.startsWith('-') || paragraph.startsWith('1.')) {
-                  return (
+                } else if (paragraph.startsWith('-') || paragraph.startsWith('1.')) {
+                  elements.push(
                     <ul key={index} className="list-disc list-inside text-muted-foreground mb-4">
                       {paragraph.split('\n').map((item, i) => (
                         <li key={i}>{item.replace(/^[-\d.]\s*/, '')}</li>
                       ))}
                     </ul>
                   );
+                } else {
+                  elements.push(
+                    <p key={index} className="text-muted-foreground mb-4 leading-relaxed">
+                      {paragraph}
+                    </p>
+                  );
                 }
-                return (
-                  <p key={index} className="text-muted-foreground mb-4 leading-relaxed">
-                    {paragraph}
-                  </p>
-                );
+                
+                return elements;
               })}
             </div>
 
@@ -1011,6 +1027,16 @@ export default function Blog() {
                   </Card>
                 </motion.div>
               ))}
+            </div>
+            
+            {/* In-Article Ad between Featured and Category sections */}
+            <div className="mt-8 flex justify-center">
+              <AdBanner
+                format="in-article"
+                pageType="content"
+                contentItemCount={blogPosts.length}
+                minContentItems={5}
+              />
             </div>
           </div>
         </section>
