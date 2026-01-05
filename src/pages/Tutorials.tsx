@@ -385,6 +385,16 @@ export default function Tutorials() {
               </Button>
             </Link>
           </motion.div>
+          
+          {/* In-Article Ad after Quick Start */}
+          <div className="mt-10 flex justify-center">
+            <AdBanner
+              format="in-article"
+              pageType="content"
+              contentItemCount={tutorials.length}
+              minContentItems={5}
+            />
+          </div>
         </div>
       </section>
 
@@ -531,6 +541,16 @@ export default function Tutorials() {
                 </motion.div>
               );
             })}
+          </div>
+          
+          {/* In-Article Ad after Tips */}
+          <div className="mt-10 flex justify-center">
+            <AdBanner
+              format="in-article"
+              pageType="content"
+              contentItemCount={tutorials.length}
+              minContentItems={5}
+            />
           </div>
         </div>
       </section>
