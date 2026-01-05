@@ -67,9 +67,11 @@ interface AdBannerProps {
   contentItemCount?: number;
 }
 
-// Your AdSense ad slot ID - set via environment variable or prop
+// Your AdSense ad slot ID
 // Get this from: Google AdSense Dashboard → Ads → By ad unit → Create/copy ad unit code
-const DEFAULT_AD_SLOT = import.meta.env.VITE_ADSENSE_AD_SLOT || '';
+// IMPORTANT: Replace this with YOUR actual ad unit slot ID from AdSense dashboard!
+// The slot ID is found in the ad code: data-ad-slot="XXXXXXXXXX"
+const DEFAULT_AD_SLOT = '4567890123'; // TODO: Replace with your real ad slot ID
 
 export default function AdBanner({ 
   adSlot,
