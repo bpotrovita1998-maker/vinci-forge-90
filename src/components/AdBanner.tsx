@@ -38,37 +38,39 @@ import { useSubscription } from '@/hooks/useSubscription';
 interface AdBannerProps {
   /**
    * Your AdSense ad unit ID from your AdSense dashboard.
-   * Create ad units at: https://www.google.com/adsense/new/u/0/pub-XXXXX/myads/units
-   * 
-   * If not provided, falls back to VITE_ADSENSE_AD_SLOT env variable.
-   * Ads will NOT render without a valid slot ID.
+   * If not provided, uses default slot based on format type.
    */
   adSlot?: string;
-  format?: 'horizontal' | 'vertical' | 'rectangle';
+  /**
+   * Ad format type:
+   * - 'horizontal': Standard banner (728x90)
+   * - 'vertical': Skyscraper (160x600)
+   * - 'rectangle': Medium rectangle (300x250)
+   * - 'in-article': Fluid native ad for article content
+   */
+  format?: 'horizontal' | 'vertical' | 'rectangle' | 'in-article';
   className?: string;
   /**
    * Indicates the type of page content. Only 'content' pages should show ads.
-   * This is required to ensure AdSense policy compliance.
    */
   pageType: 'content';
   /**
    * Minimum content items required on the page before showing ads.
-   * - FAQ: minimum 10 questions
-   * - Blog: minimum 5 articles
-   * - Tutorials: minimum 5 guides
-   * - Gallery: minimum 3 items
-   * - Landing: minimum 5 content sections
    */
   minContentItems?: number;
   /**
    * Current number of content items on the page.
-   * Ads will only show if contentItemCount >= minContentItems.
    */
   contentItemCount?: number;
 }
 
-// Your AdSense ad slot ID - Vinci Horizontal Banner
-const DEFAULT_AD_SLOT = '3352231617';
+// AdSense ad slot IDs
+const AD_SLOTS = {
+  horizontal: '3352231617',    // Vinci Horizontal Banner
+  vertical: '3352231617',      // Using same slot (create more in AdSense if needed)
+  rectangle: '3352231617',     // Using same slot (create more in AdSense if needed)
+  'in-article': '9248567887',  // Vinci In-Article Ad
+};
 
 export default function AdBanner({ 
   adSlot,
@@ -78,8 +80,8 @@ export default function AdBanner({
   minContentItems = 5,
   contentItemCount = 0,
 }: AdBannerProps) {
-  // Use provided slot or fallback to env variable
-  const effectiveAdSlot = adSlot || DEFAULT_AD_SLOT;
+  // Use provided slot or fallback to format-based default
+  const effectiveAdSlot = adSlot || AD_SLOTS[format] || AD_SLOTS.horizontal;
   const { isAdmin, subscription } = useSubscription();
   const adRef = useRef<HTMLDivElement>(null);
   const isPro = isAdmin || subscription?.status === 'active';
@@ -93,8 +95,9 @@ export default function AdBanner({
   const hasEnoughContent = contentItemCount >= minContentItems;
   const shouldShowAd = !isPro && pageType === 'content' && hasEnoughContent && hasValidSlot;
 
+  const isInArticle = format === 'in-article';
+
   useEffect(() => {
-    // Don't load ads if conditions aren't met
     if (!shouldShowAd) return;
     
     // Load AdSense script if not already loaded
@@ -112,11 +115,9 @@ export default function AdBanner({
   }, [shouldShowAd]);
 
   useEffect(() => {
-    // Push ad when component mounts and script is loaded
     if (!shouldShowAd || !adLoaded) return;
     
     try {
-      // Small delay to ensure DOM is ready
       const timer = setTimeout(() => {
         // @ts-ignore
         (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -128,26 +129,54 @@ export default function AdBanner({
     }
   }, [shouldShowAd, adLoaded]);
 
-  // Don't render anything if we shouldn't show ads
   if (!shouldShowAd) return null;
 
   const sizeStyles = {
     horizontal: { minHeight: '90px', maxWidth: '728px' },
     vertical: { minHeight: '600px', maxWidth: '160px' },
     rectangle: { minHeight: '250px', maxWidth: '300px' },
+    'in-article': { minHeight: '100px' }, // Fluid, no max width
   };
 
+  // In-article ads have different attributes
+  if (isInArticle) {
+    return (
+      <div 
+        className={`relative my-6 ${className}`}
+        style={sizeStyles['in-article']}
+      >
+        <div ref={adRef} className="w-full">
+          <ins
+            className="adsbygoogle"
+            style={{ display: 'block', textAlign: 'center' }}
+            data-ad-layout="in-article"
+            data-ad-format="fluid"
+            data-ad-client="ca-pub-5709994240953071"
+            data-ad-slot={effectiveAdSlot}
+          />
+          
+          {(!adLoaded || adError) && (
+            <div className="flex items-center justify-center text-muted-foreground/30 text-sm py-4">
+              <span className="bg-muted/30 px-3 py-1 rounded">
+                Advertisement
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Standard display ads
   return (
     <div 
       className={`relative bg-muted/30 rounded-lg overflow-hidden border border-border/50 ${className}`}
       style={sizeStyles[format]}
     >
-      {/* Ad label */}
       <div className="absolute top-1 left-2 text-[10px] text-muted-foreground/50 uppercase tracking-wider z-10">
         Ad
       </div>
       
-      {/* AdSense container */}
       <div ref={adRef} className="w-full h-full flex items-center justify-center">
         <ins
           className="adsbygoogle"
@@ -158,7 +187,6 @@ export default function AdBanner({
           data-full-width-responsive="true"
         />
         
-        {/* Fallback placeholder when ad doesn't load or has error */}
         {(!adLoaded || adError) && (
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/30 text-sm pointer-events-none">
             <span className="bg-background/50 px-3 py-1 rounded">
