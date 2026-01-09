@@ -545,7 +545,7 @@ export default function Hero() {
           }
           toast({ 
             title: 'Watch ad to continue', 
-            description: 'Play a quick game to unlock 3 free image generations!',
+            description: 'Play a quick game to unlock 5 free image generations!',
           });
           return;
         }

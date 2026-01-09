@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GENERATIONS_PER_AD = 3;
+const GENERATIONS_PER_AD = 5;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
