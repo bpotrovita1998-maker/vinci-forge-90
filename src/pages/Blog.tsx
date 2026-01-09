@@ -804,21 +804,20 @@ export default function Blog() {
           section={selectedPost.category}
         />
         <div className="min-h-screen bg-background">
-        {/* Header */}
-        <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-          <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-            <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedPost(null)}>
-              <ArrowLeft className="w-4 h-4" />
-              Back to Blog
-            </Button>
-            <Breadcrumbs 
-              items={[
-                { label: "Home", href: "/" },
-                { label: "Blog", href: "/blog" },
-                { label: selectedPost.title.slice(0, 30) + "...", href: `/blog#${selectedPost.id}` }
-              ]} 
-            />
-          </div>
+        {/* Spacer for fixed global navigation */}
+        <div className="h-20" />
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedPost(null)}>
+            <ArrowLeft className="w-4 h-4" />
+            Back to Blog
+          </Button>
+          <Breadcrumbs 
+            items={[
+              { label: "Home", href: "/" },
+              { label: "Blog", href: "/blog" },
+              { label: selectedPost.title.slice(0, 30) + "...", href: `/blog#${selectedPost.id}` }
+            ]} 
+          />
         </div>
 
         {/* Article Content */}
@@ -938,17 +937,10 @@ export default function Blog() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Home
-            </Button>
-          </Link>
-          <Breadcrumbs />
-        </div>
+      {/* Spacer for fixed global navigation */}
+      <div className="h-20" />
+      <div className="max-w-6xl mx-auto px-4 py-4">
+        <Breadcrumbs />
       </div>
 
       {/* Hero Section */}

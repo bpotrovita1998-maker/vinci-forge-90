@@ -171,43 +171,8 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold text-foreground">VinciAI</span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-6">
-            <Link to="/gallery" className="text-muted-foreground hover:text-foreground transition-colors">Gallery</Link>
-            <Link to="/tutorials" className="text-muted-foreground hover:text-foreground transition-colors">Tutorials</Link>
-            <Link to="/blog" className="text-muted-foreground hover:text-foreground transition-colors">Blog</Link>
-            <Link to="/faq" className="text-muted-foreground hover:text-foreground transition-colors">FAQ</Link>
-            <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
-            <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors">About</Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            {user ? (
-              <Link to="/create">
-                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  Go to Dashboard
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link to="/auth">
-                  <Button variant="ghost" size="sm">Sign In</Button>
-                </Link>
-                <Link to="/create">
-                  <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                    Get Started
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* Spacer for fixed global navigation */}
+      <div className="h-20" />
 
       {/* Hero Section */}
       <section className="pt-32 pb-16 px-6">
