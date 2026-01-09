@@ -3,7 +3,7 @@ import { useSubscription } from './useSubscription';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-const GENERATIONS_PER_AD = 3;
+const GENERATIONS_PER_AD = 5;
 
 interface AdGenerationsState {
   remaining: number;
