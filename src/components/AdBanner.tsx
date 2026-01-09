@@ -86,6 +86,7 @@ export default function AdBanner({
   const adRef = useRef<HTMLDivElement>(null);
   const isPro = isAdmin || subscription?.status === 'active';
   const [adLoaded, setAdLoaded] = useState(false);
+  const [adFilled, setAdFilled] = useState(false);
   const [adError, setAdError] = useState(false);
 
   // Check if a valid ad slot is provided
@@ -116,11 +117,24 @@ export default function AdBanner({
 
   useEffect(() => {
     if (!shouldShowAd || !adLoaded) return;
-    
+
     try {
       const timer = setTimeout(() => {
         // @ts-ignore
         (window.adsbygoogle = window.adsbygoogle || []).push({});
+
+        // If AdSense doesn't inject anything, show a lightweight placeholder so we can
+        // visually confirm placement (common in preview domains, ad blockers, or before approval).
+        window.setTimeout(() => {
+          const ins = adRef.current?.querySelector('ins.adsbygoogle');
+          const hasIframe = !!ins?.querySelector('iframe');
+          const hasContent = !!ins && ins.innerHTML.trim().length > 0;
+          if (hasIframe || hasContent) {
+            setAdFilled(true);
+          } else {
+            setAdError(true);
+          }
+        }, 2000);
       }, 100);
       return () => clearTimeout(timer);
     } catch (e) {
@@ -155,9 +169,9 @@ export default function AdBanner({
             data-ad-slot={effectiveAdSlot}
           />
           
-          {(!adLoaded || adError) && (
-            <div className="flex items-center justify-center text-muted-foreground/30 text-sm py-4">
-              <span className="bg-muted/30 px-3 py-1 rounded">
+          {!adFilled && (
+            <div className="flex items-center justify-center text-muted-foreground/60 text-sm py-4">
+              <span className="bg-muted/40 px-3 py-1 rounded">
                 Advertisement
               </span>
             </div>
@@ -187,9 +201,9 @@ export default function AdBanner({
           data-full-width-responsive="true"
         />
         
-        {(!adLoaded || adError) && (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/30 text-sm pointer-events-none">
-            <span className="bg-background/50 px-3 py-1 rounded">
+        {!adFilled && (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/60 text-sm pointer-events-none">
+            <span className="bg-background/60 px-3 py-1 rounded">
               Advertisement
             </span>
           </div>
