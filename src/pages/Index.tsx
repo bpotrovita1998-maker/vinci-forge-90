@@ -8,6 +8,7 @@ import FirstGenerationCelebration from "@/components/FirstGenerationCelebration"
 import AdGenerationCounter from "@/components/AdGenerationCounter";
 import RewardedAdModal from "@/components/RewardedAdModal";
 import OnboardingWizard from "@/components/OnboardingWizard";
+import ToolPageAdNotice from "@/components/ToolPageAdNotice";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
 // Context to share ad modal state with Hero
@@ -90,6 +91,11 @@ const Index = () => {
           </div>
           
           <FreeTokenCounter />
+          
+          {/* Notice for free users about why ads aren't shown on tool pages */}
+          <div className="max-w-6xl mx-auto px-4">
+            <ToolPageAdNotice />
+          </div>
           
           {/* Job Queue Section - No ads on this page per AdSense policy */}
           {/* This is a tool/navigation page, ads should only be on content-rich pages */}
