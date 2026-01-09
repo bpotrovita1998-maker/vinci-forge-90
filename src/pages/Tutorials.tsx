@@ -289,17 +289,10 @@ export default function Tutorials() {
         keywords="AI tutorials, image generation guide, video generation tutorial, 3D model creation, VinciAI documentation"
       />
       <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Home
-            </Button>
-          </Link>
-          <Breadcrumbs />
-        </div>
+      {/* Spacer for fixed global navigation + breadcrumbs */}
+      <div className="h-20" />
+      <div className="max-w-6xl mx-auto px-4 py-4">
+        <Breadcrumbs />
       </div>
 
       {/* Hero Section */}
