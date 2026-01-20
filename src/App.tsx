@@ -12,6 +12,7 @@ import { CookieConsent } from "./components/CookieConsent";
 import { useWebVitals } from "./hooks/useWebVitals";
 import { PageLoadingSkeleton } from "./components/LazyComponent";
 import { TranslationErrorBoundary } from "@/components/TranslationErrorBoundary";
+import AdBlockDetector from "./components/AdBlockDetector";
 
 // Lazy load pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -118,6 +119,7 @@ const App = () => (
                 </Routes>
               </Suspense>
               <CookieConsent />
+              <AdBlockDetector />
             </TranslationErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
