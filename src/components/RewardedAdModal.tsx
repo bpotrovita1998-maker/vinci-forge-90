@@ -12,8 +12,9 @@ interface RewardedAdModalProps {
 }
 
 // AdSense configuration
-const ADSENSE_CLIENT = 'ca-pub-3352231617';
-const ADSENSE_SLOT = '3352231617'; // Use your horizontal banner slot for rewarded ads
+// NOTE: Must match the publisher ID used in index.html / AdBanner to load ads correctly.
+const ADSENSE_CLIENT = 'ca-pub-5709994240953071';
+const ADSENSE_SLOT = '3352231617'; // Using existing ad unit slot
 const AD_WATCH_DURATION = 15; // Seconds users must watch the ad
 
 declare global {
@@ -196,8 +197,8 @@ export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: Re
                 {/* Progress bar */}
                 {adState === 'watching' && (
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-primary to-green-500"
+                     <motion.div
+                       className="h-full bg-gradient-to-r from-primary to-accent"
                       initial={{ width: '0%' }}
                       animate={{ 
                         width: `${((AD_WATCH_DURATION - countdown) / AD_WATCH_DURATION) * 100}%` 
@@ -222,17 +223,17 @@ export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: Re
                 exit={{ opacity: 0, y: -20 }}
                 className="text-center space-y-6"
               >
-                <motion.div 
-                  className="w-24 h-24 mx-auto rounded-full bg-green-500/20 flex items-center justify-center"
+                 <motion.div 
+                   className="w-24 h-24 mx-auto rounded-full bg-primary/15 flex items-center justify-center"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', bounce: 0.5 }}
                 >
-                  <CheckCircle className="w-12 h-12 text-green-500" />
+                   <CheckCircle className="w-12 h-12 text-primary" />
                 </motion.div>
 
                 <div className="space-y-2">
-                  <p className="text-xl font-semibold text-green-500">
+                   <p className="text-xl font-semibold text-primary">
                     Thank You!
                   </p>
                   <p className="text-muted-foreground">
@@ -240,11 +241,7 @@ export default function RewardedAdModal({ open, onOpenChange, onAdComplete }: Re
                   </p>
                 </div>
 
-                <Button 
-                  onClick={handleClaimReward} 
-                  className="w-full gap-2 bg-green-500 hover:bg-green-600"
-                  size="lg"
-                >
+                 <Button onClick={handleClaimReward} className="w-full gap-2" size="lg">
                   <Gift className="w-4 h-4" />
                   Claim Reward
                 </Button>
