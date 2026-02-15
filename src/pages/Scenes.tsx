@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -143,6 +143,22 @@ export default function Scenes() {
   // Track polling intervals to clear them on cancel
   const pollingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
+  // Refs for stable access in effects (prevents re-subscription / re-render loops)
+  const scenesRef = useRef<Scene[]>(scenes);
+  scenesRef.current = scenes;
+
+  // Debounce map for scene DB writes
+  const dbWriteTimersRef = useRef<Map<string, number>>(new Map());
+
+  // Track which scene IDs are saved in DB (have valid UUIDs from the server)
+  const savedSceneIdsRef = useRef<Set<string>>(new Set());
+
+  // Track processed job IDs to prevent duplicate toasts
+  const processedJobIdsRef = useRef<Set<string>>(new Set());
+
+  // Helper to detect UUIDs
+  const isUuid = useCallback((v: string | undefined) => !!v && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v), []);
+
   // Load storyboards on mount
   useEffect(() => {
     if (user) {
@@ -150,22 +166,26 @@ export default function Scenes() {
     }
   }, [user]);
 
-  // Load scenes when storyboard changes
+  // Load scenes and playlists when storyboard changes
   useEffect(() => {
     if (currentStoryboard) {
       loadScenes(currentStoryboard.id);
+      loadPlaylists(currentStoryboard.id);
       setSettings(currentStoryboard.settings);
     }
   }, [currentStoryboard]);
 
   // Sync completed/failed jobs with scenes to recover lost generations or show failures
   useEffect(() => {
-    if (!currentStoryboard || !user || scenes.length === 0) return;
+    if (!currentStoryboard || !user) return;
 
     const syncJobs = async () => {
+      const currentScenes = scenesRef.current;
+      if (currentScenes.length === 0) return;
+      
       try {
         // Find scenes that aren't ready yet or are actively generating
-        const scenesToCheck = scenes.filter(
+        const scenesToCheck = currentScenes.filter(
           scene => scene.jobId && (scene.status === 'generating' || (!scene.imageUrl && !scene.videoUrl))
         );
 
@@ -185,6 +205,9 @@ export default function Scenes() {
         for (const scene of scenesToCheck) {
           if (!scene.jobId) continue;
           
+          // Skip already-processed jobs
+          if (processedJobIdsRef.current.has(scene.jobId)) continue;
+          
           const matchingJob = allJobs.find(j => j.id === scene.jobId);
           if (!matchingJob) continue;
 
@@ -197,6 +220,7 @@ export default function Scenes() {
 
             if (url && typeof url === 'string') {
               hasUpdates = true;
+              processedJobIdsRef.current.add(scene.jobId);
               const updates: any = {
                 status: 'ready',
                 generationProgress: 100,
@@ -223,6 +247,7 @@ export default function Scenes() {
           // Handle failed jobs
           if (matchingJob.status === 'failed') {
             hasUpdates = true;
+            processedJobIdsRef.current.add(scene.jobId);
             await updateScene(scene.id, {
               status: 'draft',
               generationProgress: 0,
@@ -250,7 +275,7 @@ export default function Scenes() {
     const initialTimer = setTimeout(syncJobs, 1000);
     
     // Continuously poll every 5 seconds if there are generating scenes
-    const hasGeneratingScenes = scenes.some(s => s.status === 'generating');
+    const hasGeneratingScenes = scenesRef.current.some(s => s.status === 'generating');
     let pollInterval: NodeJS.Timeout | null = null;
     
     if (hasGeneratingScenes) {
@@ -261,7 +286,7 @@ export default function Scenes() {
       clearTimeout(initialTimer);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [currentStoryboard?.id, scenes, user]);
+  }, [currentStoryboard?.id, user]);
 
   // Auto-save when scenes or settings change (disabled by default)
   useEffect(() => {
@@ -283,6 +308,9 @@ export default function Scenes() {
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
       if (savedStatusTimeoutRef.current) window.clearTimeout(savedStatusTimeoutRef.current);
+      // Flush pending debounced DB writes
+      dbWriteTimersRef.current.forEach(timer => window.clearTimeout(timer));
+      dbWriteTimersRef.current.clear();
     };
   }, []);
 
@@ -346,6 +374,9 @@ export default function Scenes() {
         type: (scene.video_url ? 'video' : 'image') as 'image' | 'video' // Infer type from existing data
       }));
 
+      // Track saved scene IDs
+      savedSceneIdsRef.current = new Set(loadedScenes.map(s => s.id));
+
       setScenes(loadedScenes);
     } catch (error) {
       console.error('Error loading scenes:', error);
@@ -354,6 +385,32 @@ export default function Scenes() {
         description: "Failed to load scenes",
         variant: "destructive"
       });
+    }
+  };
+
+  const loadPlaylists = async (storyboardId: string) => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('long_videos')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('job_id', storyboardId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const playlists = (data || []).map((lv: any) => ({
+        id: lv.id,
+        manifestUrl: lv.stitched_video_url,
+        sceneCount: lv.scene_count,
+        totalDuration: lv.total_duration,
+        createdAt: lv.created_at
+      }));
+
+      setStitchedPlaylists(playlists);
+    } catch (error) {
+      console.error('Error loading playlists:', error);
     }
   };
 
@@ -408,12 +465,12 @@ export default function Scenes() {
     }
   };
 
-  // Real-time job updates subscription
+  // Real-time job updates subscription (stabilized with refs)
   useEffect(() => {
-    if (!user || scenes.length === 0) return;
+    if (!user) return;
 
-    // Get all active job IDs from scenes
-    const activeJobIds = scenes
+    // Get all active job IDs from scenes via ref
+    const activeJobIds = scenesRef.current
       .filter(s => s.jobId && s.status === 'generating')
       .map(s => s.jobId!);
 
@@ -435,9 +492,12 @@ export default function Scenes() {
           console.log('Real-time job update received:', payload);
           const jobData = payload.new as any;
           
-          // Find the scene associated with this job
-          const scene = scenes.find(s => s.jobId === jobData.id);
+          // Find the scene associated with this job (via ref for latest state)
+          const scene = scenesRef.current.find(s => s.jobId === jobData.id);
           if (!scene) return;
+
+          // Skip already-processed jobs
+          if (processedJobIdsRef.current.has(jobData.id)) return;
 
           // Update progress in real-time
           if (jobData.status === 'running' && jobData.progress_percent !== undefined) {
@@ -447,9 +507,6 @@ export default function Scenes() {
 
             // Calculate estimated time remaining for video jobs
             if (scene.type === 'video' && scene.estimatedTimeRemaining) {
-              const elapsed = scene.generationStartTime 
-                ? (Date.now() - scene.generationStartTime) / 1000 
-                : 0;
               const estimatedTotal = 240; // 4 minutes default
               updates.estimatedTimeRemaining = Math.max(0, estimatedTotal - (jobData.progress_percent / 100 * estimatedTotal));
             }
@@ -459,6 +516,7 @@ export default function Scenes() {
 
           // Handle completion
           if (jobData.status === 'completed' && jobData.outputs) {
+            processedJobIdsRef.current.add(jobData.id);
             const outputs = Array.isArray(jobData.outputs) ? jobData.outputs : [jobData.outputs];
             const url = outputs[0];
 
@@ -488,6 +546,7 @@ export default function Scenes() {
 
           // Handle failure
           if (jobData.status === 'failed') {
+            processedJobIdsRef.current.add(jobData.id);
             await updateScene(scene.id, {
               status: 'draft',
               generationProgress: 0,
@@ -508,31 +567,11 @@ export default function Scenes() {
       console.log('Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
-  }, [user, scenes, toast]);
+    // Only re-subscribe when user changes or generating scene list changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, scenes.filter(s => s.status === 'generating').map(s => s.jobId).join(',')]);
 
-  // Monitor job completions from context (fallback)
-  useEffect(() => {
-    scenes.forEach(scene => {
-      if (scene.jobId) {
-        const job = jobs.find(j => j.id === scene.jobId);
-        if (job?.status === 'completed' && job.outputs.length > 0) {
-          updateScene(scene.id, {
-            status: 'ready',
-            imageUrl: job.outputs[0]
-          });
-        } else if (job?.status === 'failed') {
-          updateScene(scene.id, {
-            status: 'draft'
-          });
-          toast({
-            title: "Generation Failed",
-            description: job.error || "Failed to generate scene image",
-            variant: "destructive"
-          });
-        }
-      }
-    });
-  }, [jobs]);
+  // Job context fallback removed — polling + realtime are sufficient
 
   const deleteStoryboard = async (id: string) => {
     try {
@@ -647,8 +686,7 @@ export default function Scenes() {
 
       if (storyboardError) throw storyboardError;
 
-      // Helper to detect UUIDs
-      const isUuid = (v: string | undefined) => !!v && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v);
+      // Use shared UUID helper
 
       // Prepare scenes for upsert
       if (activeScenes.length > 0) {
@@ -771,51 +809,87 @@ export default function Scenes() {
     });
   };
 
+  const persistSceneToDb = useCallback(async (id: string, dbUpdates: Record<string, any>) => {
+    // Skip DB writes for scenes that aren't saved yet
+    if (!savedSceneIdsRef.current.has(id)) {
+      console.log('Skipping DB write for unsaved scene:', id);
+      return;
+    }
+
+    try {
+      console.log('Updating scene in database:', { id, dbUpdates });
+      const { error } = await supabase
+        .from('storyboard_scenes')
+        .update(dbUpdates)
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Failed to update scene in database:', error);
+      } else {
+        console.log('Scene updated successfully in database');
+      }
+    } catch (error) {
+      console.error('Error updating scene:', error);
+    }
+  }, []);
+
   const updateScene = async (id: string, updates: Partial<Scene>) => {
     // Update local state immediately for responsive UI
     setScenes(prev => prev.map(scene => 
       scene.id === id ? { ...scene, ...updates } : scene
     ));
     
-    // Persist to database with snake_case mapping
-    try {
-      const dbUpdates: any = {};
-      if (updates.title !== undefined) dbUpdates.title = updates.title;
-      if (updates.description !== undefined) dbUpdates.description = updates.description;
-      if (updates.status !== undefined) dbUpdates.status = updates.status;
-      if (updates.duration !== undefined) dbUpdates.duration = updates.duration;
-      if (updates.jobId !== undefined) dbUpdates.job_id = updates.jobId;
-      if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
-      if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
+    // Build DB updates with snake_case mapping
+    const dbUpdates: Record<string, any> = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.duration !== undefined) dbUpdates.duration = updates.duration;
+    if (updates.jobId !== undefined) dbUpdates.job_id = updates.jobId;
+    if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
+    if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
 
-      if (Object.keys(dbUpdates).length > 0) {
-        console.log('Updating scene in database:', { id, dbUpdates });
-        
-        const { error } = await supabase
-          .from('storyboard_scenes')
-          .update(dbUpdates)
-          .eq('id', id);
-        
-        if (error) {
-          console.error('Failed to update scene in database:', error);
-          toast({
-            title: "Database Error",
-            description: "Failed to save scene changes. Please try again.",
-            variant: "destructive"
-          });
-          throw error;
-        }
-        
-        console.log('Scene updated successfully in database');
-      }
-    } catch (error) {
-      console.error('Error updating scene:', error);
-      throw error;
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    // For title/description changes, debounce the DB write (keystroke-heavy fields)
+    const isTextOnly = Object.keys(updates).every(k => k === 'title' || k === 'description');
+    
+    if (isTextOnly) {
+      // Cancel existing timer for this scene
+      const existingTimer = dbWriteTimersRef.current.get(id);
+      if (existingTimer) window.clearTimeout(existingTimer);
+      
+      const timer = window.setTimeout(() => {
+        dbWriteTimersRef.current.delete(id);
+        persistSceneToDb(id, dbUpdates);
+      }, 500);
+      dbWriteTimersRef.current.set(id, timer);
+    } else {
+      // Immediate write for status/media/job changes
+      await persistSceneToDb(id, dbUpdates);
     }
   };
 
-  const deleteScene = (id: string) => {
+  const deleteScene = async (id: string) => {
     setScenes(prev => prev.filter(scene => scene.id !== id));
+    
+    // Delete from DB if it's a saved scene
+    if (savedSceneIdsRef.current.has(id)) {
+      try {
+        const { error } = await supabase
+          .from('storyboard_scenes')
+          .delete()
+          .eq('id', id);
+        if (error) {
+          console.error('Failed to delete scene from DB:', error);
+        } else {
+          savedSceneIdsRef.current.delete(id);
+        }
+      } catch (error) {
+        console.error('Error deleting scene from DB:', error);
+      }
+    }
+
     toast({
       title: "Scene Deleted",
       description: "Scene removed from storyboard"
@@ -1439,13 +1513,30 @@ export default function Scenes() {
       if (error) throw error;
 
       if (data.success && data.manifestUrl) {
+        const playlistId = crypto.randomUUID();
         const newPlaylist = {
-          id: crypto.randomUUID(),
+          id: playlistId,
           manifestUrl: data.manifestUrl,
           sceneCount: data.sceneCount,
           totalDuration: data.totalDuration,
           createdAt: new Date().toISOString()
         };
+
+        // Persist to DB
+        try {
+          await supabase
+            .from('long_videos')
+            .insert({
+              id: playlistId,
+              job_id: currentStoryboard?.id || playlistId,
+              user_id: user.id,
+              stitched_video_url: data.manifestUrl,
+              scene_count: data.sceneCount,
+              total_duration: data.totalDuration,
+            });
+        } catch (dbError) {
+          console.error('Failed to persist playlist to DB:', dbError);
+        }
 
         setStitchedPlaylists(prev => [newPlaylist, ...prev]);
 
@@ -2196,8 +2287,17 @@ export default function Scenes() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => {
+                                    onClick={async () => {
                                       setStitchedPlaylists(prev => prev.filter(p => p.id !== playlist.id));
+                                      // Delete from DB
+                                      try {
+                                        await supabase
+                                          .from('long_videos')
+                                          .delete()
+                                          .eq('id', playlist.id);
+                                      } catch (e) {
+                                        console.error('Failed to delete playlist from DB:', e);
+                                      }
                                       toast({
                                         title: "Playlist Removed",
                                         description: "Playlist removed from list"
@@ -2379,10 +2479,33 @@ export default function Scenes() {
                                     </SelectContent>
                                   </Select>
                                   {scene.type === 'video' && (
-                                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                                      <DollarSign className="w-3 h-3" />
-                                      Cost: 15 tokens ($0.15) per video via Wan 2.5 T2V Fast
-                                    </p>
+                                    <div className="mt-2 space-y-2">
+                                      <div className="flex items-center gap-2">
+                                        <Label className="text-xs">Duration</Label>
+                                        <div className="flex gap-1">
+                                          <Button
+                                            size="sm"
+                                            variant={scene.duration === 5 ? 'default' : 'outline'}
+                                            className="h-7 px-3 text-xs"
+                                            onClick={() => updateScene(scene.id, { duration: 5 })}
+                                          >
+                                            5s
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant={scene.duration === 10 ? 'default' : 'outline'}
+                                            className="h-7 px-3 text-xs"
+                                            onClick={() => updateScene(scene.id, { duration: 10 })}
+                                          >
+                                            10s
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                        <DollarSign className="w-3 h-3" />
+                                        Cost: 15 tokens ($0.15) per video via Wan 2.5 T2V Fast
+                                      </p>
+                                    </div>
                                   )}
                                 </div>
 
