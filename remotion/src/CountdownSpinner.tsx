@@ -51,7 +51,7 @@ export const CountdownSpinner: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: "transparent",
+        backgroundColor: "#00ff00",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
