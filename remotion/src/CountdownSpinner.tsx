@@ -19,9 +19,11 @@ export const CountdownSpinner: React.FC = () => {
   const { durationInFrames } = useVideoConfig();
 
   const TARGET = 20_000_000;
+  const holdFrames = 30; // 1 second static at the end
+  const animFrames = durationInFrames - holdFrames;
 
-  // Progress 0→1 over the full duration
-  const rawProgress = Math.min(frame / (durationInFrames - 1), 1);
+  // Progress 0→1 over animation portion, then hold at 1
+  const rawProgress = Math.min(frame / (animFrames - 1), 1);
   const easedProgress = easeInOutCubic(rawProgress);
 
   const currentValue = Math.round(easedProgress * TARGET);
