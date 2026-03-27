@@ -35,4 +35,4 @@ await renderMedia({
 });
 
 await browser.close({ silent: false });
-console.log("Done! Output: /mnt/documents/countdown-spinner-4k.mp4");
+console.log("Done! Output: /mnt/documents/countdown-spinner-4k.webm");
