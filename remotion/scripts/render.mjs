@@ -24,15 +24,34 @@ const composition = await selectComposition({
   puppeteerInstance: browser,
 });
 
+// Render transparent WebM (VP9 + alpha)
 await renderMedia({
   composition,
   serveUrl: bundled,
-  codec: "vp8",
-  outputLocation: "/mnt/documents/countdown-spinner-4k.webm",
+  codec: "vp9",
+  imageFormat: "png",
+  pixelFormat: "yuva420p",
+  outputLocation: "/mnt/documents/countdown-spinner-4k-transparent.webm",
   puppeteerInstance: browser,
   muted: true,
   concurrency: 1,
 });
+console.log("WebM done!");
+
+// Render transparent ProRes 4444 (.mov)
+await renderMedia({
+  composition,
+  serveUrl: bundled,
+  codec: "prores",
+  proResProfile: "4444",
+  imageFormat: "png",
+  pixelFormat: "yuva444p10le",
+  outputLocation: "/mnt/documents/countdown-spinner-4k-transparent.mov",
+  puppeteerInstance: browser,
+  muted: true,
+  concurrency: 1,
+});
+console.log("ProRes done!");
 
 await browser.close({ silent: false });
-console.log("Done! Output: /mnt/documents/countdown-spinner-4k.webm");
+console.log("Done! Both files rendered.");
