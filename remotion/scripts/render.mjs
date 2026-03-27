@@ -27,12 +27,12 @@ const composition = await selectComposition({
 await renderMedia({
   composition,
   serveUrl: bundled,
-  codec: "h264",
-  outputLocation: "/mnt/documents/countdown-spinner-4k.mp4",
+  codec: "vp8",
+  outputLocation: "/mnt/documents/countdown-spinner-4k.webm",
   puppeteerInstance: browser,
   muted: true,
   concurrency: 1,
 });
 
 await browser.close({ silent: false });
-console.log("Done! Output: /mnt/documents/countdown-spinner-4k.mp4");
+console.log("Done! Output: /mnt/documents/countdown-spinner-4k.webm");
