@@ -534,8 +534,7 @@ serve(withRefundOnFailure(async (req, billing) => {
               console.log('Image stored at permanent URL:', publicUrlData.publicUrl);
               finalUrls.push(publicUrlData.publicUrl);
             } else {
-              console.error('Failed to get public URL');
-              finalUrls.push(imageData);
+              throw new Error('Could not save the generated image');
             }
             continue;
           }
@@ -543,9 +542,7 @@ serve(withRefundOnFailure(async (req, billing) => {
           // It's base64 data
           const matches = imageData.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
           if (!matches) {
-            console.warn('Unexpected image format, keeping as-is');
-            finalUrls.push(imageData); // Keep original as fallback
-            continue;
+            throw new Error('Unexpected image format');
           }
           
           const [, format, content] = matches;
@@ -566,8 +563,7 @@ serve(withRefundOnFailure(async (req, billing) => {
             });
           
           if (uploadError) {
-            console.error('Storage upload error:', uploadError);
-            finalUrls.push(imageData); // Keep original as fallback
+            throw new Error('Could not save the generated image');
           } else {
             // Get permanent public URL since bucket is public
             const { data: publicUrlData } = supabase.storage
@@ -578,13 +574,12 @@ serve(withRefundOnFailure(async (req, billing) => {
               console.log('Image stored at permanent URL:', publicUrlData.publicUrl);
               finalUrls.push(publicUrlData.publicUrl);
             } else {
-              console.error('Failed to get public URL');
-              finalUrls.push(images[i]);
+              throw new Error('Could not save the generated image');
             }
           }
         } catch (e) {
-          console.error('Error storing image:', e);
-          finalUrls.push(images[i]); // Keep original as fallback
+          // Never store raw base64 in the jobs table; fail so the charge is refunded
+          throw e;
         }
       }
       

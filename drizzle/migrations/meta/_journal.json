@@ -43,6 +43,13 @@
       "when": 1793887688923,
       "tag": "0005_subscription_plans_and_credit_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793889841533,
+      "tag": "0006_base64_jobs_finder_and_gallery_index",
+      "breakpoints": true
     }
   ]
 }
