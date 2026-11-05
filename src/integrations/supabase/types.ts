@@ -340,6 +340,66 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_balance: {
+        Row: {
+          balance_usd: number
+          provider: string
+          set_at: string
+        }
+        Insert: {
+          balance_usd: number
+          provider: string
+          set_at?: string
+        }
+        Update: {
+          balance_usd?: number
+          provider?: string
+          set_at?: string
+        }
+        Relationships: []
+      }
+      provider_runs: {
+        Row: {
+          created_at: string
+          credits_charged: number
+          estimated_cost_usd: number
+          id: string
+          job_ref: string | null
+          owner_mode: boolean
+          prediction_id: string | null
+          provider: string
+          provider_model: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits_charged?: number
+          estimated_cost_usd?: number
+          id?: string
+          job_ref?: string | null
+          owner_mode?: boolean
+          prediction_id?: string | null
+          provider?: string
+          provider_model: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits_charged?: number
+          estimated_cost_usd?: number
+          id?: string
+          job_ref?: string | null
+          owner_mode?: boolean
+          prediction_id?: string | null
+          provider?: string
+          provider_model?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       storage_subscriptions: {
         Row: {
           created_at: string
@@ -378,6 +438,7 @@ export type Database = {
       }
       storyboard_scenes: {
         Row: {
+          continuation_prompt: string | null
           created_at: string
           description: string
           duration: number
@@ -385,6 +446,8 @@ export type Database = {
           image_url: string | null
           job_id: string | null
           order_index: number
+          parent_scene_id: string | null
+          start_frame_url: string | null
           status: string
           storyboard_id: string
           title: string
@@ -392,6 +455,7 @@ export type Database = {
           video_url: string | null
         }
         Insert: {
+          continuation_prompt?: string | null
           created_at?: string
           description: string
           duration?: number
@@ -399,6 +463,8 @@ export type Database = {
           image_url?: string | null
           job_id?: string | null
           order_index?: number
+          parent_scene_id?: string | null
+          start_frame_url?: string | null
           status?: string
           storyboard_id: string
           title: string
@@ -406,6 +472,7 @@ export type Database = {
           video_url?: string | null
         }
         Update: {
+          continuation_prompt?: string | null
           created_at?: string
           description?: string
           duration?: number
@@ -413,6 +480,8 @@ export type Database = {
           image_url?: string | null
           job_id?: string | null
           order_index?: number
+          parent_scene_id?: string | null
+          start_frame_url?: string | null
           status?: string
           storyboard_id?: string
           title?: string

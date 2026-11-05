@@ -57,6 +57,13 @@
       "when": 1793890118193,
       "tag": "0007_deprecate_ad_generations",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793893671375,
+      "tag": "0008_owner_mode_and_provider_costs",
+      "breakpoints": true
     }
   ]
 }
