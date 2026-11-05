@@ -72,6 +72,7 @@ serve(async (req) => {
   console.log("Timestamp:", new Date().toISOString());
 
   let body: any = {};
+  let chargedRef: string | null = null;
   
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -391,7 +392,15 @@ serve(async (req) => {
       
       // Give the credits back when the provider could not make the video
       if ((prediction.status === 'failed' || prediction.status === 'canceled') && body.jobId) {
-        await refundCharge(supabase, body.jobId, `Video ${prediction.status} at the AI provider`);
+        const { data: failedJob } = await supabase
+          .from('jobs')
+          .select('outputs')
+          .eq('id', body.jobId)
+          .maybeSingle();
+        const delivered = Array.isArray(failedJob?.outputs) && failedJob.outputs.length > 0;
+        if (!delivered) {
+          await refundCharge(supabase, body.jobId, `Video ${prediction.status} at the AI provider`);
+        }
       }
 
       return new Response(JSON.stringify(prediction), {
@@ -413,7 +422,10 @@ serve(async (req) => {
     if (authenticatedUserId) {
       const charge = await requireCharge(supabase, {
         userId: authenticatedUserId,
-        jobRef: body.jobId,
+        // A remix is a new video, so it always gets its own charge
+        jobRef: body.extendFromVideo
+          ? `${body.jobId ?? crypto.randomUUID()}:remix:${crypto.randomUUID()}`
+          : body.jobId,
         step: `video-direct-${body.sceneIndex ?? 0}`,
         cost: { type: 'video', videoModel: body.videoModel, numVideos: 1 },
       });
@@ -423,6 +435,7 @@ serve(async (req) => {
           { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      chargedRef = charge.jobRef;
       body.jobId = body.jobId ?? charge.jobRef;
     }
 
@@ -898,7 +911,7 @@ serve(async (req) => {
           .eq('id', body.jobId);
           
         console.log(`Job ${body.jobId} marked as failed`);
-        await refundCharge(supabase, body.jobId, userFriendlyMessage);
+        await refundCharge(supabase, chargedRef ?? body.jobId, userFriendlyMessage);
       } catch (updateError) {
         console.error("Failed to update job status:", updateError);
       }
