@@ -10,6 +10,7 @@ interface TokenBalance {
   storage_limit_bytes: number;
   free_tokens_granted: number;
   free_tokens_used: number;
+  ad_generations_remaining: number;
 }
 
 interface Subscription {
@@ -99,7 +100,7 @@ export const useSubscription = () => {
       try {
         const { data, error } = await supabase
           .from('token_balances' as any)
-          .select('balance, total_purchased, total_spent, storage_bytes_used, storage_limit_bytes, free_tokens_granted, free_tokens_used')
+          .select('balance, total_purchased, total_spent, storage_bytes_used, storage_limit_bytes, free_tokens_granted, free_tokens_used, ad_generations_remaining')
           .eq('user_id', userId)
           .maybeSingle();
         
