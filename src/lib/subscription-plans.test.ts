@@ -29,9 +29,9 @@ describe("credit packs", () => {
 
 describe("generation prices", () => {
   it("match the agreed list", () => {
-    expect(CREDIT_PRICES.image).toBe(2);
-    expect(CREDIT_PRICES.video).toEqual({ animatediff: 22, haiper: 42, veo: 165 });
-    expect(CREDIT_PRICES["3d"]).toBe(15);
-    expect(CREDIT_PRICES.cad).toBe(15);
+    expect(CREDIT_PRICES.image).toBe(6);
+    expect(CREDIT_PRICES.video).toEqual({ animatediff: 75, haiper: 40, veo: 480 });
+    expect(CREDIT_PRICES["3d"]).toBe(35);
+    expect(CREDIT_PRICES.cad).toBe(40);
   });
 });

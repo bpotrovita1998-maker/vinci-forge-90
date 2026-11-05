@@ -17,8 +17,8 @@ describe("server price list", () => {
   });
 
   it("uses the model the user picked for video", () => {
-    expect(calculateCost({ type: "video", videoModel: "haiper" }).credits).toBe(42);
-    expect(calculateCost({ type: "video", videoModel: "animatediff" }).credits).toBe(22);
+    expect(calculateCost({ type: "video", videoModel: "haiper" }).credits).toBe(40);
+    expect(calculateCost({ type: "video", videoModel: "animatediff" }).credits).toBe(75);
   });
 
   it("falls back to the most expensive video model for unknown names", () => {
@@ -36,7 +36,28 @@ describe("server price list", () => {
   });
 
   it("charges 3D and CAD models their own prices", () => {
-    expect(calculateCost({ type: "3d" }).credits).toBe(15);
-    expect(calculateCost({ type: "cad" }).credits).toBe(15);
+    expect(calculateCost({ type: "3d" }).credits).toBe(35);
+    expect(calculateCost({ type: "cad" }).credits).toBe(40);
+  });
+
+  it("charges images 6 credits each", () => {
+    expect(calculateCost({ type: "image" }).credits).toBe(6);
+  });
+
+  it("charges Wan 2.5 by length and quality", () => {
+    expect(calculateCost({ type: "video", videoModel: "animatediff", durationSeconds: 10 }).credits).toBe(150);
+    expect(calculateCost({ type: "video", videoModel: "animatediff", durationSeconds: 5, resolution: "1080p" }).credits).toBe(110);
+    expect(calculateCost({ type: "video", videoModel: "animatediff", durationSeconds: 10, resolution: "1080p" }).credits).toBe(220);
+  });
+
+  it("charges Veo 3.1 with sound 480 credits for 8 seconds", () => {
+    expect(calculateCost({ type: "video", videoModel: "veo", durationSeconds: 8 }).credits).toBe(480);
+  });
+
+  it("never charges less than the Replicate cost (credit = 0,01 EUR, 1 USD = 0,93 EUR)", () => {
+    const wanCostEur = 0.1 * 5 * 0.93;
+    expect(calculateCost({ type: "video", videoModel: "animatediff" }).credits * 0.0091).toBeGreaterThan(wanCostEur);
+    const veoCostEur = 0.4 * 8 * 0.93;
+    expect(calculateCost({ type: "video", videoModel: "veo" }).credits * 0.0091).toBeGreaterThan(veoCostEur);
   });
 });

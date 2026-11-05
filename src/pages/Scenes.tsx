@@ -66,7 +66,7 @@ import { SceneVideoDialog, type SceneVideoRequest } from '@/components/scene-vid
 import { useSubscription } from '@/hooks/useSubscription';
 import { buildScenePrompt, extractLastFrame, insertAfter, normalizeClipDuration } from '@/lib/scene-prompt';
 import { payForSceneVideo, uploadStartFrame } from '@/services/scene-service';
-import { CREDIT_PRICES } from '@/lib/subscription-plans';
+import { videoClipCredits } from '@/lib/subscription-plans';
 
 interface Scene {
   id: string;
@@ -1350,7 +1350,7 @@ export default function Scenes() {
       const startImage = scene.startFrameUrl ?? (!scene.videoUrl && scene.imageUrl && !scene.imageUrl.includes('.mp4') ? scene.imageUrl : undefined);
 
       // Pay on the server first: a queued job is picked up within a minute
-      await payForSceneVideo(jobId);
+      await payForSceneVideo(jobId, clipDuration);
 
       // Create job record
       const { error: jobError } = await supabase
@@ -2630,7 +2630,7 @@ export default function Scenes() {
                                       </div>
                                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                                         <DollarSign className="w-3 h-3" />
-                                        {isAdmin ? 'Owner mode: paid from your Replicate balance' : `Cost: ${CREDIT_PRICES.video.animatediff} credits per video (Wan 2.5)`}
+                                        {isAdmin ? 'Owner mode: paid from your Replicate balance' : `Cost: ${videoClipCredits('animatediff', scene.duration)} credits for ${scene.duration}s (Wan 2.5, 720p)`}
                                       </p>
                                     </div>
                                   )}

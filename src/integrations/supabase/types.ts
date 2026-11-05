@@ -343,16 +343,22 @@ export type Database = {
       provider_balance: {
         Row: {
           balance_usd: number
+          empty_reported_at: string | null
+          low_balance_threshold_usd: number
           provider: string
           set_at: string
         }
         Insert: {
           balance_usd: number
+          empty_reported_at?: string | null
+          low_balance_threshold_usd?: number
           provider: string
           set_at?: string
         }
         Update: {
           balance_usd?: number
+          empty_reported_at?: string | null
+          low_balance_threshold_usd?: number
           provider?: string
           set_at?: string
         }

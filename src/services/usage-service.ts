@@ -46,21 +46,37 @@ export const fetchProviderRuns = async (onlyUserId?: string): Promise<ProviderRu
 export interface ProviderBalance {
   balance_usd: number;
   set_at: string;
+  low_balance_threshold_usd: number;
+  empty_reported_at: string | null;
 }
 
 export const fetchProviderBalance = async (): Promise<ProviderBalance | null> => {
   const { data, error } = await supabase
     .from("provider_balance")
-    .select("balance_usd, set_at")
+    .select("balance_usd, set_at, low_balance_threshold_usd, empty_reported_at")
     .eq("provider", "replicate")
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data as ProviderBalance | null;
 };
 
-export const saveProviderBalance = async (balanceUsd: number): Promise<void> => {
-  const { error } = await supabase
-    .from("provider_balance")
-    .upsert({ provider: "replicate", balance_usd: balanceUsd, set_at: new Date().toISOString() });
+export const saveProviderBalance = async (balanceUsd: number, thresholdUsd?: number): Promise<void> => {
+  const { error } = await supabase.from("provider_balance").upsert({
+    provider: "replicate",
+    balance_usd: balanceUsd,
+    set_at: new Date().toISOString(),
+    ...(thresholdUsd !== undefined ? { low_balance_threshold_usd: thresholdUsd } : {}),
+  });
   if (error) throw new Error(error.message);
+};
+
+/** Estimated provider cost of every run since a date (for the owner's running balance). */
+export const fetchProviderCostsSince = async (sinceIso: string): Promise<{ estimated_cost_usd: number; created_at: string }[]> => {
+  const { data, error } = await supabase
+    .from("provider_runs")
+    .select("estimated_cost_usd, created_at")
+    .gte("created_at", sinceIso)
+    .limit(5000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as { estimated_cost_usd: number; created_at: string }[];
 };

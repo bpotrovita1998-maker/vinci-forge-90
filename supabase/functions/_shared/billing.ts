@@ -75,6 +75,22 @@ export interface BillingState {
   admin: SupabaseClient | null;
 }
 
+export const PROVIDER_EMPTY_MESSAGE =
+  "Video generation is paused for a few minutes, your credits were not used.";
+
+/** True when an AI provider error says the account has no money left (HTTP 402). */
+export function isProviderOutOfCredit(text: string): boolean {
+  return /insufficient credit|payment required|\b402\b|billing.*(required|limit)/i.test(text);
+}
+
+export async function reportProviderEmpty(admin: SupabaseClient): Promise<void> {
+  const { error } = await admin
+    .from("provider_balance")
+    .update({ empty_reported_at: new Date().toISOString() })
+    .eq("provider", "replicate");
+  if (error) console.error("Could not report empty provider balance:", error.message);
+}
+
 /** Wraps a request handler so a paid generation is refunded when it ends in an error. */
 export function withRefundOnFailure(
   handler: (req: Request, billing: BillingState) => Promise<Response>,
@@ -91,8 +107,19 @@ export function withRefundOnFailure(
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    if (response.status >= 400 && billing.jobRef && billing.admin) {
-      await refundCharge(billing.admin, billing.jobRef, `Generation failed (${response.status})`);
+    if (response.status >= 400) {
+      const body = await response.clone().text().catch(() => "");
+      if (isProviderOutOfCredit(body)) {
+        // The owner's Replicate balance is empty: tell the owner and give the user a clear message
+        if (billing.admin) await reportProviderEmpty(billing.admin);
+        response = new Response(
+          JSON.stringify({ error: PROVIDER_EMPTY_MESSAGE, code: "provider_balance_empty" }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (billing.jobRef && billing.admin) {
+        await refundCharge(billing.admin, billing.jobRef, `Generation failed (${response.status})`);
+      }
     }
     return response;
   };

@@ -72,7 +72,7 @@ serve(async (req) => {
       userId: user.id,
       jobRef: redoRef,
       step: 'scene-redo',
-      cost: { type: 'video', videoModel: (job.manifest as { videoModel?: string } | null)?.videoModel ?? job.video_mode ?? undefined, numVideos: 1 },
+      cost: { type: 'video', videoModel: (job.manifest as { videoModel?: string } | null)?.videoModel ?? job.video_mode ?? undefined, numVideos: 1, durationSeconds: job.duration ?? undefined },
     });
     if (!charge.ok) {
       return new Response(JSON.stringify({ error: charge.error, code: 'insufficient_credits' }), { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

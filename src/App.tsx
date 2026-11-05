@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { JobProvider } from "@/contexts/JobContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navigation from "./components/Navigation";
+import { OwnerBalanceBanner } from "./components/owner-balance-banner";
 import { CookieConsent } from "./components/CookieConsent";
 import { useWebVitals } from "./hooks/useWebVitals";
 import { PageLoadingSkeleton } from "./components/LazyComponent";
@@ -61,6 +62,7 @@ const App = () => (
           <BrowserRouter>
             <TranslationErrorBoundary>
               <Navigation />
+              <OwnerBalanceBanner />
               <Suspense fallback={<PageLoadingSkeleton />}>
                 <Routes>
                   <Route path="/auth" element={<Auth />} />

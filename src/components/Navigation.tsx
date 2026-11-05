@@ -1,4 +1,6 @@
 import { NavLink } from './NavLink';
+import { useOwnerBalance } from '@/hooks/use-owner-balance';
+import { formatUsd } from '@/lib/provider-balance';
 import { formatCredits, freeGenerationsLabel } from '@/lib/credits-display';
 import { Button } from './ui/button';
 import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign, Coins, Video, Brain, Settings as SettingsIcon } from 'lucide-react';
@@ -20,6 +22,7 @@ import { LanguageTranslator } from './LanguageTranslator';
 export default function Navigation() {
   const { user, signOut } = useAuth();
   const { tokenBalance, isAdmin, subscription } = useSubscription();
+  const ownerBalance = useOwnerBalance();
   const isPro = isAdmin || subscription?.status === 'active';
 
   const getInitials = (email: string) => {
@@ -118,6 +121,15 @@ export default function Navigation() {
                       <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary border-0">
                         GM
                       </Badge>
+                    )}
+                    {ownerBalance?.remainingUsd != null && (
+                      <span
+                        data-testid="owner-replicate-balance"
+                        title="Estimated Replicate balance (only you see this)"
+                        className={`ml-2 text-xs ${ownerBalance.low || ownerBalance.empty ? 'text-destructive' : 'text-muted-foreground'}`}
+                      >
+                        Replicate ≈ {formatUsd(ownerBalance.remainingUsd)}
+                      </span>
                     )}
                   </span>
                 </div>

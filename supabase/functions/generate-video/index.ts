@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { splitPromptIntoScenes } from "../_shared/promptSplitter.ts";
 import { checkStorageRoom } from "../_shared/storage-plans.ts";
-import { refundCharge, requireCharge, recordProviderRun } from "../_shared/billing.ts";
+import { refundCharge, requireCharge, recordProviderRun, isProviderOutOfCredit, reportProviderEmpty, PROVIDER_EMPTY_MESSAGE } from "../_shared/billing.ts";
 import { estimateProviderCostUsd } from "../_shared/pricing.ts";
 
 const corsHeaders = {
@@ -429,7 +429,7 @@ serve(async (req) => {
           ? `${body.jobId ?? crypto.randomUUID()}:remix:${crypto.randomUUID()}`
           : body.jobId,
         step: `video-direct-${body.sceneIndex ?? 0}`,
-        cost: { type: 'video', videoModel: body.videoModel, numVideos: 1 },
+        cost: { type: 'video', videoModel: body.videoModel, numVideos: 1, durationSeconds: body.duration, resolution: body.resolution },
       });
       if (!charge.ok) {
         return new Response(
@@ -888,9 +888,11 @@ serve(async (req) => {
     let statusCode = 500;
     
     // Check for insufficient credits/balance
-    if (errorMessage.includes('402') || errorMessage.includes('Insufficient credit') || errorMessage.includes('payment required')) {
-      userFriendlyMessage = "⚠️ Insufficient Replicate balance. Please add credits to your Replicate account to continue generating videos.";
-      statusCode = 402;
+    if (isProviderOutOfCredit(errorMessage)) {
+      // The owner's Replicate balance is empty; the user's credits are refunded below
+      userFriendlyMessage = PROVIDER_EMPTY_MESSAGE;
+      statusCode = 503;
+      await reportProviderEmpty(createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!));
     } 
     // Check for rate limits
     else if (errorMessage.includes('429') || errorMessage.includes('throttled') || errorMessage.includes('rate limit') || errorMessage.includes('Rate limit exceeded')) {

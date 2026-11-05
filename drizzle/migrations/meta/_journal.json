@@ -64,6 +64,13 @@
       "when": 1793893671375,
       "tag": "0008_owner_mode_and_provider_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793898524950,
+      "tag": "0009_provider_balance_alerts",
+      "breakpoints": true
     }
   ]
 }

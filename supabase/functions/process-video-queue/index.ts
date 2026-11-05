@@ -49,6 +49,8 @@ serve(async (req) => {
       type: 'video',
       videoModel: (job.manifest as { videoModel?: string } | null)?.videoModel,
       numVideos: job.num_videos ?? 1,
+      durationSeconds: job.duration ?? undefined,
+      resolution: (job.manifest as { resolution?: string } | null)?.resolution,
     });
     const { data: claim, error: claimError } = await supabase.rpc('claim_generation_step', {
       _user_id: job.user_id,

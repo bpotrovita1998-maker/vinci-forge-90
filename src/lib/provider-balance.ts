@@ -1,4 +1,4 @@
-export const LOW_BALANCE_USD = 5;
+export const DEFAULT_LOW_BALANCE_USD = 20;
 
 interface RunCost {
   estimated_cost_usd: number;
@@ -14,7 +14,12 @@ export function remainingBalance(balanceUsd: number, setAt: string, runs: RunCos
   return Math.round((balanceUsd - spent) * 100) / 100;
 }
 
-export const isLowBalance = (remaining: number): boolean => remaining < LOW_BALANCE_USD;
+export const isLowBalance = (remaining: number, thresholdUsd: number = DEFAULT_LOW_BALANCE_USD): boolean =>
+  remaining < thresholdUsd;
+
+/** An "out of money" report from the provider counts until the owner saves a newer balance. */
+export const isProviderEmpty = (emptyReportedAt: string | null | undefined, balanceSetAt: string): boolean =>
+  !!emptyReportedAt && new Date(emptyReportedAt).getTime() > new Date(balanceSetAt).getTime();
 
 export const formatUsd = (value: number): string =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "USD" }).format(value);
