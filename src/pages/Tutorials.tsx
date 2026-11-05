@@ -27,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Footer } from "@/components/landing/Footer";
-import AdBanner from "@/components/AdBanner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { SEO } from "@/components/SEO";
 
@@ -379,15 +378,6 @@ export default function Tutorials() {
             </Link>
           </motion.div>
           
-          {/* In-Article Ad after Quick Start */}
-          <div className="mt-10 flex justify-center">
-            <AdBanner
-              format="in-article"
-              pageType="content"
-              contentItemCount={tutorials.length}
-              minContentItems={5}
-            />
-          </div>
         </div>
       </section>
 
@@ -536,15 +526,6 @@ export default function Tutorials() {
             })}
           </div>
           
-          {/* In-Article Ad after Tips */}
-          <div className="mt-10 flex justify-center">
-            <AdBanner
-              format="in-article"
-              pageType="content"
-              contentItemCount={tutorials.length}
-              minContentItems={5}
-            />
-          </div>
         </div>
       </section>
 
@@ -573,17 +554,6 @@ export default function Tutorials() {
         </div>
       </section>
 
-      {/* Ad Banner */}
-      <section className="py-8 px-4">
-        <div className="max-w-4xl mx-auto flex justify-center">
-          <AdBanner 
-            pageType="content" 
-            format="horizontal" 
-            contentItemCount={tutorials.length}
-            minContentItems={5}
-          />
-        </div>
-      </section>
 
       <Footer />
     </div>

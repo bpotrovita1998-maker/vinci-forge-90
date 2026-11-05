@@ -27,7 +27,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Footer } from "@/components/landing/Footer";
-import AdBanner from "@/components/AdBanner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { SEO } from "@/components/SEO";
 
@@ -449,17 +448,6 @@ export default function FAQ() {
         </div>
       </section>
 
-      {/* Ad Banner */}
-      <section className="py-8 px-4">
-        <div className="max-w-4xl mx-auto flex justify-center">
-          <AdBanner 
-            pageType="content" 
-            format="horizontal" 
-            contentItemCount={totalFAQs}
-            minContentItems={10}
-          />
-        </div>
-      </section>
 
       <Footer />
     </div>

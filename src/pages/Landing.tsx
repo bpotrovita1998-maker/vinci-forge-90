@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Film, Box, GraduationCap, Gamepad2, Printer, Glasses, Home, ChevronRight, Play, Zap, Layers, Wand2, Star, Quote, ChevronDown, BookOpen, ArrowRight, MessageSquare, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import AdBanner from "@/components/AdBanner";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Card } from "@/components/ui/card";
 import {
@@ -577,19 +576,6 @@ export default function Landing() {
       </section>
 
       {/* Ad Banner for Free Users - Placed between content sections */}
-      {!isPro && (
-        <section className="py-8 px-6">
-          <div className="container mx-auto flex justify-center">
-            <AdBanner 
-              format="horizontal" 
-              pageType="content"
-              contentItemCount={testimonials.length + faqs.length + blogPosts.length}
-              minContentItems={10}
-              className="w-full max-w-3xl"
-            />
-          </div>
-        </section>
-      )}
 
       {/* FAQ Section */}
       <section className="py-20 px-6 bg-muted/20">
