@@ -12,8 +12,10 @@
 2. **Protect customers when Replicate is empty**
    - If Replicate rejects a job because the balance is empty, the user gets their credits back. They see: "Video generation is paused for a few minutes, your credits were not used."
    - You get an urgent warning at the same moment.
-3. **Real balance instead of estimates**
-   - Check whether Replicate reports the account balance through its API. If it does, read it every hour and replace the estimate. If it doesn't, keep the manual "Save balance" field.
+3. **Your Replicate balance on your account**
+   - Replicate has no way for other apps to read an account balance, and no Replicate sign-in for other apps. So the app can't show your $6,68 automatically.
+   - You type in your real balance after each top-up. The app subtracts the cost of each generation from it and shows the result on your account badge, for you only.
+   - Customers keep seeing their app credits, for example "1.500 credits" from a plan. They never need a Replicate account.
 4. **Setup advice (done by you on Replicate)**
    - Turn on Replicate's automatic reload with a card, so the balance refills itself before it runs out.
 
