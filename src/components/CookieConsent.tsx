@@ -25,8 +25,6 @@ export function CookieConsent() {
   const handleDecline = () => {
     localStorage.setItem(COOKIE_CONSENT_KEY, 'declined');
     setIsVisible(false);
-    // Optionally disable Google AdSense if declined
-    // This would require additional implementation to conditionally load the script
   };
 
   if (!isVisible) return null;
@@ -53,8 +51,7 @@ export function CookieConsent() {
               </div>
               
               <p className="text-muted-foreground text-sm leading-relaxed">
-                We use cookies and similar technologies to enhance your experience, analyze site traffic, 
-                and serve personalized advertisements through Google AdSense. By clicking "Accept All", 
+                We use cookies and similar technologies to enhance your experience, and analyze site traffic. By clicking "Accept All", 
                 you consent to the use of all cookies. You can manage your preferences or learn more 
                 in our{' '}
                 <Link to="/privacy" className="text-primary hover:underline">

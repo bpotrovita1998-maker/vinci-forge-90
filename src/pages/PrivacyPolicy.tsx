@@ -92,19 +92,10 @@ export default function PrivacyPolicy() {
                 </p>
               </div>
               <div>
-                <h3 className="font-medium text-foreground mb-2">Google AdSense</h3>
-                <p className="text-muted-foreground text-sm">
-                  We use Google AdSense to display advertisements on our website. Google AdSense uses cookies 
-                  to serve ads based on your prior visits to our website and other websites on the Internet. 
-                  This is known as interest-based or personalized advertising.
-                </p>
-              </div>
-              <div>
                 <h3 className="font-medium text-foreground mb-2">Types of Cookies We Use</h3>
                 <ul className="text-muted-foreground text-sm space-y-2 list-disc list-inside">
                   <li><strong>Essential Cookies:</strong> Required for the website to function properly</li>
                   <li><strong>Analytics Cookies:</strong> Help us understand how visitors interact with our website</li>
-                  <li><strong>Advertising Cookies:</strong> Used by Google AdSense to display relevant advertisements</li>
                   <li><strong>Preference Cookies:</strong> Remember your settings and preferences</li>
                 </ul>
               </div>
@@ -112,24 +103,7 @@ export default function PrivacyPolicy() {
                 <h3 className="font-medium text-foreground mb-2">Managing Your Cookie Preferences</h3>
                 <p className="text-muted-foreground text-sm">
                   You can manage your cookie preferences through our cookie consent banner when you first visit 
-                  our website. You can also opt out of personalized advertising by visiting{' '}
-                  <a 
-                    href="https://www.google.com/settings/ads" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Google's Ad Settings
-                  </a>{' '}
-                  or{' '}
-                  <a 
-                    href="https://www.aboutads.info/choices" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    aboutads.info
-                  </a>.
+                  our website, or clear cookies at any time in your browser settings.
                 </p>
               </div>
             </div>
@@ -154,10 +128,6 @@ export default function PrivacyPolicy() {
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>
                   <span>To improve our services and develop new features</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  <span>To display personalized advertisements through Google AdSense</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>

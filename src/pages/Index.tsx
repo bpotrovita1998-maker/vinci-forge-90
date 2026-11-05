@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import ParticleBackground from "@/components/ParticleBackground";
 import Hero from "@/components/Hero";
@@ -6,14 +6,11 @@ import JobQueue from "@/components/JobQueue";
 import FreeTokenCounter from "@/components/FreeTokenCounter";
 import FirstGenerationCelebration from "@/components/FirstGenerationCelebration";
 import OnboardingWizard from "@/components/OnboardingWizard";
-import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
 const ONBOARDING_STORAGE_KEY = 'vinciai_onboarding_completed';
 
 const Index = () => {
-  const { isAdmin, subscription } = useSubscription();
   const { user } = useAuth();
-  const isPro = isAdmin || subscription?.status === 'active';
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Check if user should see onboarding
