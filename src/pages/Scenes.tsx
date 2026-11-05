@@ -62,6 +62,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { PlaylistPlayer } from '@/components/PlaylistPlayer';
+import { SceneVideoDialog, type SceneVideoRequest } from '@/components/scene-video-dialog';
+import { useSubscription } from '@/hooks/useSubscription';
+import { buildScenePrompt, extractLastFrame, insertAfter, normalizeClipDuration } from '@/lib/scene-prompt';
+import { payForSceneVideo, uploadStartFrame } from '@/services/scene-service';
 
 interface Scene {
   id: string;
@@ -76,6 +80,9 @@ interface Scene {
   generationProgress?: number; // 0-100
   estimatedTimeRemaining?: number; // in seconds
   generationStartTime?: number; // timestamp
+  startFrameUrl?: string; // image the video starts from (continuations, animated pictures)
+  parentSceneId?: string; // scene this clip continues
+  continuationPrompt?: string;
 }
 
 interface StoryboardSettings {
@@ -112,6 +119,8 @@ export default function Scenes() {
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [storyboardToDelete, setStoryboardToDelete] = useState<string | null>(null);
   const [editingScene, setEditingScene] = useState<Scene | null>(null);
+  const [videoDialog, setVideoDialog] = useState<{ scene: Scene; mode: 'regenerate' | 'continue' } | null>(null);
+  const { isAdmin } = useSubscription();
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [viewingScene, setViewingScene] = useState<Scene | null>(null);
@@ -371,7 +380,10 @@ export default function Scenes() {
         status: scene.status as 'draft' | 'generating' | 'ready',
         jobId: scene.job_id || undefined,
         duration: scene.duration,
-        type: (scene.video_url ? 'video' : 'image') as 'image' | 'video' // Infer type from existing data
+        startFrameUrl: scene.start_frame_url || undefined,
+        parentSceneId: scene.parent_scene_id || undefined,
+        continuationPrompt: scene.continuation_prompt || undefined,
+        type: (scene.video_url || scene.start_frame_url ? 'video' : 'image') as 'image' | 'video' // Infer type from existing data
       }));
 
       // Track saved scene IDs
@@ -701,6 +713,9 @@ export default function Scenes() {
             job_id: scene.jobId || null,
             duration: scene.duration,
             order_index: index,
+            start_frame_url: scene.startFrameUrl || null,
+            parent_scene_id: scene.parentSceneId && isUuid(scene.parentSceneId) ? scene.parentSceneId : null,
+            continuation_prompt: scene.continuationPrompt || null,
           };
 
           // Include ID only if it's a real UUID (not a temporary id like scene-*)
@@ -848,6 +863,7 @@ export default function Scenes() {
     if (updates.jobId !== undefined) dbUpdates.job_id = updates.jobId;
     if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
     if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
+    if (updates.startFrameUrl !== undefined) dbUpdates.start_frame_url = updates.startFrameUrl;
 
     if (Object.keys(dbUpdates).length === 0) return;
 
@@ -1117,10 +1133,24 @@ export default function Scenes() {
             scene_id: sceneId,
             storyboard_id: currentStoryboard?.id,
             scene_title: scene.title,
+            videoModel: 'animatediff',
+            resolution: '720p',
+            ...(startImage ? { startImage } : {}),
           }
         });
 
       if (jobError) throw jobError;
+
+      // Pay on the server before the video is queued
+      try {
+        await payForSceneVideo(jobId);
+      } catch (payError) {
+        await supabase.from('jobs').update({ status: 'failed', error: 'Not paid' }).eq('id', jobId);
+        throw payError;
+      }
+      if (request) {
+        await updateScene(sceneId, { duration: clipDuration, ...(isRegenerate ? {} : { description: request.prompt }) });
+      }
 
       // Update scene with job_id and status
       await updateScene(sceneId, {
@@ -1261,14 +1291,18 @@ export default function Scenes() {
     if (!scene) return;
     
     if (scene.type === 'video') {
-      await generateSceneVideo(sceneId, true);
+      setVideoDialog({ scene, mode: 'regenerate' });
     } else {
       await generateSceneImage(sceneId, true);
     }
   };
 
-  const generateSceneVideo = async (sceneId: string, isRegenerate = false) => {
-    const scene = scenes.find(s => s.id === sceneId);
+  const generateSceneVideo = async (
+    sceneId: string,
+    isRegenerate = false,
+    options?: { request?: SceneVideoRequest; sceneOverride?: Scene },
+  ) => {
+    const scene = options?.sceneOverride ?? scenes.find(s => s.id === sceneId);
     if (!scene || scene.status === 'generating') return;
     if (!user) {
       toast({ title: "Error", description: "Please sign in first", variant: "destructive" });
@@ -1281,14 +1315,19 @@ export default function Scenes() {
       // Create a job in the database first
       const jobId = crypto.randomUUID();
       
-      const contextParts = [
-        scene.description,
-        settings.character && `Character: ${settings.character}`,
-        settings.style && `Style: ${settings.style}`,
-        settings.brand && `Brand: ${settings.brand}`
-      ].filter(Boolean);
-      
-      const finalPrompt = contextParts.join(', ');
+      const request = options?.request;
+      const finalPrompt = buildScenePrompt({
+        base: request?.prompt ?? scene.description,
+        characters: request?.characters,
+        motion: request?.motion,
+        style: request?.style,
+        storyboardCharacter: settings.character,
+        storyboardStyle: settings.style,
+        storyboardBrand: settings.brand,
+      });
+      const clipDuration = normalizeClipDuration(request?.duration ?? scene.duration);
+      // A picture without a video yet is animated from that picture
+      const startImage = scene.startFrameUrl ?? (!scene.videoUrl && scene.imageUrl && !scene.imageUrl.includes('.mp4') ? scene.imageUrl : undefined);
 
       // Create job record
       const { error: jobError } = await supabase
@@ -1300,7 +1339,7 @@ export default function Scenes() {
           prompt: finalPrompt,
           width: 1024,
           height: 576,
-          duration: scene.duration >= 10 ? 10 : 5, // Ensure valid duration for Wan 2.5 (5 or 10 only)
+          duration: clipDuration, // Wan 2.5 renders 5 or 10 seconds only
           fps: 24,
           status: 'queued',
           progress_stage: 'Initializing',
@@ -1426,6 +1465,64 @@ export default function Scenes() {
         title: "Generation Failed",
         description: errorMessage,
         variant: "destructive"
+      });
+    }
+  };
+
+  const handleVideoDialogConfirm = async (request: SceneVideoRequest) => {
+    if (!videoDialog || !user) return;
+    const { scene, mode } = videoDialog;
+    setVideoDialog(null);
+    if (mode === 'regenerate') {
+      await generateSceneVideo(scene.id, true, { request });
+      return;
+    }
+    if (!scene.videoUrl) return;
+    try {
+      toast({ title: "Preparing continuation", description: "Taking the last frame of this clip..." });
+      const frame = await extractLastFrame(scene.videoUrl);
+      const startFrameUrl = await uploadStartFrame(user.id, frame);
+      const parentIndex = scenes.findIndex(s => s.id === scene.id);
+      const newScene: Scene = {
+        id: crypto.randomUUID(),
+        title: `${scene.title.replace(/ \(continued.*\)$/, '')} (continued)`,
+        description: request.prompt,
+        status: 'draft',
+        duration: request.duration,
+        type: 'video',
+        imageUrl: startFrameUrl,
+        startFrameUrl,
+        parentSceneId: scene.id,
+        continuationPrompt: request.prompt,
+      };
+      const nextScenes = insertAfter(scenes, parentIndex, newScene);
+      setScenes(nextScenes);
+      if (currentStoryboard) {
+        const rows = nextScenes.map((s, index) => ({
+          id: s.id,
+          storyboard_id: currentStoryboard.id,
+          title: s.title,
+          description: s.description,
+          image_url: s.imageUrl || null,
+          video_url: s.videoUrl || null,
+          status: s.status,
+          job_id: s.jobId || null,
+          duration: s.duration,
+          order_index: index,
+          start_frame_url: s.startFrameUrl || null,
+          parent_scene_id: s.parentSceneId || null,
+          continuation_prompt: s.continuationPrompt || null,
+        }));
+        const { error } = await supabase.from('storyboard_scenes').upsert(rows);
+        if (error) throw error;
+        nextScenes.forEach(s => savedSceneIdsRef.current.add(s.id));
+      }
+      await generateSceneVideo(newScene.id, false, { request, sceneOverride: newScene });
+    } catch (error) {
+      toast({
+        title: "Could not continue the video",
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: "destructive",
       });
     }
   };
@@ -2563,6 +2660,17 @@ export default function Scenes() {
                                         <RefreshCw className="w-4 h-4" />
                                         Regenerate
                                       </Button>
+                                      {scene.type === 'video' && scene.videoUrl && (
+                                        <Button
+                                          size="sm"
+                                          onClick={() => setVideoDialog({ scene, mode: 'continue' })}
+                                          className="flex-1 gap-2"
+                                          variant="secondary"
+                                        >
+                                          <Video className="w-4 h-4" />
+                                          Continue video
+                                        </Button>
+                                      )}
                                       {scene.type === 'video' && (
                                         <Button
                                           size="sm"
