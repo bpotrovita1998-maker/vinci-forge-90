@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_jobs_type_status_created ON public.jobs (type, status, created_at);
