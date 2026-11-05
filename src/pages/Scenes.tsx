@@ -66,6 +66,7 @@ import { SceneVideoDialog, type SceneVideoRequest } from '@/components/scene-vid
 import { useSubscription } from '@/hooks/useSubscription';
 import { buildScenePrompt, extractLastFrame, insertAfter, normalizeClipDuration } from '@/lib/scene-prompt';
 import { payForSceneVideo, uploadStartFrame } from '@/services/scene-service';
+import { CREDIT_PRICES } from '@/lib/subscription-plans';
 
 interface Scene {
   id: string;
@@ -2633,7 +2634,7 @@ export default function Scenes() {
                                       </div>
                                       <p className="text-xs text-muted-foreground flex items-center gap-1">
                                         <DollarSign className="w-3 h-3" />
-                                        Cost: 15 tokens ($0.15) per video via Wan 2.5 T2V Fast
+                                        {isAdmin ? 'Owner mode: paid from your Replicate balance' : `Cost: ${CREDIT_PRICES.video.animatediff} credits per video (Wan 2.5)`}
                                       </p>
                                     </div>
                                   )}
