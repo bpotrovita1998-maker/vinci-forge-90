@@ -146,6 +146,8 @@ class LovableAIService {
             width: job.options.width,
             height: job.options.height,
             numImages: 1,
+            jobId: jobId,
+            purpose: 'reference',
           }
         });
 
@@ -326,6 +328,8 @@ class LovableAIService {
             width: job.options.width,
             height: job.options.height,
             numImages: 1,
+            jobId: jobId,
+            purpose: 'reference',
           }
         });
 
@@ -533,6 +537,7 @@ class LovableAIService {
           body: {
             imageUrl: job.options.imageUrl,
             prompt: job.options.prompt,
+            jobId: jobId,
           }
         });
 
