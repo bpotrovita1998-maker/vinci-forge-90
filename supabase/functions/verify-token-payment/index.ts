@@ -1,112 +1,37 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { adminClient, corsHeaders, getUser, json } from "../_shared/auth-user.ts";
+import { getPackById } from "../_shared/subscription-plans.ts";
+import { createStripe } from "../_shared/subscription-sync.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[VERIFY-TOKEN-PAYMENT] ${step}${detailsStr}`);
-};
+const BodySchema = z.object({ session_id: z.string().startsWith("cs_").max(255) });
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
-  );
-
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    logStep("Function started");
+    const admin = adminClient();
+    const user = await getUser(req, admin);
+    if (!user) return json({ error: "Please sign in" }, 401);
 
-    const { session_id } = await req.json();
-    
-    if (!session_id) {
-      throw new Error("Session ID is required");
-    }
+    const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return json({ error: "Invalid payment reference" }, 400);
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    const session = await createStripe().checkout.sessions.retrieve(parsed.data.session_id);
+    if (session.metadata?.user_id !== user.id) return json({ error: "This payment belongs to another account" }, 403);
+    if (session.payment_status !== "paid") return json({ error: "Payment not completed yet" }, 402);
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
-    const user = userData.user;
-    if (!user?.id) throw new Error("User not authenticated");
-    
-    logStep("User authenticated", { userId: user.id });
+    const pack = getPackById(session.metadata?.pack_id);
+    if (!pack) return json({ error: "Unknown credit pack" }, 400);
 
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2025-08-27.basil",
+    const { data: granted, error } = await admin.rpc("grant_credits", {
+      _user_id: user.id,
+      _ref: `checkout:${session.id}`,
+      _credits: pack.credits,
+      _kind: pack.id,
     });
-
-    // Retrieve the checkout session
-    const session = await stripe.checkout.sessions.retrieve(session_id);
-    logStep("Session retrieved", { sessionId: session_id, status: session.payment_status });
-
-    if (session.payment_status !== 'paid') {
-      throw new Error("Payment not completed");
-    }
-
-    // Get token amount from metadata
-    const tokens = parseInt(session.metadata?.tokens || '0');
-    const amount = parseInt(session.metadata?.amount || '0');
-    
-    if (!tokens || !amount) {
-      throw new Error("Invalid payment metadata");
-    }
-
-    logStep("Payment verified", { tokens, amount });
-
-    // Get current balance
-    const { data: currentBalance } = await supabaseClient
-      .from('token_balances')
-      .select('balance, total_purchased')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!currentBalance) {
-      throw new Error("Token balance not found");
-    }
-
-    // Update token balance
-    const { error: updateError } = await supabaseClient
-      .from('token_balances')
-      .update({
-        balance: currentBalance.balance + tokens,
-        total_purchased: currentBalance.total_purchased + tokens,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', user.id);
-
-    if (updateError) {
-      logStep("ERROR updating token balance", { error: updateError });
-      throw new Error(`Failed to update token balance: ${updateError.message}`);
-    }
-
-    logStep("Token balance updated successfully");
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      tokens_added: tokens,
-      amount_paid: amount 
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    if (error) throw new Error(error.message);
+    return json({ success: true, tokens_added: granted ? pack.credits : 0, already_added: !granted });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
 });
