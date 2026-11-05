@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, isLowBalance, remainingBalance } from "./provider-balance";
+import { formatDate, isLowBalance as lowCheck, isProviderEmpty, remainingBalance } from "./provider-balance";
 
 describe("remainingBalance", () => {
   it("subtracts only runs made after the balance was entered", () => {
@@ -11,12 +11,6 @@ describe("remainingBalance", () => {
   });
 });
 
-describe("isLowBalance", () => {
-  it("warns below $5", () => {
-    expect(isLowBalance(4.99)).toBe(true);
-    expect(isLowBalance(5)).toBe(false);
-  });
-});
 
 describe("formatDate", () => {
   it("uses DD/MM/YYYY", () => {
@@ -24,7 +18,6 @@ describe("formatDate", () => {
   });
 });
 
-import { isLowBalance as lowCheck, isProviderEmpty } from "./provider-balance";
 
 describe("owner balance warnings", () => {
   it("warns below the default 20 dollar limit", () => {
