@@ -100,7 +100,7 @@ serve(async (req) => {
     const { data: signedData, error: signError } = await supabaseClient
       .storage
       .from('generated-models')
-      .createSignedUrl(`${userId}/${manifestFilename}`, 604800); // 7 days
+      .getPublicUrl(`${userId}/${manifestFilename}`); // permanent link
 
     if (signError || !signedData) {
       console.error('[Stitch] Error creating signed URL:', signError);
@@ -114,7 +114,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         stitchedUrl: sortedScenes[0].videoUrl,
-        manifestUrl: signedData.signedUrl,
+        manifestUrl: signedData.publicUrl,
         sceneCount: sortedScenes.length,
         totalDuration: manifest.totalDuration,
         allScenes: sortedScenes.map(s => s.videoUrl),

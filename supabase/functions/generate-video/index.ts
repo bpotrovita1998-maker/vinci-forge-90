@@ -241,9 +241,9 @@ serve(async (req) => {
           // Get signed URL (7 days expiry)
           const { data: signedUrlData } = await supabase.storage
             .from('generated-models')
-            .createSignedUrl(fileName, 604800);
+            .getPublicUrl(fileName); // permanent link
 
-          const publicUrl = signedUrlData?.signedUrl;
+          const publicUrl = signedUrlData?.publicUrl;
           if (!publicUrl) throw new Error('Failed to create signed URL');
           
           console.log("Video stored at:", publicUrl);
