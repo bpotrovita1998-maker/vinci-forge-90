@@ -561,6 +561,13 @@ serve(async (req) => {
     // Build enhanced prompt with character/scene consistency
     let enhancedPrompt = promptToUse;
     
+    // With a start frame the picture already fixes characters and style; repeating long
+    // descriptions makes the image-to-video model reject the input (E006).
+    if (body.startImage) {
+      body.characterDescription = undefined;
+      body.styleDescription = undefined;
+    }
+
     // Add character description if provided for consistency
     if (body.characterDescription) {
       enhancedPrompt = `Character: ${body.characterDescription}. Scene: ${promptToUse}`;
