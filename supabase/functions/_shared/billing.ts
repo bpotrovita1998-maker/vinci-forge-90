@@ -6,7 +6,7 @@ export type ChargeResult =
   | { ok: false; status: number; error: string };
 
 interface ClaimResponse {
-  status: "ok" | "missing" | "used" | "refunded";
+  status: "ok" | "missing" | "used" | "refunded" | "underpaid";
   units?: number;
 }
 
@@ -27,6 +27,7 @@ export async function requireCharge(
       _user_id: params.userId,
       _job_ref: jobRef,
       _step: params.step,
+      _min_units: params.minUnits ?? 1,
     });
     if (error) throw new Error(error.message);
     return data as ClaimResponse;
@@ -54,11 +55,11 @@ export async function requireCharge(
   if (result.status === "refunded") {
     return { ok: false, status: 402, error: "This generation was refunded. Start a new one." };
   }
+  if (result.status === "underpaid") {
+    return { ok: false, status: 402, error: "You paid for fewer items than requested. Start a new generation." };
+  }
   if (result.status !== "ok") {
     return { ok: false, status: 402, error: "Payment for this generation could not be confirmed." };
-  }
-  if (params.minUnits && (result.units ?? 1) < params.minUnits) {
-    return { ok: false, status: 402, error: "You paid for fewer items than requested. Start a new generation." };
   }
 
   return { ok: true, jobRef, chargedNow };
