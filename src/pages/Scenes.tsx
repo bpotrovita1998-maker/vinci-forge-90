@@ -1349,6 +1349,9 @@ export default function Scenes() {
       // A picture without a video yet is animated from that picture
       const startImage = scene.startFrameUrl ?? (!scene.videoUrl && scene.imageUrl && !scene.imageUrl.includes('.mp4') ? scene.imageUrl : undefined);
 
+      // Pay on the server first: a queued job is picked up within a minute
+      await payForSceneVideo(jobId);
+
       // Create job record
       const { error: jobError } = await supabase
         .from('jobs')
@@ -1376,13 +1379,6 @@ export default function Scenes() {
 
       if (jobError) throw jobError;
 
-      // Pay on the server before the video is queued
-      try {
-        await payForSceneVideo(jobId);
-      } catch (payError) {
-        await supabase.from('jobs').update({ status: 'failed', error: 'Not paid' }).eq('id', jobId);
-        throw payError;
-      }
       if (request) {
         await updateScene(sceneId, { duration: clipDuration, ...(isRegenerate ? {} : { description: request.prompt }) });
       }
