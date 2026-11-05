@@ -23,6 +23,7 @@ const Pricing = lazy(() => import("./pages/Pricing"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const MovieViewer = lazy(() => import("./pages/MovieViewer"));
 const Memory = lazy(() => import("./pages/Memory"));
+const GenerationHistory = lazy(() => import("./pages/generation-history"));
 const Settings = lazy(() => import("./pages/Settings"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
@@ -81,6 +82,7 @@ const App = () => (
                     }
                   />
                   <Route path="/scenes" element={<ProtectedRoute><Scenes /></ProtectedRoute>} />
+                  <Route path="/history" element={<ProtectedRoute><GenerationHistory /></ProtectedRoute>} />
                   <Route path="/movie" element={<MovieViewer />} />
                   <Route
                     path="/pricing"

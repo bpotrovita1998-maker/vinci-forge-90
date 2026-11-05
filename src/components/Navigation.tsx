@@ -142,6 +142,12 @@ export default function Navigation() {
                       Profile
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
+                      <NavLink to="/history" className="flex items-center w-full">
+                        <Coins className="w-4 h-4 mr-2" />
+                        Generation history
+                      </NavLink>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                       <NavLink to="/settings" className="flex items-center w-full">
                         <SettingsIcon className="w-4 h-4 mr-2" />
                         Settings
