@@ -1,168 +1,28 @@
-import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { adminClient, corsHeaders, getUser, json } from "../_shared/auth-user.ts";
+import { createStripe, findCustomerId, syncSubscription } from "../_shared/subscription-sync.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
-};
-
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
-  );
-
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    logStep("Function started");
+    const admin = adminClient();
+    const user = await getUser(req, admin);
+    if (!user) return json({ error: "Please sign in" }, 401);
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
-
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
-    logStep("Authorization header found");
-
-    const token = authHeader.replace("Bearer ", "");
-    logStep("Authenticating user with token");
-    
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) {
-      logStep("Authentication failed", { error: userError });
-      throw new Error(`Authentication error: ${JSON.stringify(userError)}`);
+    const stripe = createStripe();
+    const customerId = await findCustomerId(stripe, user.email);
+    if (!customerId) {
+      await admin.from("subscriptions").update({ status: "inactive", plan: "free", updated_at: new Date().toISOString() }).eq("user_id", user.id);
+      return json({ subscribed: false, plan: "free", subscription_end: null });
     }
-    const user = userData.user;
-    if (!user?.email) {
-      logStep("User missing or no email");
-      throw new Error("User not authenticated or email not available");
-    }
-    logStep("User authenticated", { userId: user.id, email: user.email });
-
-    const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    
-    if (customers.data.length === 0) {
-      logStep("No customer found, updating unsubscribed state");
-      
-      // Update subscription status to inactive
-      await supabaseClient
-        .from('subscriptions')
-        .update({ 
-          status: 'inactive',
-          stripe_customer_id: null,
-          stripe_subscription_id: null,
-          current_period_start: null,
-          current_period_end: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
-
-      return new Response(JSON.stringify({ subscribed: false }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      });
-    }
-
-    const customerId = customers.data[0].id;
-    logStep("Found Stripe customer", { customerId });
-
-    const subscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "active",
-      limit: 1,
-    });
-    
-    let hasActiveSub = subscriptions.data.length > 0;
-    let subscriptionEnd = null;
-    let stripeSubscriptionId = null;
-
-    if (hasActiveSub) {
-      const subscription = subscriptions.data[0];
-      
-      // Validate subscription has valid period dates
-      if (!subscription.current_period_end || !subscription.current_period_start) {
-        logStep("Subscription missing period dates, treating as inactive", { subscriptionId: subscription.id });
-        hasActiveSub = false;
-        
-        // Update subscription status to inactive
-        await supabaseClient
-          .from('subscriptions')
-          .update({ 
-            status: 'inactive',
-            stripe_customer_id: customerId,
-            stripe_subscription_id: null,
-            current_period_start: null,
-            current_period_end: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
-      } else {
-        subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-        stripeSubscriptionId = subscription.id;
-        logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
-        
-        // Update subscription in database
-        await supabaseClient
-          .from('subscriptions')
-          .update({ 
-            status: 'active',
-            stripe_customer_id: customerId,
-            stripe_subscription_id: stripeSubscriptionId,
-            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            current_period_end: subscriptionEnd,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', user.id);
-      }
-    } else {
-      logStep("No active subscription found");
-      
-      // Update subscription status to inactive
-      await supabaseClient
-        .from('subscriptions')
-        .update({ 
-          status: 'inactive',
-          stripe_customer_id: customerId,
-          stripe_subscription_id: null,
-          current_period_start: null,
-          current_period_end: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
-    }
-
-    return new Response(JSON.stringify({
-      subscribed: hasActiveSub,
-      subscription_end: subscriptionEnd
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
+    const result = await syncSubscription(stripe, admin, user.id, customerId);
+    return json({
+      subscribed: result.subscribed,
+      plan: result.plan,
+      subscription_end: result.subscriptionEnd,
+      credits_granted: result.creditsGranted,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    logStep("ERROR in check-subscription", { 
-      message: errorMessage,
-      stack: errorStack,
-      type: error?.constructor?.name
-    });
-    console.error("Full error object:", error);
-    return new Response(JSON.stringify({ 
-      error: errorMessage,
-      details: error instanceof Error ? error.stack : String(error)
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
 });

@@ -1,106 +1,39 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { adminClient, corsHeaders, getUser, json } from "../_shared/auth-user.ts";
+import { getPackById } from "../_shared/subscription-plans.ts";
+import { createStripe, findCustomerId } from "../_shared/subscription-sync.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[CREATE-TOKEN-CHECKOUT] ${step}${detailsStr}`);
-};
-
-// Token package price IDs
-const TOKEN_PACKAGES: Record<number, string> = {
-  20: "price_1SU46PE6ku5aODnpnGe9AknB",  // $20 for 2000 tokens
-  30: "price_1SU46mE6ku5aODnpHSSdAF2X",  // $30 for 3000 tokens
-  50: "price_1SU478E6ku5aODnpxYms7AR3",  // $50 for 5000 tokens
-};
+const BodySchema = z.object({ packId: z.string().min(1).max(32) });
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-  );
-
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    logStep("Function started");
+    const admin = adminClient();
+    const user = await getUser(req, admin);
+    if (!user) return json({ error: "Please sign in" }, 401);
 
-    const authHeader = req.headers.get("Authorization")!;
-    const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabaseClient.auth.getUser(token);
-    const user = data.user;
-    
-    if (!user?.email) {
-      throw new Error("User not authenticated or email not available");
-    }
-    
-    const { amount, tokens } = await req.json();
-    
-    if (!amount || !tokens) {
-      throw new Error("Amount and tokens are required");
-    }
+    const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
+    const pack = parsed.success ? getPackById(parsed.data.packId) : undefined;
+    if (!pack) return json({ error: "Unknown credit pack" }, 400);
 
-    logStep("User authenticated", { userId: user.id, email: user.email, amount, tokens });
+    const { data: allowed } = await admin.rpc("can_use_service", { _user_id: user.id });
+    if (!allowed) return json({ error: "Credit packs need an active plan. Choose Creator, Studio or Business first.", code: "plan_required" }, 403);
 
-    const priceId = TOKEN_PACKAGES[amount];
-    if (!priceId) {
-      throw new Error(`Invalid amount: ${amount}. Must be 20, 30, or 50`);
-    }
-
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2025-08-27.basil",
-    });
-
-    // Check if customer exists
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId;
-    
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Existing customer found", { customerId });
-    } else {
-      logStep("No existing customer found");
-    }
-
-    // Create checkout session for token package (one-time payment)
+    const stripe = createStripe();
+    const customerId = await findCustomerId(stripe, user.email);
+    const origin = req.headers.get("origin") ?? "https://vinci-forge-ai.lovable.app";
     const session = await stripe.checkout.sessions.create({
-      customer: customerId,
+      customer: customerId ?? undefined,
       customer_email: customerId ? undefined : user.email,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
+      line_items: [{ price: pack.priceId, quantity: 1 }],
       mode: "payment",
-      success_url: `${req.headers.get("origin")}/pricing?token_session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.get("origin")}/pricing`,
-      metadata: {
-        user_id: user.id,
-        tokens: tokens.toString(),
-        amount: amount.toString(),
-      },
+      success_url: `${origin}/pricing?token_session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/pricing`,
+      metadata: { user_id: user.id, pack_id: pack.id, kind: "credits" },
     });
-
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
-
-    return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return json({ url: session.url });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
 });
