@@ -1133,24 +1133,10 @@ export default function Scenes() {
             scene_id: sceneId,
             storyboard_id: currentStoryboard?.id,
             scene_title: scene.title,
-            videoModel: 'animatediff',
-            resolution: '720p',
-            ...(startImage ? { startImage } : {}),
           }
         });
 
       if (jobError) throw jobError;
-
-      // Pay on the server before the video is queued
-      try {
-        await payForSceneVideo(jobId);
-      } catch (payError) {
-        await supabase.from('jobs').update({ status: 'failed', error: 'Not paid' }).eq('id', jobId);
-        throw payError;
-      }
-      if (request) {
-        await updateScene(sceneId, { duration: clipDuration, ...(isRegenerate ? {} : { description: request.prompt }) });
-      }
 
       // Update scene with job_id and status
       await updateScene(sceneId, {
@@ -1348,10 +1334,24 @@ export default function Scenes() {
             scene_id: sceneId,
             storyboard_id: currentStoryboard?.id,
             scene_title: scene.title,
+            videoModel: 'animatediff',
+            resolution: '720p',
+            ...(startImage ? { startImage } : {}),
           }
         });
 
       if (jobError) throw jobError;
+
+      // Pay on the server before the video is queued
+      try {
+        await payForSceneVideo(jobId);
+      } catch (payError) {
+        await supabase.from('jobs').update({ status: 'failed', error: 'Not paid' }).eq('id', jobId);
+        throw payError;
+      }
+      if (request) {
+        await updateScene(sceneId, { duration: clipDuration, ...(isRegenerate ? {} : { description: request.prompt }) });
+      }
 
       // Update scene with job_id and status
       await updateScene(sceneId, {
