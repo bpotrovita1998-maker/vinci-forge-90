@@ -93,7 +93,6 @@ const steps = [
     color: "from-amber-500 to-orange-600",
     tokenInfo: [
       { label: "Free Tokens", desc: "New users get 5 free image generations to start", icon: Sparkles },
-      { label: "Watch Ads", desc: "Earn extra generations by watching short ads", icon: Play },
       { label: "Pro Subscription", desc: "Unlimited generations with PRO membership", icon: Crown }
     ]
   },

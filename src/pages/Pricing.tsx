@@ -136,14 +136,13 @@ export function Pricing() {
               <Card className="flex flex-col border-border/50">
                 <CardHeader>
                   <div className="flex items-center gap-2"><Play className="h-5 w-5 text-muted-foreground" /><CardTitle>Free</CardTitle></div>
-                  <CardDescription>Try VinciAI with ad-supported images</CardDescription>
+                  <CardDescription>Try VinciAI with free images</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-4">
                   <p><span className="text-4xl font-bold">{formatCents(0)}</span></p>
                   <ul className="space-y-2 text-sm">
                     <li className="flex gap-2"><Check className="h-4 w-4 text-primary shrink-0" />5 free images to start</li>
-                    <li className="flex gap-2"><Check className="h-4 w-4 text-primary shrink-0" />Watch a 15s ad for 5 more</li>
-                    <li className="flex gap-2"><Check className="h-4 w-4 text-primary shrink-0" />2 GB storage, files kept 24h</li>
+                                        <li className="flex gap-2"><Check className="h-4 w-4 text-primary shrink-0" />2 GB storage, files kept 24h</li>
                     <li className="flex gap-2 text-muted-foreground"><X className="h-4 w-4 shrink-0" />No video, 3D or CAD</li>
                   </ul>
                 </CardContent>

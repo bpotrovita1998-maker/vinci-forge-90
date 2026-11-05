@@ -8,7 +8,7 @@ export interface FreeGenerationCounts {
 export const formatCredits = (value: number): string =>
   new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(value);
 
-/** Remaining free image generations (welcome gift + ads). Never negative. */
+/** Remaining free image generations (welcome gift + any leftover ad generations from the retired ad system). Never negative. */
 export const remainingFreeGenerations = (counts: FreeGenerationCounts | null | undefined): number => {
   if (!counts) return 0;
   const welcome = Math.max((counts.free_tokens_granted ?? 0) - (counts.free_tokens_used ?? 0), 0);

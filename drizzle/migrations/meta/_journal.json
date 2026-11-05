@@ -50,6 +50,13 @@
       "when": 1793889841533,
       "tag": "0006_base64_jobs_finder_and_gallery_index",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793890118193,
+      "tag": "0007_deprecate_ad_generations",
+      "breakpoints": true
     }
   ]
 }

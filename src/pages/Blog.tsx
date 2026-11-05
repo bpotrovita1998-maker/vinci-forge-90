@@ -21,7 +21,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Footer } from "@/components/landing/Footer";
-import AdBanner from "@/components/AdBanner";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { SEO, ArticleSEO } from "@/components/SEO";
 
@@ -858,18 +857,6 @@ export default function Blog() {
               {selectedPost.content.split('\n\n').map((paragraph, index, allParagraphs) => {
                 const elements = [];
                 
-                // Insert in-article ad after 3rd paragraph (good placement per AdSense guidelines)
-                if (index === 3) {
-                  elements.push(
-                    <AdBanner
-                      key={`ad-${index}`}
-                      format="in-article"
-                      pageType="content"
-                      contentItemCount={blogPosts.length}
-                      minContentItems={5}
-                    />
-                  );
-                }
                 
                 if (paragraph.startsWith('**') && paragraph.endsWith('**')) {
                   elements.push(
@@ -1021,15 +1008,6 @@ export default function Blog() {
               ))}
             </div>
             
-            {/* In-Article Ad between Featured and Category sections */}
-            <div className="mt-8 flex justify-center">
-              <AdBanner
-                format="in-article"
-                pageType="content"
-                contentItemCount={blogPosts.length}
-                minContentItems={5}
-              />
-            </div>
           </div>
         </section>
       )}
@@ -1168,17 +1146,6 @@ export default function Blog() {
         </div>
       </section>
 
-      {/* Ad Banner */}
-      <section className="py-8 px-4">
-        <div className="max-w-4xl mx-auto flex justify-center">
-          <AdBanner 
-            pageType="content" 
-            format="horizontal" 
-            contentItemCount={blogPosts.length}
-            minContentItems={5}
-          />
-        </div>
-      </section>
 
       <Footer />
     </div>
