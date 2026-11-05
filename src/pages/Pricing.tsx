@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   CREDIT_PACKS,
   CREDIT_PRICES,
+  videoClipCredits,
   SUBSCRIPTION_PLANS,
   formatCents,
   formatNumber,
@@ -205,11 +206,11 @@ export function Pricing() {
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm" data-testid="generation-prices">
               <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Image or image edit</span><strong>{CREDIT_PRICES.image} credits</strong></div>
-              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Wan 2.5 video</span><strong>{videoPrices.animatediff} credits</strong></div>
-              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Haiper video</span><strong>{videoPrices.haiper} credits</strong></div>
-              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Veo 3.1 video</span><strong>{videoPrices.veo} credits</strong></div>
-              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>3D or CAD model</span><strong>{CREDIT_PRICES["3d"]} credits</strong></div>
-              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Video scene redo</span><strong>Same as the video model</strong></div>
+              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Wan 2.5 video, 5 s (720p / 1080p)</span><strong>{videoClipCredits("animatediff", 5)} / {videoClipCredits("animatediff", 5, "1080p")} credits</strong></div>
+              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Haiper video, 5 s</span><strong>{videoPrices.haiper} credits</strong></div>
+              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Veo 3.1 video with sound, 8 s</span><strong>{videoPrices.veo} credits</strong></div>
+              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>3D model / CAD model</span><strong>{CREDIT_PRICES["3d"]} / {CREDIT_PRICES.cad} credits</strong></div>
+              <div className="flex justify-between rounded-md bg-background/60 p-3"><span>Scene redo or continue video</span><strong>Same as a new clip</strong></div>
             </CardContent>
           </Card>
 

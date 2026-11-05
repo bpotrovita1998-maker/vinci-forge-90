@@ -2,9 +2,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/function-error";
 
 /** Pays for one scene video on the server; the price is decided there. */
-export const payForSceneVideo = async (jobId: string): Promise<void> => {
+export const payForSceneVideo = async (jobId: string, durationSeconds: number): Promise<void> => {
   const { data, error } = await supabase.functions.invoke<{ error?: string }>("check-and-deduct-tokens", {
-    body: { jobId, type: "video", videoModel: "animatediff", numVideos: 1 },
+    body: { jobId, type: "video", videoModel: "animatediff", numVideos: 1, durationSeconds, resolution: "720p" },
   });
   if (error) throw new Error(await extractFunctionError(error, data));
 };

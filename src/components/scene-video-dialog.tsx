@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CREDIT_PRICES } from "@/lib/subscription-plans";
+import { videoClipCredits } from "@/lib/subscription-plans";
 
 export interface SceneVideoRequest {
   prompt: string;
@@ -67,7 +67,7 @@ export function SceneVideoDialog(props: SceneVideoDialogProps) {
     },
   });
 
-  const price = CREDIT_PRICES.video.animatediff;
+  const price = videoClipCredits("animatediff", duration);
   const isContinue = mode === "continue";
 
   return (

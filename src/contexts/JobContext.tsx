@@ -503,6 +503,8 @@ export function JobProvider({ children }: { children: ReactNode }) {
           videoModel: options.type === 'video' ? options.videoModel : undefined,
           numImages: options.type === 'image' ? options.numImages || 1 : undefined,
           numVideos: options.type === 'video' ? options.numVideos || 1 : undefined,
+          durationSeconds: options.type === 'video' && options.duration ? Math.min(10, Math.max(1, Math.round(options.duration))) : undefined,
+          resolution: options.type === 'video' ? (options.resolution === '1080p' ? '1080p' : '720p') : undefined,
         },
       }
     );
