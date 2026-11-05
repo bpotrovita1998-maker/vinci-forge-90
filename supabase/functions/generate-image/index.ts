@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { checkStorageRoom } from "../_shared/storage-plans.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,6 +96,18 @@ serve(async (req) => {
     }
 
     console.log('Authenticated user:', user.id);
+
+    // Block new generations when the user's storage is full
+    const storageError = await checkStorageRoom(
+      createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!),
+      user.id,
+    );
+    if (storageError) {
+      return new Response(
+        JSON.stringify({ error: storageError, code: 'storage_full' }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Parse and validate request body
     const requestBody = await req.json();

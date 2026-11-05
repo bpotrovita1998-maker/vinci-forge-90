@@ -3,6 +3,7 @@ import Replicate from "https://esm.sh/replicate@0.25.2";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { splitPromptIntoScenes } from "../_shared/promptSplitter.ts";
+import { checkStorageRoom } from "../_shared/storage-plans.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -124,6 +125,18 @@ serve(async (req) => {
 
     body = validationResult.data;
     console.log("✅ Validated request body:", JSON.stringify(body, null, 2));
+
+    // Block new generations when the user's storage is full
+    if (authenticatedUserId && !body.predictionId) {
+      const storageAdmin = createClient(supabaseUrl, supabaseServiceKey);
+      const storageError = await checkStorageRoom(storageAdmin, authenticatedUserId);
+      if (storageError) {
+        return new Response(
+          JSON.stringify({ error: storageError, code: 'storage_full' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Check if this is a status check request
     if (body.predictionId) {
