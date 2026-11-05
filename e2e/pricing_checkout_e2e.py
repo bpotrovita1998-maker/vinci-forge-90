@@ -51,6 +51,14 @@ async def pay_with_test_card(page):
 
 
 async def credits(page) -> int:
+    # Wait until the balance has loaded and stopped changing
+    last = None
+    for _ in range(10):
+        text = await page.get_by_test_id("credit-balance").inner_text()
+        if text == last:
+            break
+        last = text
+        await page.wait_for_timeout(1500)
     text = await page.get_by_test_id("credit-balance").inner_text()
     return int(re.sub(r"\D", "", text) or "0")
 
