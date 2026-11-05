@@ -22,6 +22,20 @@
       "when": 1793885764569,
       "tag": "0002_admin_real_credit_balance",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793886426761,
+      "tag": "0003_server_side_generation_charges",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793886752513,
+      "tag": "0004_claim_step_checks_units_first",
+      "breakpoints": true
     }
   ]
 }

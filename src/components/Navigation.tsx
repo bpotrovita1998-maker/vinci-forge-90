@@ -1,4 +1,5 @@
 import { NavLink } from './NavLink';
+import { formatCredits, freeGenerationsLabel } from '@/lib/credits-display';
 import { Button } from './ui/button';
 import { Image, Grid3x3, Sparkles, LogOut, User, DollarSign, Coins, Video, Brain, Settings as SettingsIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -107,10 +108,10 @@ export default function Navigation() {
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 border border-primary/20">
                   <Coins className="w-4 h-4 text-primary" />
                   <span className="text-sm font-semibold text-foreground">
-                    {tokenBalance?.balance.toLocaleString('de-DE') || '0'}
-                    {tokenBalance && (tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used) > 0 && (
+                    {formatCredits(tokenBalance?.balance ?? 0)} credits
+                    {freeGenerationsLabel(tokenBalance) && (
                       <span className="ml-1 text-xs text-primary">
-                        (+{tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used} free)
+                        · {freeGenerationsLabel(tokenBalance)}
                       </span>
                     )}
                     {isAdmin && (

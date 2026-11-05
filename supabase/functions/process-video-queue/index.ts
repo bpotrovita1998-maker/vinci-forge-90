@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { calculateCost } from "../_shared/pricing.ts";
+import { refundCharge } from "../_shared/billing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +23,7 @@ serve(async (req) => {
     // Find all queued video jobs, ordered by creation time
     const { data: queuedJobs, error: fetchError } = await supabase
       .from('jobs')
-      .select('id, manifest, prompt, duration, fps, width, height, num_videos')
+      .select('id, user_id, manifest, prompt, duration, fps, width, height, num_videos')
       .eq('type', 'video')
       .eq('status', 'queued')
       .order('created_at', { ascending: true })
@@ -41,6 +43,38 @@ serve(async (req) => {
 
     const job = queuedJobs[0];
     console.log(`Processing job: ${job.id}`);
+
+    // Only start videos that were paid for, at the right price for the chosen model
+    const expected = calculateCost({
+      type: 'video',
+      videoModel: (job.manifest as { videoModel?: string } | null)?.videoModel,
+      numVideos: job.num_videos ?? 1,
+    });
+    const { data: claim, error: claimError } = await supabase.rpc('claim_generation_step', {
+      _user_id: job.user_id,
+      _job_ref: job.id,
+      _step: 'video-queue',
+    });
+    const claimData = claim as { status?: string; credits?: number } | null;
+    if (claimError || claimData?.status !== 'ok' || Number(claimData?.credits ?? 0) < expected.credits) {
+      const reason = claimData?.status === 'ok'
+        ? 'The paid amount does not match the selected video model'
+        : 'This video was not paid for';
+      console.error(`Rejecting job ${job.id}: ${reason}`, claimError?.message ?? claimData?.status);
+      if (claimData?.status === 'ok') await refundCharge(supabase, job.id, reason);
+      await supabase
+        .from('jobs')
+        .update({
+          status: 'failed',
+          progress_stage: 'failed',
+          error: `${reason}. Please start a new video.`,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
+      return new Response(JSON.stringify({ message: reason, jobId: job.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Mark job as running
     await supabase

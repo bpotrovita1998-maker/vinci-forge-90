@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireCharge, withRefundOnFailure } from "../_shared/billing.ts";
 
 // Only block ACTUAL code injection attempts
 const DANGEROUS_PATTERNS = [
@@ -33,7 +35,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(withRefundOnFailure(async (req, billing) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -43,6 +45,26 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not set');
+    }
+
+    // Authenticate the caller
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      });
+    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      });
     }
 
     const body = await req.json();
@@ -91,6 +113,24 @@ serve(async (req) => {
         }
       );
     }
+
+    // Make sure this edit is paid for before calling the AI
+    const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const jobRef = typeof body.jobId === 'string' && /^[0-9a-f-]{36}$/i.test(body.jobId) ? body.jobId : null;
+    const charge = await requireCharge(admin, {
+      userId: user.id,
+      jobRef,
+      step: 'edit',
+      cost: { type: 'edit' },
+    });
+    if (!charge.ok) {
+      return new Response(JSON.stringify({ error: charge.error, code: charge.status === 409 ? 'already_used' : 'insufficient_credits' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: charge.status,
+      });
+    }
+    billing.jobRef = charge.jobRef;
+    billing.admin = admin;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -165,4 +205,4 @@ serve(async (req) => {
       status: 500,
     });
   }
-});
+}, corsHeaders));
