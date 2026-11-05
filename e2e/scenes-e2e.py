@@ -79,10 +79,16 @@ async def main() -> None:
         # Duration buttons
         card = page.locator("[data-card]").first
         card = await tag_card(page, "Scene 1")
+        await card.get_by_role("combobox").click()
+        await page.get_by_role("option", name=re.compile("Video")).first.click()
+        await page.wait_for_timeout(500)
         await card.get_by_role("button", name="10s").click()
         await page.wait_for_timeout(500)
         await card.get_by_role("button", name="5s").click()
-        check("duration toggles", True)
+        check("scene type and duration", True)
+        await card.get_by_role("combobox").click()
+        await page.get_by_role("option", name=re.compile("^Image")).first.click()
+        await page.wait_for_timeout(500)
 
         # Generate image (owner mode)
         await card.get_by_role("button", name=re.compile("Generate Image")).click()
