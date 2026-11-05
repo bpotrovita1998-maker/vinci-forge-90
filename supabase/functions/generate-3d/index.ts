@@ -294,6 +294,22 @@ serve(async (req) => {
       );
     }
 
+    // Make sure this 3D model is paid for before calling the AI
+    const charge = await requireCharge(supabase, {
+      userId: user.id,
+      jobRef: jobId,
+      step: '3d',
+      cost: { type: '3d' },
+    });
+    if (!charge.ok) {
+      return new Response(
+        JSON.stringify({ error: charge.error, code: 'insufficient_credits' }),
+        { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    billing.jobRef = charge.jobRef;
+    billing.admin = supabase;
+
     console.log('Starting async 3D generation:', { prompt, imageUrl: actualImageUrl, seed, jobId });
 
     const replicate = new Replicate({
