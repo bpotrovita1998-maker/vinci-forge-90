@@ -392,7 +392,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           alpha: true, 
           powerPreference: 'low-power', 
           preserveDrawingBuffer: true,
-          failIfMajorPerformanceCaveat: true // Prevent slow contexts
+          failIfMajorPerformanceCaveat: false // Still render on weak GPUs instead of showing nothing
         }}
         onCreated={({ gl }) => {
           // Use theme background color
