@@ -24,6 +24,7 @@ function GenerationHistory() {
   const { isAdmin } = useSubscription();
   const queryClient = useQueryClient();
   const [balanceInput, setBalanceInput] = useState("");
+  const [thresholdInput, setThresholdInput] = useState("");
 
   const usage = useQuery({
     queryKey: ["my-usage", user?.id],
@@ -44,10 +45,11 @@ function GenerationHistory() {
   });
 
   const saveBalance = useMutation({
-    mutationFn: (value: number) => saveProviderBalance(value),
+    mutationFn: (v: { balance: number; threshold?: number }) => saveProviderBalance(v.balance, v.threshold),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provider-balance"] });
       setBalanceInput("");
+      setThresholdInput("");
       toast({ title: "Replicate balance saved" });
     },
     onError: (e: Error) => toast({ title: "Could not save", description: e.message, variant: "destructive" }),
@@ -93,7 +95,7 @@ function GenerationHistory() {
                   ) : (
                     <p className="flex items-center gap-2 text-2xl font-semibold">
                       {formatUsd(remaining)}
-                      {isLowBalance(remaining) && (
+                      {isLowBalance(remaining, Number(balance.data?.low_balance_threshold_usd ?? 20)) && (
                         <Badge variant="destructive" className="gap-1">
                           <AlertTriangle className="h-3 w-3" /> Top up soon
                         </Badge>
@@ -106,7 +108,7 @@ function GenerationHistory() {
                     </p>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Input
                     aria-label="Current Replicate balance in dollars"
                     inputMode="decimal"
@@ -115,11 +117,22 @@ function GenerationHistory() {
                     onChange={(e) => setBalanceInput(e.target.value)}
                     className="w-32"
                   />
+                  <Input
+                    aria-label="Warn me below this many dollars"
+                    inputMode="decimal"
+                    placeholder={`Warn below ${balance.data?.low_balance_threshold_usd ?? 20}`}
+                    value={thresholdInput}
+                    onChange={(e) => setThresholdInput(e.target.value)}
+                    className="w-40"
+                  />
                   <Button
                     disabled={!balanceInput || saveBalance.isPending}
                     onClick={() => {
                       const value = Number(balanceInput.replace(",", "."));
-                      if (Number.isFinite(value) && value >= 0) saveBalance.mutate(value);
+                      const threshold = thresholdInput ? Number(thresholdInput.replace(",", ".")) : undefined;
+                      if (!Number.isFinite(value) || value < 0) return;
+                      if (threshold !== undefined && (!Number.isFinite(threshold) || threshold < 0)) return;
+                      saveBalance.mutate({ balance: value, threshold });
                     }}
                   >
                     Save balance
