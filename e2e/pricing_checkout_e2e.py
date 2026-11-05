@@ -101,6 +101,8 @@ async def main():
         await page.goto(f"{BASE}/pricing")
         await page.get_by_role("button", name="Manage subscription").click()
         await page.wait_for_url(re.compile(r"billing\.stripe\.com"), timeout=30000)
+        await expect(page.get_by_text("VinciAI Creator").first).to_be_visible(timeout=30000)
+        await expect(page.get_by_text("Update subscription").first).to_be_visible(timeout=30000)
         await page.screenshot(path=str(SHOTS / "3_portal.png"))
         print("PASS billing page opened")
 
