@@ -29,12 +29,10 @@ def load_session():
 async def pay_with_test_card(page):
     """Fills Stripe Checkout with the 4242 test card and submits."""
     await page.wait_for_url(re.compile(r"checkout\.stripe\.com"), timeout=30000)
-    accordion = page.locator("#payment-method-label-card")
-    await accordion.wait_for(timeout=30000)
+    await page.locator("#cardNumber, [data-testid=card-accordion-item]").first.wait_for(state="attached", timeout=30000)
+    await page.wait_for_timeout(2000)
     if not await page.locator("#cardNumber").is_visible():
-        await accordion.click(force=True)
-        await page.wait_for_timeout(1500)
-        if not await page.locator("#cardNumber").is_visible():
+        if True:
             box = await page.locator("[data-testid=card-accordion-item]").bounding_box()
             await page.mouse.click(box["x"] + 24, box["y"] + box["height"] / 2)
     await page.locator("#cardNumber").wait_for(timeout=30000)
