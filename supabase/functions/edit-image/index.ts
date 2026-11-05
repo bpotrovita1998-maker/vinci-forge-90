@@ -124,7 +124,7 @@ serve(withRefundOnFailure(async (req, billing) => {
       cost: { type: 'edit' },
     });
     if (!charge.ok) {
-      return new Response(JSON.stringify({ error: charge.error, code: 'insufficient_credits' }), {
+      return new Response(JSON.stringify({ error: charge.error, code: charge.status === 409 ? 'already_used' : 'insufficient_credits' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: charge.status,
       });

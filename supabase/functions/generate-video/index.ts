@@ -431,7 +431,7 @@ serve(async (req) => {
       });
       if (!charge.ok) {
         return new Response(
-          JSON.stringify({ error: charge.error, code: 'insufficient_credits' }),
+          JSON.stringify({ error: charge.error, code: charge.status === 409 ? 'already_used' : 'insufficient_credits' }),
           { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
