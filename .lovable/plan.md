@@ -5,6 +5,35 @@
 - Each generation takes credits from that user and runs on your one Replicate balance. A failed generation gives the credits back.
 - You top up Replicate from your Stripe income. The difference is your profit.
 
+## Profit check with real Replicate prices (important)
+These prices are from the Replicate model pages, read today. 1 app credit is worth about €0,01 (the €10 pack gives 1.000 credits). Prices assume $1 ≈ €0,93.
+
+| Generation | Replicate cost | Credits now | Customer pays now | Result |
+|---|---|---|---|---|
+| Image (nano-banana) | $0,039 ≈ €0,036 | 2 | €0,02 | loss |
+| Wan 2.5 video, 5 s, 720p | $0,50 ≈ €0,46 | 22 | €0,22 | loss |
+| Wan 2.5 video, 5 s, 1080p | $0,75 ≈ €0,70 | 22 | €0,22 | loss |
+| Veo 3.1, 8 s with sound | $3,20 ≈ €2,98 | 165 | €1,65 | loss |
+
+Right now every generation costs you more than the customer pays.
+
+**New credit prices** (Replicate cost × 1,6, which leaves about 35% profit after Stripe fees):
+- Image: 6 credits
+- Wan 2.5, 720p: 75 credits per 5 s (150 for 10 s)
+- Wan 2.5, 1080p: 110 credits per 5 s (220 for 10 s)
+- Veo 3.1 with sound: 480 credits per 8 s (240 without sound)
+- Haiper, 3D and CAD: same rule, priced from each model's Replicate page during the build
+- Scene redos and "Continue video" charge the same as a new clip of that length and quality
+
+**Plans and packs keep their prices and credit amounts.** What a plan gives you, using the new prices:
+- Creator €24,99 / 1.500 credits ≈ 20 Wan videos (720p, 5 s). Replicate cost ≈ €9,20 if all credits are used, leaving ≈ €14 after Stripe and storage.
+- Studio €69,99 / 4.000 credits ≈ 53 videos. Cost ≈ €24,50, leaving ≈ €42.
+- Business €199 / 11.000 credits ≈ 146 videos. Cost ≈ €67, leaving ≈ €125.
+- Credit packs: the biggest pack (€100 / 11.000 credits) is the cheapest per credit, at €0,0091. It still leaves about 30% profit.
+- The Pricing page shows how many videos and images each plan buys, so customers see what they get.
+
+Storage and Stripe fees above are my estimates and need checking against real bills.
+
 ## What to add
 1. **Low-balance warning for you**
    - The GM history page already stores your Replicate balance. After each generation, the app subtracts its estimated cost.
