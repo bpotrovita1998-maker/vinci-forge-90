@@ -696,9 +696,23 @@ export type Database = {
     }
     Functions: {
       can_use_service: { Args: { _user_id: string }; Returns: boolean }
+      charge_generation: {
+        Args: {
+          _action_type: string
+          _credits: number
+          _job_ref: string
+          _units: number
+          _user_id: string
+        }
+        Returns: Json
+      }
       check_storage_quota: {
         Args: { _file_size_bytes: number; _user_id: string }
         Returns: boolean
+      }
+      claim_generation_step: {
+        Args: { _job_ref: string; _step: string; _user_id: string }
+        Returns: Json
       }
       deduct_tokens: {
         Args: {
@@ -720,6 +734,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      refund_generation: {
+        Args: { _job_ref: string; _reason: string }
         Returns: boolean
       }
       set_admin_files_permanent: { Args: never; Returns: undefined }
