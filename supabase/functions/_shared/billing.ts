@@ -97,3 +97,44 @@ export function withRefundOnFailure(
     return response;
   };
 }
+
+/**
+ * Records one AI provider job with its estimated real cost, so the owner can
+ * compare provider spend with the credits users paid. Never blocks generation.
+ */
+export async function recordProviderRun(
+  admin: SupabaseClient,
+  params: { jobRef: string | null | undefined; model: string; predictionId: string; costUsd: number },
+): Promise<void> {
+  try {
+    let userId: string | null = null;
+    let credits = 0;
+    let ownerMode = false;
+    if (params.jobRef) {
+      const { data } = await admin
+        .from("usage_logs")
+        .select("user_id, tokens_used, cost_breakdown")
+        .eq("cost_breakdown->>job_ref", params.jobRef)
+        .neq("action_type", "refund")
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        userId = data.user_id as string;
+        credits = Number(data.tokens_used ?? 0);
+        ownerMode = (data.cost_breakdown as { source?: string } | null)?.source === "owner";
+      }
+    }
+    if (!userId) return;
+    await admin.from("provider_runs").insert({
+      user_id: userId,
+      job_ref: params.jobRef,
+      provider_model: params.model,
+      prediction_id: params.predictionId,
+      estimated_cost_usd: params.costUsd,
+      credits_charged: credits,
+      owner_mode: ownerMode,
+    });
+  } catch (error) {
+    console.error("Could not record provider run:", error instanceof Error ? error.message : error);
+  }
+}

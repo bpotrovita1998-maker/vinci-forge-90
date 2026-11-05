@@ -236,6 +236,8 @@ serve(async (req) => {
               characterDescription,
               styleDescription,
               referenceImage,
+              startImage: (job.manifest as { startImage?: string } | null)?.startImage,
+              resolution: (job.manifest as { resolution?: string } | null)?.resolution,
               seed: videoSeed
             }
           });

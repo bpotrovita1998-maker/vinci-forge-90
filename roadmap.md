@@ -12,3 +12,6 @@
 - [x] Ad system removed everywhere; free users keep 5 sign-up images, then see an upgrade message (browser-tested)
 - [x] Load test: 300 simultaneous users on Mini, p95 323 ms, memory under 61%. Mini is enough for now
 - [x] Lost videos/3D models restored to the gallery (60 items from saved files); video links now permanent; 3D previews centred and no longer cached blank
+- [x] Owner mode (GM pays Replicate directly), provider spend log, Generation history page
+- [x] Scenes: regenerate window (characters, motion, art style), Continue video button
+- [ ] Scenes: generate shots 4/5/6 and full button E2E
