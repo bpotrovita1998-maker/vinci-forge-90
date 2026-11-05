@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useContext } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { motion } from 'framer-motion';
-import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown, FolderUp, Loader2, Play } from 'lucide-react';
+import { Sparkles, Wand2, Image, Video, Box, Cuboid, Paperclip, X, Film, Users, ChevronDown, FolderUp, Loader2 } from 'lucide-react';
 import { GenerationOptions, JobType, CharacterConsistencyOptions as ConsistencyOptions } from '@/types/job';
 import { useJobs } from '@/contexts/JobContext';
 import { toast } from '@/hooks/use-toast';
@@ -18,8 +18,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { moderationService } from '@/services/moderationService';
 import { InputSanitizer } from '@/lib/inputSanitization';
 import { useMemory } from '@/hooks/useMemory';
-import { useAdGenerations } from '@/hooks/useAdGenerations';
-import { AdModalContext } from '@/pages/Index';
+import { remainingFreeGenerations } from '@/lib/credits-display';
 import {
   Collapsible,
   CollapsibleContent,
@@ -81,10 +80,10 @@ const promptSchema = z.string()
 
 export default function Hero() {
   const { submitJob } = useJobs();
-  const { isAdmin, subscription, tokenBalance } = useSubscription();
+  const { isAdmin, subscription, tokenBalance, refreshData } = useSubscription();
   const { instructions, recordPattern, getPreference, savePreference, analyzeAndLearn } = useMemory();
-  const { canGenerate, needsAd, refreshBalance, isPro: isAdPro, remaining: adRemaining } = useAdGenerations();
-  const adModalContext = useContext(AdModalContext);
+  const isProUser = isAdmin || subscription?.status === 'active';
+  const freeRemaining = remainingFreeGenerations(tokenBalance);
   
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -97,7 +96,6 @@ export default function Hero() {
   const [showFrameToFrame, setShowFrameToFrame] = useState(false);
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showCharacterSection, setShowCharacterSection] = useState(false);
-  const [pendingGeneration, setPendingGeneration] = useState(false);
   const [characterConsistency, setCharacterConsistency] = useState<ConsistencyOptions>({
     enabled: false,
     referenceMatchingEnabled: false,
@@ -151,16 +149,6 @@ export default function Hero() {
     }
   }, []);
 
-  // Auto-trigger generation after ad is watched
-  useEffect(() => {
-    if (pendingGeneration && canGenerate) {
-      setPendingGeneration(false);
-      // Small delay to ensure state is updated
-      setTimeout(() => {
-        handleGenerate();
-      }, 100);
-    }
-  }, [pendingGeneration, canGenerate]);
 
   // Apply custom instructions to prompt
   const applyCustomInstructions = (basePrompt: string): string => {
@@ -531,21 +519,13 @@ export default function Hero() {
         return;
       }
       
-      // Check ad-based generations for free users
+      // Free users spend their sign-up generations, then need a plan
       if (!isPro && requestedType === 'image') {
-        // First check if user has ad-based generations
-        if (!canGenerate) {
+        if (freeRemaining <= 0) {
           setIsGenerating(false);
-          // Show ad modal and set callback to retry generation
-          if (adModalContext) {
-            adModalContext.setAdWatchedCallback(() => {
-              setPendingGeneration(true);
-            });
-            adModalContext.showAdModal();
-          }
-          toast({ 
-            title: 'Watch ad to continue', 
-            description: 'Play a quick game to unlock 5 free image generations!',
+          toast({
+            title: 'No free generations left',
+            description: 'Choose a plan on the Pricing page to keep creating.',
           });
           return;
         }
@@ -683,8 +663,7 @@ export default function Hero() {
       }
     } finally {
       setIsGenerating(false);
-      // Refresh ad generation balance after generation attempt
-      refreshBalance();
+      refreshData(false);
     }
   };
 
@@ -853,24 +832,6 @@ export default function Hero() {
             </div>
             
             <div className="flex flex-col gap-3">
-              {/* Generate button - shows different states based on ad availability */}
-              {needsAd && !isAdPro ? (
-                <Button
-                  size="lg"
-                  onClick={() => {
-                    if (adModalContext) {
-                      adModalContext.setAdWatchedCallback(() => {
-                        setPendingGeneration(true);
-                      });
-                      adModalContext.showAdModal();
-                    }
-                  }}
-                  className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
-                >
-                  <Play className="w-5 h-5 mr-2" />
-                  Play Game to Generate ({adRemaining} left)
-                </Button>
-              ) : (
                 <Button
                   size="lg"
                   onClick={handleGenerate}
@@ -878,9 +839,8 @@ export default function Hero() {
                   className="w-full bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg h-14 shadow-[0_0_30px_rgba(201,169,97,0.3)] hover:shadow-[0_0_40px_rgba(201,169,97,0.5)] transition-all"
                 >
                   <Wand2 className={`w-5 h-5 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-                  {isGenerating ? 'Submitting...' : `Generate${!isAdPro && adRemaining > 0 ? ` (${adRemaining} left)` : ''}`}
+                  {isGenerating ? 'Submitting...' : `Generate${!isProUser && freeRemaining > 0 ? ` (${freeRemaining} left)` : ''}`}
                 </Button>
-              )}
 
               <Collapsible open={showEnhancer} onOpenChange={setShowEnhancer}>
                 <CollapsibleTrigger asChild>
