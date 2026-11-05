@@ -897,8 +897,10 @@ export default function Gallery() {
                             job.outputs.length > 1 ? (
                               <div className="relative w-full h-full">
                                 <video
-                                  src={getDisplayVideoUrl(job)}
+                                  src={`${getDisplayVideoUrl(job)}#t=0.1`}
                                   className="w-full h-full object-cover"
+                                  preload="metadata"
+                                  playsInline
                                   muted
                                   loop
                                   onMouseEnter={(e) => e.currentTarget.play()}
@@ -913,8 +915,10 @@ export default function Gallery() {
                               </div>
                             ) : (
                               <video
-                                src={getDisplayVideoUrl(job)}
+                                src={`${getDisplayVideoUrl(job)}#t=0.1`}
                                 className="w-full h-full object-cover"
+                                preload="metadata"
+                                playsInline
                                 muted
                                 loop
                                 onMouseEnter={(e) => e.currentTarget.play()}

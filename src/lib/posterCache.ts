@@ -259,10 +259,10 @@ export const posterCache = new PosterCacheDB();
 
 // Generate cache key for a model
 export const getPosterCacheKey = (jobId?: string, url?: string): string | null => {
-  if (jobId) return `3d-poster-${jobId}`;
+  if (jobId) return `3d-poster-v2-${jobId}`;
   if (url) {
     try {
-      return `3d-poster-${btoa(url).slice(0, 32)}`;
+      return `3d-poster-v2-${btoa(url).slice(0, 32)}`;
     } catch {
       // Handle URLs that can't be base64 encoded
       return `3d-poster-${url.slice(0, 32)}`;
