@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Replicate from "https://esm.sh/replicate@0.25.2";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { refundCharge, requireCharge, withRefundOnFailure } from "../_shared/billing.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -44,7 +45,7 @@ const generateCADSchema = z.object({
   cancel: z.boolean().optional(),
 });
 
-serve(async (req) => {
+serve(withRefundOnFailure(async (req, billing) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -407,8 +408,9 @@ serve(async (req) => {
           }
         }
 
-        // If archival failed, return error
+        // If archival failed, return the credits and an error
         if (archivalError) {
+          if (jobId) await refundCharge(supabase, jobId, 'CAD model could not be saved');
           return new Response(
             JSON.stringify({ 
               error: `Model archiving failed: ${archivalError.message}. Temporary URLs are not supported.`,
@@ -504,6 +506,22 @@ serve(async (req) => {
         );
       }
     }
+
+    // Make sure this CAD model is paid for before calling the AI
+    const charge = await requireCharge(supabase, {
+      userId: user.id,
+      jobRef: jobId,
+      step: 'cad',
+      cost: { type: 'cad' },
+    });
+    if (!charge.ok) {
+      return new Response(
+        JSON.stringify({ error: charge.error, code: 'insufficient_credits' }),
+        { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    billing.jobRef = charge.jobRef;
+    billing.admin = supabase;
 
     // Enhance prompt with CAD-specific details for engineering precision
     const enhancedPrompt = prompt ? 
@@ -626,4 +644,4 @@ serve(async (req) => {
       }
     );
   }
-});
+}, corsHeaders));
