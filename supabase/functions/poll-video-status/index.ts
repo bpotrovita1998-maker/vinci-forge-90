@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { refundCharge } from "../_shared/billing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +42,7 @@ serve(async (req) => {
             completed_at: new Date().toISOString()
           })
           .eq('id', job.id);
+        await refundCharge(supabase, job.id, 'Video generation timed out');
         console.log(`Marked job ${job.id} as failed due to timeout`);
       }
     }
