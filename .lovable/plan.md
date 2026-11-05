@@ -1,8 +1,11 @@
 # Scenes: generate missing shots, richer regenerate, continue video, full E2E
 
-## 1. Pay for testing
-- Give the GM account a one-off grant of 200 app credits, labelled "GM test grant". It is added once, through the same grant used for credit packs.
-- Real cost is only the Replicate spend, roughly $1–2 for the whole test.
+## 1. Real-world credits: owner pays from Replicate, users pay with app credits
+Replicate has no way to create sub-accounts or wallets for your users, so one Replicate account per user isn't possible. What we will build instead:
+- **Owner mode (GM only):** your generations skip app credits and run straight on your own Replicate balance (your $6,68), exactly as they would if you called Replicate yourself. Each one is recorded with its real Replicate cost.
+- **Users:** keep paying with app credits. Behind the scenes every generation runs on your Replicate account, and we save the Replicate job ID, model, run time and real dollar cost.
+- **Per-user logs, shown in the app:** a "Generation history" page for each user (model, status, credits used, date) and a GM page listing every user's real Replicate spend next to the credits they paid, so you can see your margin.
+- **Replicate balance alert:** Replicate doesn't let apps read the balance, so you enter your top-up amount on the GM page. The app subtracts the real costs as they happen and warns you below $5, before generations start failing.
 
 ## 2. Generate the missing shots (Dragons fight)
 - Shot 4 "Aerial Supremacy" and Shot 6 "A Tactical Retreat": switch them to video (Wan 2.5, 5 s) and generate from their descriptions.
