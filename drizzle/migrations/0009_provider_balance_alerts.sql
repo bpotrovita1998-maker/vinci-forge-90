@@ -1,0 +1,2 @@
+ALTER TABLE public.provider_balance ADD COLUMN IF NOT EXISTS low_balance_threshold_usd numeric NOT NULL DEFAULT 20;
+ALTER TABLE public.provider_balance ADD COLUMN IF NOT EXISTS empty_reported_at timestamptz;
