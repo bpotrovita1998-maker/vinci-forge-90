@@ -32,7 +32,11 @@ async def pay_with_test_card(page):
     accordion = page.locator("#payment-method-label-card")
     await accordion.wait_for(timeout=30000)
     if not await page.locator("#cardNumber").is_visible():
-        await accordion.click()
+        await accordion.click(force=True)
+        await page.wait_for_timeout(1500)
+        if not await page.locator("#cardNumber").is_visible():
+            box = await page.locator("[data-testid=card-accordion-item]").bounding_box()
+            await page.mouse.click(box["x"] + 24, box["y"] + box["height"] / 2)
     await page.locator("#cardNumber").wait_for(timeout=30000)
     await page.fill("#cardNumber", "4242 4242 4242 4242")
     await page.fill("#cardExpiry", "12 / 34")
