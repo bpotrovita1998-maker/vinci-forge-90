@@ -69,3 +69,14 @@ export const saveProviderBalance = async (balanceUsd: number, thresholdUsd?: num
   });
   if (error) throw new Error(error.message);
 };
+
+/** Estimated provider cost of every run since a date (for the owner's running balance). */
+export const fetchProviderCostsSince = async (sinceIso: string): Promise<{ estimated_cost_usd: number; created_at: string }[]> => {
+  const { data, error } = await supabase
+    .from("provider_runs")
+    .select("estimated_cost_usd, created_at")
+    .gte("created_at", sinceIso)
+    .limit(5000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as { estimated_cost_usd: number; created_at: string }[];
+};
