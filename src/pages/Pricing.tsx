@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
+import { StoragePlansSection } from "@/components/storage-plans-section";
 
 export default function Pricing() {
   const navigate = useNavigate();
@@ -439,6 +440,8 @@ export default function Pricing() {
             ))}
           </div>
         </div>
+
+        <StoragePlansSection />
 
         {/* Current Balance */}
         {tokenBalance && (
