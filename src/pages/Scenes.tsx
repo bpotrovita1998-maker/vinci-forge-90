@@ -1112,6 +1112,15 @@ export default function Scenes() {
     }
   };
 
+  // Pick up videos that finish after a page reload (no live polling for them)
+  useEffect(() => {
+    const orphaned = scenes.some(s => s.status === 'generating' && s.jobId && !pollingIntervalsRef.current.has(s.jobId));
+    if (!orphaned || !currentStoryboard) return;
+    const timer = window.setInterval(() => loadScenes(currentStoryboard.id), 15000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes, currentStoryboard]);
+
   const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
     const scene = scenes.find(s => s.id === sceneId);
     if (!scene || scene.status === 'generating') return;
