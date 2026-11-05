@@ -6,6 +6,7 @@ import { mockGenerationService } from '@/services/mockGenerationService';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
+import { extractFunctionError } from '@/lib/function-error';
 import { websocketService } from '@/services/websocketService';
 import { moderationService, ModerationResult } from '@/services/moderationService';
 import { stitchVideos } from '@/services/videoStitchingService';
@@ -521,8 +522,6 @@ export function JobProvider({ children }: { children: ReactNode }) {
       }
       throw new Error(errorMessage);
     }
-
-    queryClient.invalidateQueries({ queryKey: ['token-balance'] });
 
     // Create initial job in database BEFORE starting generation
     const manifest = options.type === 'video' ? { videoModel: options.videoModel || 'animatediff' } : undefined;
