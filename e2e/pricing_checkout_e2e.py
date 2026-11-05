@@ -68,6 +68,7 @@ async def main():
         page = await (await browser.new_context(viewport={"width": 1280, "height": 1800})).new_page()
         await page.goto(BASE)
         await page.evaluate("([k, v]) => window.localStorage.setItem(k, v)", [storage_key, session_json])
+        await page.evaluate("() => window.localStorage.setItem('vinci-cookie-consent', 'declined')")
 
         # 1. Pricing page shows the real plans, packs and prices; no PRO offer
         await page.goto(f"{BASE}/pricing")
