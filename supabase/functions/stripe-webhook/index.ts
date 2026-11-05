@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { FREE_QUOTA_BYTES, STORAGE_PLAN_BY_PRICE } from "../_shared/storage-plans.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -73,7 +74,24 @@ serve(async (req) => {
               break;
             }
 
-            if (session.mode === "subscription") {
+            if (session.mode === "subscription" && session.metadata?.kind === "storage") {
+              // Storage plan purchase: set the user's storage quota
+              const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+              const priceId = subscription.items.data[0]?.price.id ?? "";
+              const plan = STORAGE_PLAN_BY_PRICE[priceId];
+              if (plan) {
+                await supabase.from("storage_subscriptions").upsert({
+                  user_id: userId,
+                  plan: plan.plan,
+                  quota_bytes: plan.quotaBytes,
+                  status: "active",
+                  stripe_subscription_id: subscription.id,
+                  current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: "user_id" });
+                logStep("Storage plan activated", { userId, plan: plan.plan });
+              }
+            } else if (session.mode === "subscription") {
               // Handle subscription purchase
               const subscriptionId = session.subscription as string;
               const customerId = session.customer as string;
@@ -155,6 +173,12 @@ serve(async (req) => {
                 current_period_end: null,
                 updated_at: new Date().toISOString(),
               })
+              .eq("stripe_subscription_id", subscription.id);
+
+            // Storage plan cancelled: fall back to the free quota
+            await supabase
+              .from("storage_subscriptions")
+              .update({ plan: "free", quota_bytes: FREE_QUOTA_BYTES, stripe_subscription_id: null, current_period_end: null, updated_at: new Date().toISOString() })
               .eq("stripe_subscription_id", subscription.id);
 
             logStep("Subscription cancelled", { subscriptionId: subscription.id });

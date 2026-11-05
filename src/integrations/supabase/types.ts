@@ -316,6 +316,42 @@ export type Database = {
         }
         Relationships: []
       }
+      storage_subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          id: string
+          plan: string
+          quota_bytes: number
+          status: string
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          plan?: string
+          quota_bytes?: number
+          status?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          plan?: string
+          quota_bytes?: number
+          status?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       storyboard_scenes: {
         Row: {
           created_at: string
@@ -673,6 +709,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_my_storage_usage: { Args: never; Returns: number }
+      get_storage_usage: { Args: { _user_id: string }; Returns: number }
       grant_ad_generations: {
         Args: { _amount: number; _user_id: string }
         Returns: boolean
