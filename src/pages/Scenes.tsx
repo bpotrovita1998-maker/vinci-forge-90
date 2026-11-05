@@ -991,10 +991,11 @@ export default function Scenes() {
     await new Promise(resolve => setTimeout(resolve, 500));
 
     // Retry based on scene type
+    // Pass the scene as draft: the page state still shows it as generating at this point
     if (scene.type === 'video') {
-      await generateSceneVideo(scene.id);
+      await generateSceneVideo(scene.id, false, { sceneOverride: { ...scene, status: 'draft' } });
     } else {
-      await generateSceneImage(scene.id);
+      await generateSceneImage(scene.id, false, { ...scene, status: 'draft' });
     }
   };
 
@@ -1121,8 +1122,8 @@ export default function Scenes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenes, currentStoryboard]);
 
-  const generateSceneImage = async (sceneId: string, isRegenerate = false) => {
-    const scene = scenes.find(s => s.id === sceneId);
+  const generateSceneImage = async (sceneId: string, isRegenerate = false, sceneOverride?: Scene) => {
+    const scene = sceneOverride ?? scenes.find(s => s.id === sceneId);
     if (!scene || scene.status === 'generating') return;
     if (!user) {
       toast({ title: "Error", description: "Please sign in first", variant: "destructive" });
