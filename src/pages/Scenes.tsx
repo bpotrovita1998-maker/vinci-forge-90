@@ -386,6 +386,31 @@ export default function Scenes() {
         type: (scene.video_url || scene.start_frame_url ? 'video' : 'image') as 'image' | 'video' // Infer type from existing data
       }));
 
+      // Finish scenes whose video completed while this page was closed
+      const pendingJobIds = loadedScenes.filter(s => s.status === 'generating' && s.jobId).map(s => s.jobId as string);
+      if (pendingJobIds.length > 0) {
+        const { data: pendingJobs } = await supabase
+          .from('jobs')
+          .select('id, status, outputs')
+          .in('id', pendingJobIds);
+        for (const job of pendingJobs ?? []) {
+          const scene = loadedScenes.find(s => s.jobId === job.id);
+          if (!scene) continue;
+          const outputs = Array.isArray(job.outputs) ? (job.outputs as string[]) : [];
+          let dbUpdate: Record<string, string> | null = null;
+          if (job.status === 'completed' && outputs[0]) {
+            scene.status = 'ready';
+            scene.videoUrl = outputs[0];
+            scene.type = 'video';
+            dbUpdate = { status: 'ready', video_url: outputs[0] };
+          } else if (job.status === 'failed') {
+            scene.status = 'draft';
+            dbUpdate = { status: 'draft' };
+          }
+          if (dbUpdate) await supabase.from('storyboard_scenes').update(dbUpdate).eq('id', scene.id);
+        }
+      }
+
       // Track saved scene IDs
       savedSceneIdsRef.current = new Set(loadedScenes.map(s => s.id));
 
