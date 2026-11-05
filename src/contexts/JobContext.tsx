@@ -491,94 +491,38 @@ export function JobProvider({ children }: { children: ReactNode }) {
     // Generate job ID first
     const jobId = crypto.randomUUID();
 
-    // Calculate estimated tokens based on generation type
-    // Token costs: Image = 1, Video = 30 (FREE for Zeroscope), 3D = 10, CAD = 10
-    let estimatedTokens = 0;
-    let actionType: 'image_generation' | 'video_generation' | 'vectorization' = 'image_generation';
-    
-    if (options.type === 'image') {
-      estimatedTokens = (options.numImages || 1) * 1; // 1 token per image ($0.01)
-      actionType = 'image_generation';
-    } else if (options.type === 'video') {
-      const numVideos = options.numVideos || 1;
-      // Token costs: AnimateDiff (15), Haiper (30), Veo 3.1 (120)
-      const tokenCostPerVideo = 
-        options.videoModel === 'animatediff' ? 15 :
-        options.videoModel === 'haiper' ? 30 :
-        120; // Veo 3.1 default
-      
-      estimatedTokens = tokenCostPerVideo * numVideos;
-      console.log(`Using ${options.videoModel || 'veo'} model - ${estimatedTokens} tokens for ${numVideos} video(s)`);
-      actionType = 'video_generation';
-    } else if (options.type === '3d') {
-      estimatedTokens = 10; // 10 tokens per 3D model ($0.10)
-      actionType = 'vectorization';
-    } else if (options.type === 'cad') {
-      estimatedTokens = 10; // 10 tokens per CAD model ($0.10)
-      actionType = 'vectorization';
+    // Pay for the generation first. The server decides the price from what is requested.
+    const { data: tokenData, error: tokenError } = await supabase.functions.invoke(
+      'check-and-deduct-tokens',
+      {
+        body: {
+          jobId,
+          type: options.type,
+          videoModel: options.type === 'video' ? options.videoModel : undefined,
+          numImages: options.type === 'image' ? options.numImages || 1 : undefined,
+          numVideos: options.type === 'video' ? options.numVideos || 1 : undefined,
+        },
+      }
+    );
+
+    if (tokenError || !tokenData?.success) {
+      const errorMessage = await extractFunctionError(tokenError, tokenData);
+      if (/credit|balance|pack/i.test(errorMessage)) {
+        toast.error('Not enough credits', {
+          description: errorMessage,
+          action: { label: 'Buy credits', onClick: () => { window.location.href = '/pricing'; } },
+        });
+      } else if (/PRO|subscription/i.test(errorMessage)) {
+        toast.error('Upgrade to PRO to use this feature', {
+          action: { label: 'See plans', onClick: () => { window.location.href = '/pricing'; } },
+        });
+      } else {
+        toast.error(errorMessage);
+      }
+      throw new Error(errorMessage);
     }
 
-    // Check and deduct tokens before starting generation
-    try {
-      const { data: tokenData, error: tokenError } = await supabase.functions.invoke(
-        'check-and-deduct-tokens',
-        {
-          body: {
-            jobId,
-            actionType,
-            estimatedTokens
-          }
-        }
-      );
-
-      if (tokenError) {
-        console.error('Token deduction failed:', tokenError);
-        
-        // Extract error message from various possible locations
-        let errorMessage = tokenError.message || 'Failed to deduct tokens';
-        
-        // Check if error has a nested error property (common in edge function responses)
-        if (tokenData && typeof tokenData === 'object' && 'error' in tokenData) {
-          errorMessage = (tokenData as any).error;
-        }
-        
-        console.log('Extracted error message:', errorMessage);
-        
-        // Check if this is a PRO-only feature (CAD, Video, 3D)
-        if (options.type === 'cad' || options.type === 'video' || options.type === '3d') {
-          if (errorMessage.includes('PRO') || errorMessage.includes('subscription') || errorMessage.includes('free')) {
-            toast.error('Upgrade to PRO subscription to enable this feature');
-            throw new Error('PRO subscription required');
-          }
-        }
-        
-        // Check if user is out of free images
-        if (options.type === 'image' && errorMessage.includes('5 images')) {
-          toast.error("You've used all 5 free images. Upgrade to PRO to continue.");
-          throw new Error('Free image limit reached');
-        }
-        
-        // Handle other token-related errors
-        if (errorMessage.includes('Insufficient token balance')) {
-          toast.error('Insufficient tokens. Please purchase more tokens to continue.');
-        } else if (errorMessage.includes('subscription')) {
-          toast.error('Upgrade to PRO subscription to enable this feature');
-        } else {
-          toast.error(errorMessage);
-        }
-        throw new Error(errorMessage);
-      }
-
-      if (!tokenData?.success) {
-        toast.error('Failed to process token deduction');
-        throw new Error('Token deduction failed');
-      }
-
-    console.log('Tokens deducted successfully:', tokenData);
-    } catch (error) {
-      console.error('Error during token check:', error);
-      throw error;
-    }
+    queryClient.invalidateQueries({ queryKey: ['token-balance'] });
 
     // Create initial job in database BEFORE starting generation
     const manifest = options.type === 'video' ? { videoModel: options.videoModel || 'animatediff' } : undefined;
