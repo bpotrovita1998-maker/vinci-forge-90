@@ -107,19 +107,16 @@ export default function Navigation() {
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 border border-primary/20">
                   <Coins className="w-4 h-4 text-primary" />
                   <span className="text-sm font-semibold text-foreground">
-                    {isAdmin ? (
-                      <Badge variant="secondary" className="bg-primary/20 text-primary border-0">
-                        Unlimited
+                    {tokenBalance?.balance.toLocaleString('de-DE') || '0'}
+                    {tokenBalance && (tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used) > 0 && (
+                      <span className="ml-1 text-xs text-primary">
+                        (+{tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used} free)
+                      </span>
+                    )}
+                    {isAdmin && (
+                      <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary border-0">
+                        GM
                       </Badge>
-                    ) : (
-                      <>
-                        {tokenBalance?.balance.toLocaleString() || '0'}
-                        {tokenBalance && (tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used) > 0 && (
-                          <span className="ml-1 text-xs text-primary">
-                            (+{tokenBalance.free_tokens_granted - tokenBalance.free_tokens_used} free)
-                          </span>
-                        )}
-                      </>
                     )}
                   </span>
                 </div>

@@ -15,6 +15,13 @@
       "when": 1793884797183,
       "tag": "0001_storage_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793885764569,
+      "tag": "0002_admin_real_credit_balance",
+      "breakpoints": true
     }
   ]
 }
