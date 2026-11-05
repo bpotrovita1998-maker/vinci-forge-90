@@ -3228,6 +3228,18 @@ export default function Scenes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <SceneVideoDialog
+        open={!!videoDialog}
+        mode={videoDialog?.mode ?? 'regenerate'}
+        sceneTitle={videoDialog?.scene.title ?? ''}
+        initialPrompt={videoDialog?.scene.description ?? ''}
+        initialDuration={videoDialog?.scene.duration ?? 5}
+        defaultCharacters={settings.character}
+        defaultStyle={settings.style}
+        isOwner={isAdmin}
+        onOpenChange={(open) => { if (!open) setVideoDialog(null); }}
+        onConfirm={handleVideoDialogConfirm}
+      />
     </div>
   );
 }
