@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { checkStorageRoom } from "../_shared/storage-plans.ts";
+import { requireCharge, withRefundOnFailure } from "../_shared/billing.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,10 +61,11 @@ const generateImageSchema = z.object({
   numImages: z.number().min(1).max(8).optional().default(1),
   upscaleQuality: z.number().min(2).max(8).optional().default(4),
   jobId: z.string().uuid().optional(),
+  purpose: z.enum(['reference']).optional(),
   characterConsistency: characterConsistencySchema,
 });
 
-serve(async (req) => {
+serve(withRefundOnFailure(async (req, billing) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -123,12 +125,29 @@ serve(async (req) => {
       );
     }
 
-    const { prompt, width, height, numImages, upscaleQuality, jobId, characterConsistency } = validationResult.data;
+    const { prompt, width, height, numImages, upscaleQuality, jobId, purpose, characterConsistency } = validationResult.data;
     const userId = user.id; // Derive from authenticated user
     
     // Initialize Supabase client with service role for database operations
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Make sure this generation is paid for before calling the AI
+    const charge = await requireCharge(supabase, {
+      userId,
+      jobRef: jobId,
+      step: purpose === 'reference' ? 'reference-image' : 'image',
+      cost: { type: 'image', numImages },
+      minUnits: purpose === 'reference' ? undefined : numImages,
+    });
+    if (!charge.ok) {
+      return new Response(
+        JSON.stringify({ error: charge.error, code: 'insufficient_credits' }),
+        { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    billing.jobRef = charge.jobRef;
+    billing.admin = supabase;
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -657,4 +676,4 @@ serve(async (req) => {
       }
     );
   }
-});
+}, corsHeaders));
