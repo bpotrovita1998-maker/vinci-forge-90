@@ -62,7 +62,7 @@ async def main() -> None:
         # New project
         await page.get_by_role("button", name="New Project").click()
         await page.get_by_placeholder("Enter project name...").fill("E2E test project")
-        await page.get_by_role("button", name="Create", exact=True).click()
+        await page.get_by_placeholder("Enter project name...").press("Enter")
         await page.wait_for_timeout(2500)
         check("new project created", await page.get_by_text("E2E test project").count() > 0)
 
