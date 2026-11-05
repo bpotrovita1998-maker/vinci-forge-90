@@ -14,6 +14,8 @@ const BodySchema = z.object({
   videoModel: z.string().max(40).optional(),
   numImages: z.number().int().min(1).max(8).optional(),
   numVideos: z.number().int().min(1).max(4).optional(),
+  durationSeconds: z.number().int().min(1).max(10).optional(),
+  resolution: z.enum(['720p', '1080p']).optional(),
 });
 
 const json = (body: unknown, status = 200) =>

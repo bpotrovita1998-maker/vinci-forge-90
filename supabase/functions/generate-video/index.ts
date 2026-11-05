@@ -429,7 +429,7 @@ serve(async (req) => {
           ? `${body.jobId ?? crypto.randomUUID()}:remix:${crypto.randomUUID()}`
           : body.jobId,
         step: `video-direct-${body.sceneIndex ?? 0}`,
-        cost: { type: 'video', videoModel: body.videoModel, numVideos: 1 },
+        cost: { type: 'video', videoModel: body.videoModel, numVideos: 1, durationSeconds: body.duration, resolution: body.resolution },
       });
       if (!charge.ok) {
         return new Response(
