@@ -1,256 +1,73 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { FREE_QUOTA_BYTES, STORAGE_PLAN_BY_PRICE } from "../_shared/storage-plans.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
-};
-
-const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
-};
+import type Stripe from "https://esm.sh/stripe@14.21.0";
+import { adminClient, corsHeaders, json } from "../_shared/auth-user.ts";
+import { getPackById } from "../_shared/subscription-plans.ts";
+import { createStripe, syncSubscription } from "../_shared/subscription-sync.ts";
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const stripe = createStripe();
+  const signature = req.headers.get("stripe-signature");
+  const secret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  if (!signature || !secret) return json({ error: "Missing signature" }, 400);
+
+  let event: Stripe.Event;
+  try {
+    event = await stripe.webhooks.constructEventAsync(await req.text(), signature, secret);
+  } catch (err) {
+    return json({ error: `Webhook Error: ${err instanceof Error ? err.message : String(err)}` }, 400);
   }
+
+  const admin = adminClient();
+
+  // Finds our user for a Stripe customer through the saved subscription row.
+  const userForCustomer = async (customerId: string): Promise<string | null> => {
+    const { data } = await admin.from("subscriptions").select("user_id").eq("stripe_customer_id", customerId).maybeSingle();
+    return data?.user_id ?? null;
+  };
 
   try {
-    logStep("Webhook received");
-
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2025-08-27.basil",
-    });
-
-    // Get webhook signature from headers
-    const signature = req.headers.get("stripe-signature");
-    if (!signature) {
-      throw new Error("No signature provided");
-    }
-
-    // Get raw body for signature verification
-    const body = await req.text();
-    
-    // Verify webhook signature
-    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-    if (!webhookSecret) {
-      throw new Error("STRIPE_WEBHOOK_SECRET not configured");
-    }
-
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-      logStep("Webhook signature verified", { type: event.type });
-    } catch (err: any) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      logStep("Webhook signature verification failed", { error: errorMsg });
-      return new Response(JSON.stringify({ error: `Webhook Error: ${errorMsg}` }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Create Supabase admin client for database operations
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
-
-    // Process event in background to respond quickly to Stripe
-    const processEvent = async () => {
-      try {
-        switch (event.type) {
-          case "checkout.session.completed": {
-            const session = event.data.object as Stripe.Checkout.Session;
-            logStep("Processing checkout.session.completed", { sessionId: session.id, mode: session.mode });
-
-            const userId = session.metadata?.user_id;
-            if (!userId) {
-              logStep("No user_id in session metadata");
-              break;
-            }
-
-            if (session.mode === "subscription" && session.metadata?.kind === "storage") {
-              // Storage plan purchase: set the user's storage quota
-              const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
-              const priceId = subscription.items.data[0]?.price.id ?? "";
-              const plan = STORAGE_PLAN_BY_PRICE[priceId];
-              if (plan) {
-                await supabase.from("storage_subscriptions").upsert({
-                  user_id: userId,
-                  plan: plan.plan,
-                  quota_bytes: plan.quotaBytes,
-                  status: "active",
-                  stripe_subscription_id: subscription.id,
-                  current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-                  updated_at: new Date().toISOString(),
-                }, { onConflict: "user_id" });
-                logStep("Storage plan activated", { userId, plan: plan.plan });
-              }
-            } else if (session.mode === "subscription") {
-              // Handle subscription purchase
-              const subscriptionId = session.subscription as string;
-              const customerId = session.customer as string;
-              
-              const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-              
-              await supabase
-                .from("subscriptions")
-                .update({
-                  status: "active",
-                  stripe_customer_id: customerId,
-                  stripe_subscription_id: subscriptionId,
-                  current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-                  current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("user_id", userId);
-
-              logStep("Subscription activated", { userId, subscriptionId });
-            } else if (session.mode === "payment") {
-              // Handle token purchase
-              const tokens = parseInt(session.metadata?.tokens || "0");
-              const amount = parseInt(session.metadata?.amount || "0");
-
-              if (tokens > 0) {
-                // Get current balance
-                const { data: currentBalance } = await supabase
-                  .from("token_balances")
-                  .select("balance, total_purchased")
-                  .eq("user_id", userId)
-                  .single();
-
-                if (currentBalance) {
-                  await supabase
-                    .from("token_balances")
-                    .update({
-                      balance: currentBalance.balance + tokens,
-                      total_purchased: currentBalance.total_purchased + tokens,
-                      updated_at: new Date().toISOString(),
-                    })
-                    .eq("user_id", userId);
-
-                  logStep("Tokens added", { userId, tokens, amount });
-                }
-              }
-            }
-            break;
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = session.metadata?.user_id;
+        if (!userId) break;
+        if (session.mode === "subscription" && session.customer) {
+          await syncSubscription(stripe, admin, userId, session.customer as string);
+        } else if (session.mode === "payment" && session.payment_status === "paid") {
+          const pack = getPackById(session.metadata?.pack_id);
+          if (pack) {
+            await admin.rpc("grant_credits", { _user_id: userId, _ref: `checkout:${session.id}`, _credits: pack.credits, _kind: pack.id });
           }
-
-          case "customer.subscription.updated": {
-            const subscription = event.data.object as Stripe.Subscription;
-            logStep("Processing customer.subscription.updated", { subscriptionId: subscription.id, status: subscription.status });
-
-            const customerId = subscription.customer as string;
-            
-            await supabase
-              .from("subscriptions")
-              .update({
-                status: subscription.status === "active" ? "active" : "inactive",
-                current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-                current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq("stripe_subscription_id", subscription.id);
-
-            logStep("Subscription updated", { subscriptionId: subscription.id, status: subscription.status });
-            break;
-          }
-
-          case "customer.subscription.deleted": {
-            const subscription = event.data.object as Stripe.Subscription;
-            logStep("Processing customer.subscription.deleted", { subscriptionId: subscription.id });
-
-            await supabase
-              .from("subscriptions")
-              .update({
-                status: "inactive",
-                current_period_start: null,
-                current_period_end: null,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("stripe_subscription_id", subscription.id);
-
-            // Storage plan cancelled: fall back to the free quota
-            await supabase
-              .from("storage_subscriptions")
-              .update({ plan: "free", quota_bytes: FREE_QUOTA_BYTES, stripe_subscription_id: null, current_period_end: null, updated_at: new Date().toISOString() })
-              .eq("stripe_subscription_id", subscription.id);
-
-            logStep("Subscription cancelled", { subscriptionId: subscription.id });
-            break;
-          }
-
-          case "invoice.payment_succeeded": {
-            const invoice = event.data.object as Stripe.Invoice;
-            logStep("Processing invoice.payment_succeeded", { invoiceId: invoice.id });
-
-            if (invoice.subscription) {
-              const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
-              
-              await supabase
-                .from("subscriptions")
-                .update({
-                  status: "active",
-                  current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-                  current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("stripe_subscription_id", invoice.subscription as string);
-
-              logStep("Subscription renewed", { subscriptionId: invoice.subscription });
-            }
-            break;
-          }
-
-          case "invoice.payment_failed": {
-            const invoice = event.data.object as Stripe.Invoice;
-            logStep("Processing invoice.payment_failed", { invoiceId: invoice.id });
-
-            if (invoice.subscription) {
-              await supabase
-                .from("subscriptions")
-                .update({
-                  status: "past_due",
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("stripe_subscription_id", invoice.subscription as string);
-
-              logStep("Subscription payment failed", { subscriptionId: invoice.subscription });
-            }
-            break;
-          }
-
-          default:
-            logStep("Unhandled event type", { type: event.type });
         }
-      } catch (error: any) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        logStep("ERROR processing event", { type: event.type, error: errorMsg });
+        break;
       }
-    };
-
-    // Process event asynchronously without blocking response
-    processEvent().catch((error) => {
-      logStep("ERROR in background processing", { error: String(error) });
-    });
-
-    // Return success immediately to Stripe
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-
+      case "invoice.paid":
+      case "invoice.payment_succeeded":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const obj = event.data.object as { customer?: string | null; metadata?: Record<string, string> | null };
+        const customerId = obj.customer as string | undefined;
+        if (!customerId) break;
+        const userId = obj.metadata?.user_id ?? (await userForCustomer(customerId));
+        if (userId) await syncSubscription(stripe, admin, userId, customerId);
+        break;
+      }
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        if (invoice.subscription) {
+          await admin.from("subscriptions").update({ status: "past_due", updated_at: new Date().toISOString() })
+            .eq("stripe_subscription_id", invoice.subscription as string);
+        }
+        break;
+      }
+      default:
+        break;
+    }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
+
+  return json({ received: true });
 });
