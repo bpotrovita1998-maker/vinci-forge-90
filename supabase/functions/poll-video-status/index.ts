@@ -22,7 +22,7 @@ serve(async (req) => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const { data: stuckJobs } = await supabase
       .from('jobs')
-      .select('*')
+      .select('id, manifest')
       .eq('type', 'video')
       .eq('status', 'running')
       .is('manifest->predictionId', null)
@@ -48,7 +48,7 @@ serve(async (req) => {
     // Find all running video jobs with prediction IDs
     const { data: runningJobs, error: fetchError } = await supabase
       .from('jobs')
-      .select('*')
+      .select('id, manifest')
       .eq('type', 'video')
       .eq('status', 'running')
       .not('manifest->predictionId', 'is', null);
