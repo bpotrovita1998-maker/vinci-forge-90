@@ -777,6 +777,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      jobs_with_base64_outputs: {
+        Args: { _limit: number }
+        Returns: {
+          id: string
+        }[]
+      }
       refund_generation: {
         Args: { _job_ref: string; _reason: string }
         Returns: boolean
