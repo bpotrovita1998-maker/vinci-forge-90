@@ -120,7 +120,7 @@ export default function UnityThreeDViewer({ modelUrl, transform }: UnityThreeDVi
         key={`model-${retryCount}`}
         shadows
         dpr={[1, 1.5]}
-        gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: true }}
+        gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: false }}
         camera={{ position: [0, 2, 5], fov: 50 }}
         onCreated={({ gl }) => {
           setIsLoading(false);

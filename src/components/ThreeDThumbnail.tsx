@@ -1,6 +1,6 @@
 import { Canvas, useThree } from '@react-three/fiber';
 import { useGLTF, PresentationControls, Environment, Grid } from '@react-three/drei';
-import { Suspense, Component, ReactNode, useState, useEffect, useRef } from 'react';
+import { Suspense, Component, ReactNode, useState, useEffect, useRef, useMemo } from 'react';
 import { Package, Loader2 } from 'lucide-react';
 import { posterCache, getPosterCacheKey } from '@/lib/posterCache';
 import * as THREE from 'three';
@@ -77,27 +77,85 @@ function Model({ url, unityTransform, isUnityModel }: { url: string; unityTransf
     }
   }, [gltf.scene, unityTransform, isUnityModel]);
   
-  return <primitive object={gltf.scene} scale={1} />;
+  // Center the model and scale it to a 2-unit box so every model is in view
+  const fitted = useMemo(() => {
+    if (isUnityModel) return { position: [0, 0, 0] as [number, number, number], scale: 1 };
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const scale = 2 / maxDim;
+    return { position: [-center.x * scale, -center.y * scale, -center.z * scale] as [number, number, number], scale };
+  }, [gltf.scene, isUnityModel]);
+
+  return <primitive object={gltf.scene} scale={fitted.scale} position={fitted.position} />;
 }
 
+/** True when the captured canvas is one flat color (model not drawn yet). */
+const isBlankCanvas = (canvas: HTMLCanvasElement): boolean => {
+  const probe = document.createElement('canvas');
+  probe.width = 16;
+  probe.height = 16;
+  const ctx = probe.getContext('2d');
+  if (!ctx) return false;
+  ctx.drawImage(canvas, 0, 0, 16, 16);
+  const data = ctx.getImageData(0, 0, 16, 16).data;
+  for (let i = 4; i < data.length; i += 4) {
+    if (Math.abs(data[i] - data[0]) > 4 || Math.abs(data[i + 1] - data[1]) > 4 || Math.abs(data[i + 2] - data[2]) > 4) return false;
+  }
+  return true;
+};
+
 function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) {
-  const { gl } = useThree();
+  const { gl, scene, camera } = useThree();
   
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Render explicitly (frameloop is "demand") and retry until the model is visible
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tryCapture = () => {
       try {
-        const dataUrl = gl.domElement.toDataURL('image/png');
+        gl.render(scene, camera);
+        attempts += 1;
+        if (isBlankCanvas(gl.domElement) && attempts < 10) {
+          timer = setTimeout(tryCapture, 300);
+          return;
+        }
+        const dataUrl = gl.domElement.toDataURL('image/webp', 0.8);
         onCapture(dataUrl);
       } catch (error) {
         console.error('Failed to capture poster:', error);
       }
-    }, 100);
-    
+    };
+    timer = setTimeout(tryCapture, 150);
     return () => clearTimeout(timer);
-  }, [gl, onCapture]);
+  }, [gl, scene, camera, onCapture]);
   
   return null;
 }
+
+const MAX_LIVE_CANVASES = 3;
+let liveCanvases = 0;
+const waiting: Array<() => void> = [];
+
+const acquireRenderSlot = (): Promise<void> =>
+  new Promise((resolve) => {
+    if (liveCanvases < MAX_LIVE_CANVASES) {
+      liveCanvases += 1;
+      resolve();
+    } else {
+      waiting.push(() => {
+        liveCanvases += 1;
+        resolve();
+      });
+    }
+  });
+
+const releaseRenderSlot = (): void => {
+  liveCanvases = Math.max(liveCanvases - 1, 0);
+  const next = waiting.shift();
+  if (next) next();
+};
 
 export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransform, isUnityModel }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
@@ -126,14 +184,33 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       { threshold: 0.1, rootMargin: '50px' }
     );
 
-    observer.observe(canvasRef.current);
+    const node = canvasRef.current;
+    observer.observe(node);
 
-    return () => {
-      if (canvasRef.current) {
-        observer.unobserve(canvasRef.current);
+    return () => observer.unobserve(node);
+    // Re-attach once the preview container exists (it mounts after URL validation)
+  }, [isUrlValidated, activeUrl, loadError]);
+
+  // Only a few tiles may hold a live WebGL canvas at once (browsers cap contexts)
+  const [hasRenderSlot, setHasRenderSlot] = useState(false);
+  useEffect(() => {
+    if (!isInView || cachedPosterUrl || posterUrl) return;
+    let cancelled = false;
+    let acquired = false;
+    acquireRenderSlot().then(() => {
+      if (cancelled) {
+        releaseRenderSlot();
+        return;
       }
+      acquired = true;
+      setHasRenderSlot(true);
+    });
+    return () => {
+      cancelled = true;
+      setHasRenderSlot(false);
+      if (acquired) releaseRenderSlot();
     };
-  }, []);
+  }, [isInView, cachedPosterUrl, posterUrl]);
 
   // Load cached poster from IndexedDB on mount
   useEffect(() => {
@@ -249,7 +326,14 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
         }
       }
       
-      // Validate non-Replicate URL before setting it
+      // Our own storage links are permanent: load directly, the error boundary handles failures
+      if (normalizedUrl && normalizedUrl.includes('/storage/v1/object/public/')) {
+        setActiveUrl(normalizedUrl);
+        setIsUrlValidated(true);
+        return;
+      }
+
+      // Validate other URLs before setting it
       if (normalizedUrl) {
         try {
           const response = await fetch(normalizedUrl, { method: 'HEAD' });
@@ -312,7 +396,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           ) : (
             <>
               <Package className="w-12 h-12 text-primary mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">{loadError ? 'Model expired' : '3D Model'}</p>
+              <p className="text-xs text-muted-foreground">{loadError ? 'Preview unavailable' : '3D model'}</p>
             </>
           )}
         </div>
@@ -332,7 +416,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       )}
       
       {/* If no cached poster, try to generate one with a SINGLE render */}
-      {!cachedPosterUrl && !posterUrl && !loadError && isInView && (
+      {!cachedPosterUrl && !posterUrl && !loadError && isInView && hasRenderSlot && (
         <>
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
@@ -350,7 +434,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
           alpha: true, 
           powerPreference: 'low-power', 
           preserveDrawingBuffer: true,
-          failIfMajorPerformanceCaveat: true // Prevent slow contexts
+          failIfMajorPerformanceCaveat: false // Still render on weak GPUs instead of showing nothing
         }}
         onCreated={({ gl }) => {
           // Use theme background color

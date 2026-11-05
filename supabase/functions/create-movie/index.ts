@@ -155,13 +155,13 @@ serve(async (req) => {
     const { data: signedData } = await supabaseClient
       .storage
       .from('generated-models')
-      .createSignedUrl(fileName, 604800);
+      .getPublicUrl(fileName); // permanent link
 
     if (!signedData) {
       throw new Error('Failed to create signed URL');
     }
 
-    const finalUrl = signedData.signedUrl;
+    const finalUrl = signedData.publicUrl;
     const totalDuration = sortedScenes.reduce((acc, s) => acc + s.duration, 0);
 
     // Save to long_videos table

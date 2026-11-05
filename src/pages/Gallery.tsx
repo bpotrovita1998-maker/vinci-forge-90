@@ -772,7 +772,7 @@ export default function Gallery() {
                         <Card className="glass border-border/30 overflow-hidden hover:shadow-xl transition-all group">
                           <div className="relative aspect-video bg-muted overflow-hidden">
                             {scene.videoUrl ? (
-                              <video src={scene.videoUrl} className="w-full h-full object-cover" loop muted onMouseEnter={(e) => e.currentTarget.play()} onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }} />
+                              <video src={`${scene.videoUrl}#t=0.1`} preload="metadata" playsInline className="w-full h-full object-cover" loop muted onMouseEnter={(e) => e.currentTarget.play()} onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }} />
                             ) : scene.imageUrl ? (
                               <img src={scene.imageUrl} alt={scene.title} className="w-full h-full object-cover" />
                             ) : null}
@@ -897,8 +897,10 @@ export default function Gallery() {
                             job.outputs.length > 1 ? (
                               <div className="relative w-full h-full">
                                 <video
-                                  src={getDisplayVideoUrl(job)}
+                                  src={`${getDisplayVideoUrl(job)}#t=0.1`}
                                   className="w-full h-full object-cover"
+                                  preload="metadata"
+                                  playsInline
                                   muted
                                   loop
                                   onMouseEnter={(e) => e.currentTarget.play()}
@@ -913,8 +915,10 @@ export default function Gallery() {
                               </div>
                             ) : (
                               <video
-                                src={getDisplayVideoUrl(job)}
+                                src={`${getDisplayVideoUrl(job)}#t=0.1`}
                                 className="w-full h-full object-cover"
+                                preload="metadata"
+                                playsInline
                                 muted
                                 loop
                                 onMouseEnter={(e) => e.currentTarget.play()}
@@ -1126,8 +1130,10 @@ export default function Gallery() {
                                 job.outputs.length > 1 ? (
                                   <div className="relative w-full h-full">
                                     <video
-                                      src={getDisplayVideoUrl(job)}
+                                      src={`${getDisplayVideoUrl(job)}#t=0.1`}
                                       className="w-full h-full object-cover"
+                                      preload="metadata"
+                                      playsInline
                                       muted
                                       loop
                                       onMouseEnter={(e) => e.currentTarget.play()}
@@ -1142,8 +1148,10 @@ export default function Gallery() {
                                   </div>
                                 ) : (
                                   <video
-                                    src={getDisplayVideoUrl(job)}
+                                    src={`${getDisplayVideoUrl(job)}#t=0.1`}
                                     className="w-full h-full object-cover"
+                                    preload="metadata"
+                                    playsInline
                                     muted
                                     loop
                                     onMouseEnter={(e) => e.currentTarget.play()}

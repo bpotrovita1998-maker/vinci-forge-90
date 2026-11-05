@@ -363,7 +363,8 @@ export function JobProvider({ children }: { children: ReactNode }) {
               outputsData.forEach((job: any) => {
                 // Prefer compressed_outputs if available, otherwise use outputs
                 // Skip any outputs that are base64 (they're too large and should be migrated)
-                const outputs = job.compressed_outputs || job.outputs || [];
+                const compressed = Array.isArray(job.compressed_outputs) && job.compressed_outputs.length > 0 ? job.compressed_outputs : null;
+                const outputs = compressed || job.outputs || [];
                 const validOutputs = Array.isArray(outputs) 
                   ? outputs.filter((o: string) => typeof o === 'string' && o.startsWith('http'))
                   : [];
