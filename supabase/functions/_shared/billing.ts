@@ -83,7 +83,7 @@ export function isProviderOutOfCredit(text: string): boolean {
   return /insufficient credit|payment required|\b402\b|billing.*(required|limit)/i.test(text);
 }
 
-async function reportProviderEmpty(admin: SupabaseClient): Promise<void> {
+export async function reportProviderEmpty(admin: SupabaseClient): Promise<void> {
   const { error } = await admin
     .from("provider_balance")
     .update({ empty_reported_at: new Date().toISOString() })
