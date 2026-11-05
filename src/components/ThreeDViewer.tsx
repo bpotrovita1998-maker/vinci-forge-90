@@ -258,7 +258,7 @@ export default function ThreeDViewer({
         camera={{ position: [0, 0, 5], fov: 50 }}
         className="w-full h-full"
         dpr={[1, 1.5]}
-        gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: true }}
+        gl={{ antialias: false, powerPreference: 'high-performance', failIfMajorPerformanceCaveat: false }}
         onCreated={({ gl }) => {
           const elem = gl.domElement as HTMLCanvasElement;
           const onLost = (e: any) => {
