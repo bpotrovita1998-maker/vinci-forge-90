@@ -195,22 +195,20 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
   const [hasRenderSlot, setHasRenderSlot] = useState(false);
   useEffect(() => {
     if (!isInView || cachedPosterUrl || posterUrl) return;
-    let released = false;
-    const release = () => {
-      if (released) return;
-      released = true;
-      releaseRenderSlot();
-    };
+    let cancelled = false;
+    let acquired = false;
     acquireRenderSlot().then(() => {
-      if (released) {
+      if (cancelled) {
         releaseRenderSlot();
         return;
       }
+      acquired = true;
       setHasRenderSlot(true);
     });
     return () => {
+      cancelled = true;
       setHasRenderSlot(false);
-      release();
+      if (acquired) releaseRenderSlot();
     };
   }, [isInView, cachedPosterUrl, posterUrl]);
 
