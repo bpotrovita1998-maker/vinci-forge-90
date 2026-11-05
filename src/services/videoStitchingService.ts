@@ -236,17 +236,11 @@ const stitchVideosWithScenesInternal = async (
   console.log('Upload successful');
 
   onProgress?.(95);
-  console.log('Creating signed URL...');
-
-  // Get signed URL
-  const { data: signedUrlData } = await supabase.storage
+  // Permanent public link (signed links expire and break saved videos)
+  const { data: publicUrlData } = supabase.storage
     .from('generated-models')
-    .createSignedUrl(fileName, 604800); // 7 days
-
-  if (!signedUrlData?.signedUrl) {
-    throw new Error('Failed to create signed URL');
-  }
-  console.log('Signed URL created:', signedUrlData.signedUrl.substring(0, 50) + '...');
+    .getPublicUrl(fileName);
+  const signedUrlData = { signedUrl: publicUrlData.publicUrl };
 
   onProgress?.(100);
   console.log('Cleaning up temporary files...');
