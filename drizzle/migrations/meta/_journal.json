@@ -36,6 +36,13 @@
       "when": 1793886752513,
       "tag": "0004_claim_step_checks_units_first",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793887688923,
+      "tag": "0005_subscription_plans_and_credit_grants",
+      "breakpoints": true
     }
   ]
 }

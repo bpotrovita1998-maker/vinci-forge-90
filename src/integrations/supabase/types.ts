@@ -74,6 +74,30 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_grants: {
+        Row: {
+          created_at: string
+          credits: number
+          kind: string
+          ref: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits: number
+          kind: string
+          ref: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits?: number
+          kind?: string
+          ref?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_instructions: {
         Row: {
           created_at: string
@@ -438,6 +462,7 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          plan: string
           status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -449,6 +474,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          plan?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -460,6 +486,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          plan?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -732,6 +759,15 @@ export type Database = {
       get_storage_usage: { Args: { _user_id: string }; Returns: number }
       grant_ad_generations: {
         Args: { _amount: number; _user_id: string }
+        Returns: boolean
+      }
+      grant_credits: {
+        Args: {
+          _credits: number
+          _kind: string
+          _ref: string
+          _user_id: string
+        }
         Returns: boolean
       }
       has_role: {
