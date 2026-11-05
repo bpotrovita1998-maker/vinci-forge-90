@@ -573,6 +573,11 @@ serve(async (req) => {
       console.log("Added style description");
     }
     
+    // Long prompts are rejected by the video models (E006); keep the most important part
+    if (enhancedPrompt && enhancedPrompt.length > 1500) {
+      enhancedPrompt = enhancedPrompt.slice(0, 1500);
+    }
+
     // Build model-specific input parameters
     let modelName: string;
     let modelInput: any;

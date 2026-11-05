@@ -1341,9 +1341,7 @@ export default function Scenes() {
         characters: request?.characters,
         motion: request?.motion,
         style: request?.style,
-        storyboardCharacter: settings.character,
-        storyboardStyle: settings.style,
-        storyboardBrand: settings.brand,
+        // Storyboard character and style are added on the server from the project settings
       });
       const clipDuration = normalizeClipDuration(request?.duration ?? scene.duration);
       // A picture without a video yet is animated from that picture
@@ -3268,8 +3266,6 @@ export default function Scenes() {
         sceneTitle={videoDialog?.scene.title ?? ''}
         initialPrompt={videoDialog?.scene.description ?? ''}
         initialDuration={videoDialog?.scene.duration ?? 5}
-        defaultCharacters={settings.character}
-        defaultStyle={settings.style}
         isOwner={isAdmin}
         onOpenChange={(open) => { if (!open) setVideoDialog(null); }}
         onConfirm={handleVideoDialogConfirm}
