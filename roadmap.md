@@ -14,4 +14,4 @@
 - [x] Lost videos/3D models restored to the gallery (60 items from saved files); video links now permanent; 3D previews centred and no longer cached blank
 - [x] Owner mode (GM pays Replicate directly), provider spend log, Generation history page
 - [x] Scenes: regenerate window (characters, motion, art style), Continue video button
-- [ ] Scenes: generate shots 4/5/6 and full button E2E
+- [x] Scenes: generate shots 4/5/6 and full button E2E
