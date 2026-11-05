@@ -6,11 +6,11 @@ export type VideoModel = "animatediff" | "haiper" | "veo";
 export type ActionType = "image_generation" | "video_generation" | "vectorization";
 
 export const CREDIT_PRICES = {
-  image: 1,
-  edit: 1,
-  video: { animatediff: 15, haiper: 30, veo: 120 } as Record<VideoModel, number>,
-  "3d": 10,
-  cad: 10,
+  image: 2,
+  edit: 2,
+  video: { animatediff: 22, haiper: 42, veo: 165 } as Record<VideoModel, number>,
+  "3d": 15,
+  cad: 15,
 } as const;
 
 export interface CostInput {

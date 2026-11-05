@@ -17,8 +17,8 @@ describe("server price list", () => {
   });
 
   it("uses the model the user picked for video", () => {
-    expect(calculateCost({ type: "video", videoModel: "haiper" }).credits).toBe(30);
-    expect(calculateCost({ type: "video", videoModel: "animatediff" }).credits).toBe(15);
+    expect(calculateCost({ type: "video", videoModel: "haiper" }).credits).toBe(42);
+    expect(calculateCost({ type: "video", videoModel: "animatediff" }).credits).toBe(22);
   });
 
   it("falls back to the most expensive video model for unknown names", () => {
