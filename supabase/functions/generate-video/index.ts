@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { splitPromptIntoScenes } from "../_shared/promptSplitter.ts";
 import { checkStorageRoom } from "../_shared/storage-plans.ts";
+import { refundCharge, requireCharge } from "../_shared/billing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -388,9 +389,41 @@ serve(async (req) => {
         }
       }
       
+      // Give the credits back when the provider could not make the video
+      if ((prediction.status === 'failed' || prediction.status === 'canceled') && body.jobId) {
+        await refundCharge(supabase, body.jobId, `Video ${prediction.status} at the AI provider`);
+      }
+
       return new Response(JSON.stringify(prediction), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Only trusted background tasks or signed-in users can start a video
+    const isServiceCall = authHeader === `Bearer ${supabaseServiceKey}`;
+    if (!authenticatedUserId && !isServiceCall) {
+      return new Response(
+        JSON.stringify({ error: 'Please sign in to generate videos' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Direct calls from the app must be paid before the AI is called.
+    // Queue-driven calls were paid when the job was created (checked in process-video-queue).
+    if (authenticatedUserId) {
+      const charge = await requireCharge(supabase, {
+        userId: authenticatedUserId,
+        jobRef: body.jobId,
+        step: `video-direct-${body.sceneIndex ?? 0}`,
+        cost: { type: 'video', videoModel: body.videoModel, numVideos: 1 },
+      });
+      if (!charge.ok) {
+        return new Response(
+          JSON.stringify({ error: charge.error, code: 'insufficient_credits' }),
+          { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      body.jobId = body.jobId ?? charge.jobRef;
     }
 
     // Handle multi-scene compilation (sceneImages provided)
@@ -865,6 +898,7 @@ serve(async (req) => {
           .eq('id', body.jobId);
           
         console.log(`Job ${body.jobId} marked as failed`);
+        await refundCharge(supabase, body.jobId, userFriendlyMessage);
       } catch (updateError) {
         console.error("Failed to update job status:", updateError);
       }
