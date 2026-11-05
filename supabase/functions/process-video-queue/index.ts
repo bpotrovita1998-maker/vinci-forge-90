@@ -21,7 +21,7 @@ serve(async (req) => {
     // Find all queued video jobs, ordered by creation time
     const { data: queuedJobs, error: fetchError } = await supabase
       .from('jobs')
-      .select('*')
+      .select('id, manifest, prompt, duration, fps, width, height, num_videos')
       .eq('type', 'video')
       .eq('status', 'queued')
       .order('created_at', { ascending: true })
