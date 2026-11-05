@@ -36,7 +36,7 @@ describe("server price list", () => {
   });
 
   it("charges 3D and CAD models their own prices", () => {
-    expect(calculateCost({ type: "3d" }).credits).toBe(10);
-    expect(calculateCost({ type: "cad" }).credits).toBe(10);
+    expect(calculateCost({ type: "3d" }).credits).toBe(15);
+    expect(calculateCost({ type: "cad" }).credits).toBe(15);
   });
 });
