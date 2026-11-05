@@ -90,6 +90,7 @@ export function Pricing() {
         description="Creator, Studio and Business plans with storage and monthly AI credits included, plus credit packs when you need more."
         keywords="VinciAI pricing, AI video generator cost, subscription plans, AI credits"
       />
+      <div className="h-20" />
       <div className="min-h-screen bg-gradient-to-b from-background to-background/80 py-12 px-4">
         <div className="max-w-6xl mx-auto space-y-14">
           <div className="text-center space-y-4">
