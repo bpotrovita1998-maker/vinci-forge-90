@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Replicate from "https://esm.sh/replicate@0.25.2";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { refundCharge, requireCharge, withRefundOnFailure } from "../_shared/billing.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,7 +47,7 @@ const generate3DSchema = z.object({
   cancel: z.boolean().optional(),
 });
 
-serve(async (req) => {
+serve(withRefundOnFailure(async (req, billing) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -430,4 +431,4 @@ serve(async (req) => {
       }
     );
   }
-});
+}, corsHeaders));
