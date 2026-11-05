@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { requireCharge, refundCharge } from "../_shared/billing.ts";
+import { getUser } from "../_shared/auth-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,9 +58,24 @@ serve(async (req) => {
       .eq('id', jobId)
       .single();
 
-    if (jobError || !job) {
-      console.error("❌ Job not found:", jobError);
-      throw new Error('Job not found');
+    const user = await getUser(req, supabase);
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Please sign in' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    if (jobError || !job || job.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Video not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // A scene redo calls the AI video model again, so it is charged like a new video
+    const redoRef = `${jobId}:redo:${sceneIndex}:${crypto.randomUUID()}`;
+    const charge = await requireCharge(supabase, {
+      userId: user.id,
+      jobRef: redoRef,
+      step: 'scene-redo',
+      cost: { type: 'video', videoModel: (job.manifest as { videoModel?: string } | null)?.videoModel ?? job.video_mode ?? undefined, numVideos: 1 },
+    });
+    if (!charge.ok) {
+      return new Response(JSON.stringify({ error: charge.error, code: 'insufficient_credits' }), { status: charge.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
     console.log("✅ Job found:", {
@@ -162,6 +179,7 @@ serve(async (req) => {
     });
 
     if (generateError) {
+      await refundCharge(supabase, redoRef, 'Scene redo could not start');
       console.error('❌ Error starting generation:', generateError);
       console.error('Error details:', JSON.stringify(generateError, null, 2));
       throw generateError;
