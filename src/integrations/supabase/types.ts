@@ -711,7 +711,12 @@ export type Database = {
         Returns: boolean
       }
       claim_generation_step: {
-        Args: { _job_ref: string; _step: string; _user_id: string }
+        Args: {
+          _job_ref: string
+          _min_units?: number
+          _step: string
+          _user_id: string
+        }
         Returns: Json
       }
       deduct_tokens: {
