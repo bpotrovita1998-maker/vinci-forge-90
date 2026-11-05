@@ -261,6 +261,8 @@ serve(withRefundOnFailure(async (req, billing) => {
               progress_percent: 50,
               progress_message: 'AI model processing 3D geometry...'
             };
+          } else if (predStatus === 'failed' || predStatus === 'canceled') {
+            await refundCharge(supabase, jobId, `CAD generation ${predStatus} at the AI provider`);
           }
           
           if (updateData) {
