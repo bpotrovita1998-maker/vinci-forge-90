@@ -134,6 +134,29 @@ function PosterCapture({ onCapture }: { onCapture: (dataUrl: string) => void }) 
   return null;
 }
 
+const MAX_LIVE_CANVASES = 3;
+let liveCanvases = 0;
+const waiting: Array<() => void> = [];
+
+const acquireRenderSlot = (): Promise<void> =>
+  new Promise((resolve) => {
+    if (liveCanvases < MAX_LIVE_CANVASES) {
+      liveCanvases += 1;
+      resolve();
+    } else {
+      waiting.push(() => {
+        liveCanvases += 1;
+        resolve();
+      });
+    }
+  });
+
+const releaseRenderSlot = (): void => {
+  liveCanvases = Math.max(liveCanvases - 1, 0);
+  const next = waiting.shift();
+  if (next) next();
+};
+
 export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransform, isUnityModel }: ThreeDThumbnailProps) {
   const [loadError, setLoadError] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
@@ -161,14 +184,35 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       { threshold: 0.1, rootMargin: '50px' }
     );
 
-    observer.observe(canvasRef.current);
+    const node = canvasRef.current;
+    observer.observe(node);
 
-    return () => {
-      if (canvasRef.current) {
-        observer.unobserve(canvasRef.current);
-      }
+    return () => observer.unobserve(node);
+    // Re-attach once the preview container exists (it mounts after URL validation)
+  }, [isUrlValidated, activeUrl, loadError]);
+
+  // Only a few tiles may hold a live WebGL canvas at once (browsers cap contexts)
+  const [hasRenderSlot, setHasRenderSlot] = useState(false);
+  useEffect(() => {
+    if (!isInView || cachedPosterUrl || posterUrl) return;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      releaseRenderSlot();
     };
-  }, []);
+    acquireRenderSlot().then(() => {
+      if (released) {
+        releaseRenderSlot();
+        return;
+      }
+      setHasRenderSlot(true);
+    });
+    return () => {
+      setHasRenderSlot(false);
+      release();
+    };
+  }, [isInView, cachedPosterUrl, posterUrl]);
 
   // Load cached poster from IndexedDB on mount
   useEffect(() => {
@@ -374,7 +418,7 @@ export default function ThreeDThumbnail({ modelUrl, jobId, userId, unityTransfor
       )}
       
       {/* If no cached poster, try to generate one with a SINGLE render */}
-      {!cachedPosterUrl && !posterUrl && !loadError && isInView && (
+      {!cachedPosterUrl && !posterUrl && !loadError && isInView && hasRenderSlot && (
         <>
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
