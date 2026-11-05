@@ -1,15 +1,26 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { calculateCost } from '../_shared/pricing.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface TokenRequest {
-  jobId: string;
-  actionType: 'image_generation' | 'video_generation' | 'vectorization';
-  estimatedTokens: number;
-}
+// The browser only says WHAT it wants to generate. The price is decided here.
+const BodySchema = z.object({
+  jobId: z.string().uuid(),
+  type: z.enum(['image', 'video', '3d', 'cad']),
+  videoModel: z.string().max(40).optional(),
+  numImages: z.number().int().min(1).max(8).optional(),
+  numVideos: z.number().int().min(1).max(4).optional(),
+});
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,73 +29,38 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
+    if (!authHeader) return json({ error: 'Unauthorized' }, 401);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return json({ error: 'Unauthorized' }, 401);
+
+    const parsed = BodySchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return json({ error: 'Invalid generation request', details: parsed.error.flatten().fieldErrors }, 400);
     }
 
-    // Create client with user's token for authentication
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader }
-        }
-      }
-    );
+    const price = calculateCost(parsed.data);
+    const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
 
-    // Verify user
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-
-    if (authError || !user) {
-      console.error('Auth error:', authError);
-      throw new Error('Unauthorized');
-    }
-
-    // Create admin client for database operations
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { jobId, actionType, estimatedTokens }: TokenRequest = await req.json();
-
-    // Call the deduct_tokens function
-    const { data, error } = await supabase.rpc('deduct_tokens', {
+    const { data, error } = await admin.rpc('charge_generation', {
       _user_id: user.id,
-      _amount: estimatedTokens,
-      _job_id: jobId,
-      _action_type: actionType
+      _job_ref: parsed.data.jobId,
+      _action_type: price.actionType,
+      _credits: price.credits,
+      _units: price.units,
     });
 
     if (error) {
-      console.error('Token deduction error:', error);
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+      return json({ error: error.message, code: 'insufficient_credits' }, 402);
     }
 
-    return new Response(
-      JSON.stringify({ success: true, deducted: estimatedTokens }),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-
+    return json({ success: true, charged: price.credits, units: price.units, result: data });
   } catch (error) {
-    console.error('Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    console.error('check-and-deduct-tokens error:', error);
+    return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
   }
 });
