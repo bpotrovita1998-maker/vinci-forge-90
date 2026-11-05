@@ -5,3 +5,4 @@
 - Credit charge/claim/refund database functions are executable by `service_role` only. Why: app users must not move their own balances.
 - Plans, storage quotas, monthly credits and credit packs live only in `supabase/functions/_shared/subscription-plans.ts` (the browser re-exports it). Why: one list for checkout, webhooks, quotas and the Pricing page.
 - Credits are added only through the idempotent `grant_credits` function with a unique ref (`invoice:<id>`, `checkout:<id>`). Why: the webhook, the return page and the subscription check may all fire for the same payment.
+- Generated media (images, videos, 3D/CAD) must be uploaded to the `generated-models` bucket and saved as permanent public URLs; never store base64, signed URLs or provider (replicate.delivery) URLs in `jobs.outputs`. Why: signed and provider links expire and base64 bloats the database.
