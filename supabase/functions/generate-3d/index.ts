@@ -267,6 +267,7 @@ serve(withRefundOnFailure(async (req, billing) => {
               updated_at: new Date().toISOString()
             })
             .eq('id', jobId);
+          await refundCharge(supabase, jobId, '3D generation failed at the AI provider');
         }
         
         return new Response(
