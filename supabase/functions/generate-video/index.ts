@@ -815,6 +815,12 @@ serve(async (req) => {
         input: modelInput
       });
 
+      await recordProviderRun(supabase, {
+        jobRef: chargedRef ?? body.jobId,
+        model: modelName,
+        predictionId: prediction.id,
+        costUsd: estimateProviderCostUsd(videoModel, body.resolution, body.duration),
+      });
       console.log("✅ Prediction created successfully!");
       console.log("Prediction ID:", prediction.id);
       console.log("Prediction status:", prediction.status);

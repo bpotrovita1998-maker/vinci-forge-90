@@ -58,3 +58,20 @@ export function calculateCost(input: CostInput): CostResult {
       throw new Error("Unknown generation type");
   }
 }
+
+/**
+ * Estimated real Replicate cost in USD per second of output video, by model and
+ * resolution. Used only for owner spend reports and the low-balance warning.
+ */
+export const PROVIDER_USD_PER_SECOND: Record<VideoModel, { "720p": number; "1080p": number }> = {
+  animatediff: { "720p": 0.1, "1080p": 0.15 },
+  haiper: { "720p": 0.05, "1080p": 0.1 },
+  veo: { "720p": 0.15, "1080p": 0.15 },
+};
+
+export function estimateProviderCostUsd(model: string | undefined, resolution: string | undefined, durationSeconds: number | undefined): number {
+  const rates = PROVIDER_USD_PER_SECOND[normalizeVideoModel(model)];
+  const rate = resolution === "1080p" ? rates["1080p"] : rates["720p"];
+  const seconds = Math.max(1, Math.min(Number(durationSeconds ?? 5) || 5, 20));
+  return Math.round(rate * seconds * 10000) / 10000;
+}
