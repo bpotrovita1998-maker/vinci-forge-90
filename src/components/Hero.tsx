@@ -495,21 +495,6 @@ export default function Hero() {
         return;
       }
 
-      // Content moderation check (silent, no toast)
-      setIsGenerating(true);
-
-      const moderationResult = await moderationService.moderatePrompt(sanitizationResult.sanitized);
-      
-      if (!moderationResult.safe) {
-        setIsGenerating(false);
-        toast({
-          title: "Content policy violation",
-          description: moderationResult.reason || "Your prompt contains content that violates our policies. Please modify and try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
       // PRO gating and free image guard before hitting backend
       const isPro = isAdmin || subscription?.status === 'active';
       const requestedType = options.type || 'image';
@@ -532,6 +517,22 @@ export default function Hero() {
         // Backend will handle token deduction via check-and-deduct-tokens
         // Just refresh balance after generation completes
       }
+
+      // Content moderation check (silent, no toast)
+      setIsGenerating(true);
+
+      const moderationResult = await moderationService.moderatePrompt(sanitizationResult.sanitized);
+      
+      if (!moderationResult.safe) {
+        setIsGenerating(false);
+        toast({
+          title: "Content policy violation",
+          description: moderationResult.reason || "Your prompt contains content that violates our policies. Please modify and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       
       setIsGenerating(true);
       
