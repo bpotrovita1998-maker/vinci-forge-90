@@ -4,7 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { splitPromptIntoScenes } from "../_shared/promptSplitter.ts";
 import { checkStorageRoom } from "../_shared/storage-plans.ts";
-import { refundCharge, requireCharge } from "../_shared/billing.ts";
+import { refundCharge, requireCharge, recordProviderRun } from "../_shared/billing.ts";
+import { estimateProviderCostUsd } from "../_shared/pricing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -576,26 +577,21 @@ serve(async (req) => {
     let modelInput: any;
     
     if (videoModel === 'animatediff') {
-      // Wan 2.5 T2V Fast model - supports 5-10 second videos in Full HD
-      modelName = "wan-video/wan-2.5-t2v-fast";
-      const resolution = body.resolution || '1080p';
-      const duration = body.duration || 10; // Support 5-10 seconds, default 10
-      
-      // Map resolution to width*height format that Wan expects
-      let sizeString = '1920*1080'; // Full HD default
-      if (resolution === '720p') {
-        sizeString = '1280*720';
+      // Wan 2.5 (standard). The "fast" variants fail at the provider with E002.
+      // A start image switches to image-to-video so a clip can continue from a frame.
+      const resolution = body.resolution === '1080p' ? '1080p' : '720p';
+      const duration = body.duration && Number(body.duration) >= 10 ? 10 : 5;
+      const negative = body.negativePrompt || "blur, haze, deformed, distorted, disfigured, poorly drawn, bad anatomy, extra limb, missing limb, mutated hands";
+      const seed = body.seed && body.seed !== -1 ? body.seed : Math.floor(Math.random() * 1000000);
+      if (body.startImage) {
+        modelName = "wan-video/wan-2.5-i2v";
+        modelInput = { prompt: enhancedPrompt, image: body.startImage, negative_prompt: negative, seed, duration, resolution, enable_prompt_expansion: true };
+      } else {
+        modelName = "wan-video/wan-2.5-t2v";
+        modelInput = { prompt: enhancedPrompt, negative_prompt: negative, seed, duration, size: resolution === '1080p' ? '1920*1080' : '1280*720', enable_prompt_expansion: true };
       }
-      
-      modelInput = {
-        prompt: enhancedPrompt,
-        negative_prompt: body.negativePrompt || "blur, haze, deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, mutated hands and fingers, deformed, distorted, disfigured, poorly drawn, bad anatomy, wrong anatomy, extra limb, missing limb, floating limbs, disconnected limbs, mutation, mutated, ugly, disgusting, amputation",
-        seed: body.seed && body.seed !== -1 ? body.seed : Math.floor(Math.random() * 1000000),
-        size: sizeString,
-        duration: duration, // Wan supports 5-10 seconds
-        enable_prompt_expansion: true,
-      };
-      console.log(`Using Wan 2.5 T2V Fast model with ${resolution} (${sizeString}), duration: ${duration}s`);
+      body.duration = duration;
+      body.resolution = resolution;
     } else if (videoModel === 'haiper') {
       // Haiper model - supports 720p and 1080p, 2 or 4 seconds
       modelName = "haiper-ai/haiper-video-2";
@@ -682,6 +678,12 @@ serve(async (req) => {
           input: modelInput
         });
         
+        await recordProviderRun(supabase, {
+          jobRef: chargedRef ?? body.jobId,
+          model: modelName,
+          predictionId: prediction.id,
+          costUsd: estimateProviderCostUsd(videoModel, body.resolution, body.duration),
+        });
         console.log("✅ Wan 2.5 prediction created successfully!");
         console.log("Prediction ID:", prediction.id);
         console.log("Prediction status:", prediction.status);
